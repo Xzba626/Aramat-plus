@@ -1,15 +1,19 @@
-import { auth } from "@/lib/auth";
-import { homePathForRole } from "@/lib/rbac";
-import { Role } from "@prisma/client";
+import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { authConfig, homePathForRole } from "@/lib/auth.config";
+
+/**
+ * Edge middleware — only edge-safe auth.config (no Prisma / bcrypt).
+ * Full auth lives in src/lib/auth.ts for API / RSC.
+ */
+const { auth } = NextAuth(authConfig);
 
 const publicPaths = ["/login"];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isLoggedIn = !!req.auth;
-  const role = req.auth?.user?.role as Role | undefined;
+  const role = req.auth?.user?.role as string | undefined;
 
   if (pathname.startsWith("/api/auth")) {
     return NextResponse.next();
@@ -27,40 +31,44 @@ export default auth((req) => {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const login = new URL("/login", req.url);
-    // Relative path only — absolute localhost breaks phone / LAN clients
-    login.searchParams.set("callbackUrl", pathname.startsWith("/") ? pathname : "/");
+    login.searchParams.set(
+      "callbackUrl",
+      pathname.startsWith("/") ? pathname : "/"
+    );
     return NextResponse.redirect(login);
   }
 
-  // Seller only POS
-  if (role === Role.SELLER) {
+  if (role === "SELLER") {
     if (
       pathname.startsWith("/dashboard") ||
       pathname.startsWith("/warehouse") ||
       pathname.startsWith("/stores") ||
       pathname.startsWith("/transfers") ||
-      pathname.startsWith("/settings")
+      pathname.startsWith("/settings") ||
+      pathname.startsWith("/analytics") ||
+      pathname.startsWith("/users") ||
+      pathname.startsWith("/revision") ||
+      pathname.startsWith("/returns") ||
+      pathname.startsWith("/journal") ||
+      pathname.startsWith("/notifications")
     ) {
       return NextResponse.redirect(new URL("/pos", req.url));
     }
   }
 
-  // Owner/Manager blocked from nothing in owner area; sellers can't hit owner APIs — enforced in routes
-  if (
-    (role === Role.OWNER || role === Role.MANAGER) &&
-    pathname.startsWith("/pos")
-  ) {
-    // Allowed to view stub if needed — redirect to dashboard instead
+  if ((role === "OWNER" || role === "MANAGER") && pathname.startsWith("/pos")) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
   if (pathname === "/") {
-    return NextResponse.redirect(new URL(homePathForRole(role!), req.url));
+    return NextResponse.redirect(new URL(homePathForRole(role), req.url));
   }
 
   return NextResponse.next();
 });
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };

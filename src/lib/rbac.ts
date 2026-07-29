@@ -1,5 +1,6 @@
 import { Role } from "@prisma/client";
 import { NextResponse } from "next/server";
+import { homePathForRole as homePath } from "@/lib/auth.config";
 
 export type SessionUser = {
   id: string;
@@ -12,7 +13,10 @@ export type SessionUser = {
 
 const OWNER_MANAGER: Role[] = [Role.OWNER, Role.MANAGER];
 
-export function hasRole(user: SessionUser | null | undefined, roles: Role[]): boolean {
+export function hasRole(
+  user: SessionUser | null | undefined,
+  roles: Role[]
+): boolean {
   if (!user) return false;
   return roles.includes(user.role);
 }
@@ -24,7 +28,6 @@ export function canManageUsers(user: SessionUser): boolean {
 export function canViewWarehouseFinance(user: SessionUser): boolean {
   return user.role === Role.OWNER;
 }
-
 
 export function canAccessOwnerArea(user: SessionUser): boolean {
   return OWNER_MANAGER.includes(user.role);
@@ -56,6 +59,5 @@ export function requireSeller(user: SessionUser | null | undefined) {
 }
 
 export function homePathForRole(role: Role): string {
-  if (role === Role.SELLER) return "/pos";
-  return "/dashboard";
+  return homePath(role);
 }
