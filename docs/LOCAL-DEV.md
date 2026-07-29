@@ -21,6 +21,7 @@ Default Docker DB URL is already in `.env.example`:
 
 ```
 DATABASE_URL="postgresql://aromat:aromat@localhost:5432/aromat_plus?schema=public"
+DIRECT_URL="postgresql://aromat:aromat@localhost:5432/aromat_plus?schema=public"
 ```
 
 Generate `AUTH_SECRET` (PowerShell):

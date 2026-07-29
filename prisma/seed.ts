@@ -250,19 +250,83 @@ async function main() {
     },
   });
 
-  // Foundation: сразу положить товар в Магазин №1, чтобы Seller POS не был пустым
-  const { createTransfer } = await import("../src/lib/services/transfer.service");
-  await createTransfer({
-    companyId: company.id,
-    fromWarehouseId: warehouse.id,
-    toStoreId: store1.id,
-    createdById: owner.id,
-    items: [
-      { productId: p1.id, quantity: 30 },
-      { productId: p3.id, quantity: 20 },
-    ],
-    notes: "Seed: стартовые остатки Магазин №1",
+  // Store №1 starter stock — sequential (no interactive $transaction).
+  // createTransfer uses prisma.$transaction(async tx => …); on Neon *pooler*
+  // URLs that throws P2028 "Transaction not found". Seed stays re-runnable via deleteMany.
+  const seedTransferLines = [
+    { productId: p1.id, quantity: 30 },
+    { productId: p3.id, quantity: 20 },
+  ];
+
+  const seedTransfer = await prisma.transfer.create({
+    data: {
+      fromWarehouseId: warehouse.id,
+      toStoreId: store1.id,
+      createdById: owner.id,
+      status: "COMPLETED",
+      notes: "Seed: стартовые остатки Магазин №1",
+    },
   });
+
+  for (const line of seedTransferLines) {
+    const whBatch = await prisma.batch.findFirst({
+      where: {
+        productId: line.productId,
+        locationType: LocationType.WAREHOUSE,
+        locationId: warehouse.id,
+        quantity: { gt: 0 },
+      },
+      orderBy: { receivedAt: "asc" },
+    });
+    if (!whBatch || Number(whBatch.quantity) < line.quantity) {
+      throw new Error(`Seed: недостаточно склада для ${line.productId}`);
+    }
+
+    await prisma.batch.update({
+      where: { id: whBatch.id },
+      data: { quantity: { decrement: line.quantity } },
+    });
+    await prisma.stockBalance.update({
+      where: {
+        productId_locationType_locationId: {
+          productId: line.productId,
+          locationType: LocationType.WAREHOUSE,
+          locationId: warehouse.id,
+        },
+      },
+      data: { quantity: { decrement: line.quantity } },
+    });
+
+    const transferItem = await prisma.transferItem.create({
+      data: {
+        transferId: seedTransfer.id,
+        productId: line.productId,
+        quantity: line.quantity,
+        sourceBatchId: whBatch.id,
+        costPerUnit: whBatch.costPerUnit,
+      },
+    });
+
+    await prisma.batch.create({
+      data: {
+        productId: line.productId,
+        locationType: LocationType.STORE,
+        locationId: store1.id,
+        quantity: line.quantity,
+        costPerUnit: whBatch.costPerUnit,
+        notes: `Seed transfer ${seedTransfer.id}`,
+        transferItemId: transferItem.id,
+      },
+    });
+    await prisma.stockBalance.create({
+      data: {
+        productId: line.productId,
+        locationType: LocationType.STORE,
+        locationId: store1.id,
+        quantity: line.quantity,
+      },
+    });
+  }
 
   console.log("Seed complete.");
   console.log("  Owner:   owner@aromat.plus / owner1234");

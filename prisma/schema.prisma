@@ -3,8 +3,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Neon: set DIRECT_URL to the *non-pooler* host. Migrations + interactive
+  // $transaction need it; pooler URLs often cause P2028 "Transaction not found".
+  directUrl = env("DIRECT_URL")
 }
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
