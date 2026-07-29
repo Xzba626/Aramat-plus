@@ -7,7 +7,7 @@ import { useT } from "@/components/i18n/i18n-provider";
 
 /** Mobile-only: 4 primary warehouse tasks — not the full desktop tree. */
 const MOBILE_TABS = [
-  { href: "/warehouse", labelKey: "nav.warehouseOverview", exact: true },
+  { href: "/warehouse", labelKey: "nav.warehouseOverview" },
   { href: "/warehouse/products", labelKey: "nav.warehouseCatalog" },
   { href: "/warehouse/receive", labelKey: "nav.warehouseReceive" },
   { href: "/warehouse/history", labelKey: "nav.warehouseHistory" },
@@ -23,9 +23,10 @@ export function WarehouseMobileTabs() {
       aria-label={t("nav.subnavWarehouse")}
     >
       {MOBILE_TABS.map((tab) => {
-        const active = tab.exact
-          ? pathname === "/warehouse" || pathname === "/warehouse/"
-          : pathname === tab.href || pathname.startsWith(`${tab.href}/`);
+        const active =
+          tab.href === "/warehouse"
+            ? pathname === "/warehouse" || pathname === "/warehouse/"
+            : pathname === tab.href || pathname.startsWith(`${tab.href}/`);
         return (
           <Link
             key={tab.href}
