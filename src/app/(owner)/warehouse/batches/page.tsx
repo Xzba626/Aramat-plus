@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { formatMoney, decimalToNumber } from "@/lib/utils";
 import Link from "next/link";
 import { LocationType, Role } from "@prisma/client";
+
 export default async function BatchesPage() {
   const session = await auth();
   const companyId = session!.user.companyId;
-      const showFinance = session!.user.role === Role.OWNER;
+  const showFinance = session!.user.role === Role.OWNER;
 
   const warehouse = await prisma.warehouse.findFirst({
     where: { companyId, isActive: true },
@@ -33,7 +34,7 @@ export default async function BatchesPage() {
       <PageHeader
         title="Партии"
         count={batches.length}
-        subtitle="FIFO · партии никогда не объединяются · двойной клик не нужен — карточка по клику"
+        subtitle="FIFO · партии никогда не объединяются · карточка открывается по клику"
         actions={
           <Link href="/warehouse/receive">
             <Button fullWidth={false}>+ Поступление</Button>
@@ -58,8 +59,11 @@ export default async function BatchesPage() {
           </Link>
         ))}
         {batches.length === 0 ? (
-          <Card className="p-8 text-center text-muted">Нет партий с остатком</Card>
+          <Card className="p-8 text-center text-muted">
+            Нет партий с остатком
+          </Card>
         ) : null}
       </div>
     </div>
- 
+  );
+}

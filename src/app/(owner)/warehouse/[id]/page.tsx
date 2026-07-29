@@ -3,11 +3,11 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { Role } from "@prisma/client";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
 import { formatMoney } from "@/lib/utils";
-import { Role } from "@prisma/client";
 
 type Batch = {
   id: string;
@@ -44,7 +44,9 @@ export default function ProductDetailPage() {
     if (res.ok) {
       setProduct(data);
       setPrice(String(data.salePrice));
-    } else setError(data.error || "Ошибка");
+    } else {
+      setError(data.error || "Ошибка");
+    }
   }
 
   useEffect(() => {
@@ -72,7 +74,7 @@ export default function ProductDetailPage() {
       return;
     }
     setMsg("Партия добавлена (отдельно, без объединения)");
-    (e.target as HTMLFormElement).reset();
+    e.currentTarget.reset();
     load();
     router.refresh();
   }
@@ -99,7 +101,7 @@ export default function ProductDetailPage() {
     return (
       <>
         <PageHeader title="Товар" />
-        <div className="p-6 text-text-dim">{error || "Загрузка…"}</div>
+        <div className="p-6 text-muted">{error || "Загрузка…"}</div>
       </>
     );
   }
@@ -113,7 +115,7 @@ export default function ProductDetailPage() {
       <PageHeader title={product.name} />
       <div className="space-y-3">
         <Card>
-          <div className="text-sm text-text-dim">
+          <div className="text-sm text-muted">
             {product.brand?.name ?? "—"} ·{" "}
             {product.accountingType === "WEIGHT" ? "на разлив" : "поштучно"}
           </div>
@@ -125,18 +127,18 @@ export default function ProductDetailPage() {
         <SectionTitle>Партии на складе</SectionTitle>
         <Card>
           {warehouseBatches.length === 0 ? (
-            <div className="py-4 text-center text-text-dim">Нет остатков</div>
+            <div className="py-4 text-center text-muted">Нет остатков</div>
           ) : (
             warehouseBatches.map((b, i) => (
               <div
                 key={b.id}
-                className="border-b border-line py-3 last:border-0"
+                className="border-b border-border py-3 last:border-0"
               >
                 <div className="font-semibold">
                   Партия #{i + 1} · {Number(b.quantity)}
                   {product.unit?.symbol ?? ""}
                 </div>
-                <div className="mt-0.5 text-xs text-text-dim">
+                <div className="mt-0.5 text-xs text-muted">
                   {showCost
                     ? `с/с ${formatMoney(Number(b.costPerUnit))} · `
                     : ""}
@@ -182,4 +184,8 @@ export default function ProductDetailPage() {
         </form>
 
         {error ? <p className="text-sm text-danger">{error}</p> : null}
-        {msg ? <p className="text-sm text-s
+        {msg ? <p className="text-sm text-success">{msg}</p> : null}
+      </div>
+    </>
+  );
+}
