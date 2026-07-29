@@ -1,0 +1,222 @@
+"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import {
+  BarChart3,
+  Home,
+  Package,
+  Settings,
+  Store,
+  Warehouse,
+  type LucideIcon,
+} from "lucide-react";
+import { Role } from "@prisma/client";
+import { cn } from "@/lib/utils";
+import {
+  filterNavForRole,
+  isPathActive,
+  type OwnerNavItem,
+  type OwnerNavSection,
+} from "@/lib/navigation/owner-nav";
+
+const ICONS: Record<string, LucideIcon> = {
+  home: Home,
+  warehouse: Warehouse,
+  stores: Store,
+  analytics: BarChart3,
+  settings: Settings,
+};
+
+function NavIcon({ name }: { name: string }) {
+  const Icon = ICONS[name] ?? Package;
+  return <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} aria-hidden />;
+}
+
+function SubNavLink({
+  item,
+  pathname,
+  onClose,
+}: {
+  item: OwnerNavItem;
+  pathname: string;
+  onClose?: () => void;
+}) {
+  const active = isPathActive(pathname, item.href);
+  return (
+    <Link
+      href={item.href}
+      onClick={onClose}
+      className={cn(
+        "flex items-center rounded-lg py-1.5 pl-10 pr-3 text-[13px] transition",
+        active
+          ? "bg-white/10 font-semibold text-white"
+          : "text-sidebar-text/85 hover:bg-sidebar-hover hover:text-white"
+      )}
+    >
+      {item.label}
+    </Link>
+  );
+}
+
+function SectionLink({
+  section,
+  pathname,
+  expanded,
+  onToggle,
+  onClose,
+}: {
+  section: OwnerNavSection;
+  pathname: string;
+  expanded: boolean;
+  onToggle: () => void;
+  onClose?: () => void;
+}) {
+  const hasChildren = Boolean(section.children?.length);
+  const childActive = section.children?.some((c) => isPathActive(pathname, c.href));
+  const active = isPathActive(pathname, section.href) || Boolean(childActive);
+
+  if (!hasChildren) {
+    return (
+      <Link
+        href={section.href}
+        onClick={onClose}
+        className={cn(
+          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition",
+          active
+            ? "bg-brand/25 font-semibold text-white"
+            : "text-sidebar-text hover:bg-sidebar-hover hover:text-white"
+        )}
+      >
+        <NavIcon name={section.icon} />
+        <span className="flex-1">{section.label}</span>
+      </Link>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-0.5">
+        <Link
+          href={section.href}
+          onClick={onClose}
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition",
+            active
+              ? "bg-white/8 font-semibold text-white"
+              : "text-sidebar-text hover:bg-sidebar-hover hover:text-white"
+          )}
+        >
+          <NavIcon name={section.icon} />
+          <span className="flex-1 truncate text-left">{section.label}</span>
+        </Link>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="rounded-lg px-2.5 py-2.5 text-xs text-white/45 hover:bg-sidebar-hover hover:text-white"
+          aria-label={expanded ? "Свернуть" : "Развернуть"}
+          aria-expanded={expanded}
+        >
+          {expanded ? "▾" : "▸"}
+        </button>
+      </div>
+      {expanded ? (
+        <div className="mt-0.5 space-y-0.5 pb-1">
+          {section.children!.map((item) => (
+            <SubNavLink
+              key={item.href + item.label}
+              item={item}
+              pathname={pathname}
+              onClose={onClose}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function OwnerSidebar({
+  role,
+  open,
+  onClose,
+}: {
+  role: string;
+  open?: boolean;
+  onClose?: () => void;
+}) {
+  const pathname = usePathname();
+  const sections = filterNavForRole(role as Role);
+  const activeSectionId =
+    sections.find(
+      (s) =>
+        isPathActive(pathname, s.href) ||
+        s.children?.some((c) => isPathActive(pathname, c.href))
+    )?.id ?? null;
+  const [expandedId, setExpandedId] = useState<string | null>(activeSectionId);
+
+  useEffect(() => {
+    if (activeSectionId) setExpandedId(activeSectionId);
+  }, [activeSectionId]);
+
+  return (
+    <>
+      <div
+        className={cn(
+          "fixed inset-0 z-40 bg-black/40 transition lg:hidden",
+          open ? "opacity-100" : "pointer-events-none opacity-0"
+        )}
+        onClick={onClose}
+      />
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-sidebar text-sidebar-text transition-transform duration-200 lg:translate-x-0",
+          open ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        <div className="border-b border-white/8 px-4 py-4">
+          <Link href="/dashboard" className="flex items-center gap-3" onClick={onClose}>
+            <Image
+              src="/logo-aramat-plus.png"
+              alt=""
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-lg object-contain"
+              priority
+            />
+            <div className="min-w-0">
+              <div className="truncate text-sm font-bold leading-tight text-white">
+                AROMAT <span className="text-brand">PLUS</span>
+              </div>
+              <div className="truncate text-[10px] tracking-wide text-white/40">
+                ERP · Управление сетью
+              </div>
+            </div>
+          </Link>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-2.5 py-3">
+          <ul className="space-y-1">
+            {sections.map((section) => (
+              <li key={section.id}>
+                <SectionLink
+                  section={section}
+                  pathname={pathname}
+                  expanded={expandedId === section.id}
+                  onToggle={() =>
+                    setExpandedId((cur) => (cur === section.id ? null : section.id))
+                  }
+                  onClose={onClose}
+                />
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </aside>
+    </>
+  );
+}
+
+export { WAREHOUSE_SUBNAV } from "@/lib/navigation/owner-nav";

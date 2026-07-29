@@ -1,0 +1,270 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { PageHeader } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { MOCK_OWNER_POS_CATALOG } from "@/lib/ui-mocks";
+import { cn, formatMoney } from "@/lib/utils";
+
+type Line = {
+  productId: string;
+  name: string;
+  unit: string;
+  salePrice: number;
+  quantity: number;
+  max: number;
+};
+
+export function OwnerDirectPosClient({
+  storeId,
+  storeName,
+}: {
+  storeId: string;
+  storeName: string;
+}) {
+  const [q, setQ] = useState("");
+  const [category, setCategory] = useState("Все");
+  const [cart, setCart] = useState<Line[]>([]);
+  const [payment, setPayment] = useState<"CASH" | "CARD" | "TRANSFER">("CASH");
+  const [msg, setMsg] = useState("");
+  const [history, setHistory] = useState<
+    Array<{ id: string; time: string; total: number; items: string }>
+  >([]);
+
+  const categories = useMemo(() => {
+    const set = new Set(MOCK_OWNER_POS_CATALOG.map((p) => p.category));
+    return ["Все", ...Array.from(set)];
+  }, []);
+
+  const items = useMemo(() => {
+    return MOCK_OWNER_POS_CATALOG.filter((p) => {
+      const matchCat = category === "Все" || p.category === category;
+      const matchQ =
+        !q.trim() ||
+        `${p.name} ${p.brand}`.toLowerCase().includes(q.toLowerCase());
+      return matchCat && matchQ;
+    });
+  }, [q, category]);
+
+  const total = cart.reduce((s, l) => s + l.salePrice * l.quantity, 0);
+
+  function add(p: (typeof MOCK_OWNER_POS_CATALOG)[number]) {
+    if (p.quantity <= 0) return;
+    setCart((prev) => {
+      const existing = prev.find((l) => l.productId === p.productId);
+      if (existing) {
+        return prev.map((l) =>
+          l.productId === p.productId
+            ? { ...l, quantity: Math.min(l.max, l.quantity + 1) }
+            : l
+        );
+      }
+      return [
+        ...prev,
+        {
+          productId: p.productId,
+          name: p.name,
+          unit: p.unit,
+          salePrice: p.salePrice,
+          quantity: 1,
+          max: p.quantity,
+        },
+      ];
+    });
+  }
+
+  function setQty(productId: string, quantity: number) {
+    setCart((prev) =>
+      prev
+        .map((l) =>
+          l.productId === productId
+            ? { ...l, quantity: Math.max(0, Math.min(l.max, quantity)) }
+            : l
+        )
+        .filter((l) => l.quantity > 0)
+    );
+  }
+
+  function checkout() {
+    if (cart.length === 0) return;
+    const now = new Date();
+    setHistory((prev) => [
+      {
+        id: `sale-${Date.now()}`,
+        time: now.toLocaleString("ru-RU"),
+        total,
+        items: cart.map((l) => `${l.name} × ${l.quantity}`).join(", "),
+      },
+      ...prev,
+    ]);
+    setCart([]);
+    setMsg(
+      "Продажа оформлена. Списание отразится на центральном складе после синхронизации."
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <PageHeader
+        title="Личные продажи владельца"
+        subtitle={`${storeName} · источник: центральный склад · без перемещений`}
+        actions={
+          <Link
+            href={`/stores/${storeId}`}
+            className="text-sm font-semibold text-brand hover:underline"
+          >
+            ← К каналу
+          </Link>
+        }
+      />
+
+      {msg ? (
+        <Card className="border-success/20 bg-success/5 p-3 text-sm text-success">
+          {msg}
+        </Card>
+      ) : null}
+
+      <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="space-y-3">
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Поиск: название, бренд…"
+            className="w-full rounded-2xl border border-border bg-card px-4 py-3 text-sm outline-none ring-brand focus:ring-2"
+          />
+          <div className="flex flex-wrap gap-1.5">
+            {categories.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setCategory(c)}
+                className={cn(
+                  "rounded-full px-3.5 py-2 text-sm font-medium",
+                  category === c
+                    ? "bg-brand text-white"
+                    : "bg-card text-muted ring-1 ring-border"
+                )}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {items.map((p) => (
+              <button
+                key={p.productId}
+                type="button"
+                onClick={() => add(p)}
+                className="rounded-[18px] border border-border bg-card p-4 text-left transition hover:border-brand/40"
+              >
+                <div className="text-xs text-muted">
+                  {p.brand} · {p.category}
+                </div>
+                <div className="mt-1 font-semibold text-ink">{p.name}</div>
+                <div className="mt-2 flex items-end justify-between">
+                  <span className="text-sm text-muted">
+                    Остаток склада: {p.quantity} {p.unit}
+                  </span>
+                  <span className="font-bold text-ink">
+                    {formatMoney(p.salePrice)}/{p.unit}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <Card className="p-4">
+            <div className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
+              Корзина
+            </div>
+            {cart.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted">Корзина пуста</p>
+            ) : (
+              <div className="space-y-3">
+                {cart.map((l) => (
+                  <div
+                    key={l.productId}
+                    className="flex items-center justify-between gap-2 border-b border-border pb-3 last:border-0"
+                  >
+                    <div>
+                      <div className="text-sm font-semibold text-ink">{l.name}</div>
+                      <div className="text-xs text-muted">
+                        {formatMoney(l.salePrice)} / {l.unit}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="h-8 w-8 rounded-lg border border-border"
+                        onClick={() => setQty(l.productId, l.quantity - 1)}
+                      >
+                        −
+                      </button>
+                      <span className="w-8 text-center tabular-nums">{l.quantity}</span>
+                      <button
+                        type="button"
+                        className="h-8 w-8 rounded-lg border border-border"
+                        onClick={() => setQty(l.productId, l.quantity + 1)}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="flex gap-2">
+                  {(["CASH", "CARD", "TRANSFER"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setPayment(m)}
+                      className={cn(
+                        "flex-1 rounded-xl py-2 text-xs font-semibold",
+                        payment === m
+                          ? "bg-brand text-white"
+                          : "bg-page text-muted ring-1 ring-border"
+                      )}
+                    >
+                      {m === "CASH" ? "Наличные" : m === "CARD" ? "Карта" : "Перевод"}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-sm text-muted">Итого</span>
+                  <span className="text-xl font-bold text-ink">{formatMoney(total)}</span>
+                </div>
+                <Button type="button" onClick={checkout}>
+                  Оформить продажу
+                </Button>
+              </div>
+            )}
+          </Card>
+
+          <Card className="p-4">
+            <div className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
+              История сессии
+            </div>
+            {history.length === 0 ? (
+              <p className="text-sm text-muted">Продаж в этой сессии ещё нет</p>
+            ) : (
+              <div className="space-y-2">
+                {history.map((h) => (
+                  <div key={h.id} className="rounded-xl bg-page px-3 py-2 text-sm">
+                    <div className="font-semibold text-ink">{formatMoney(h.total)}</div>
+                    <div className="text-xs text-muted">
+                      {h.time} · {h.items}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}

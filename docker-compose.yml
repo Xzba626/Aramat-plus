@@ -1,0 +1,24 @@
+# Local foundation stack — PostgreSQL only (no Redis needed)
+# Usage: docker compose up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: aromat-plus-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: aromat
+      POSTGRES_PASSWORD: aromat
+      POSTGRES_DB: aromat_plus
+    volumes:
+      - aromat_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aromat -d aromat_plus"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  aromat_pg_data:

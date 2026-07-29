@@ -1,0 +1,627 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  OWNER
+  MANAGER
+  SELLER
+}
+
+enum AccountingType {
+  WEIGHT
+  PIECE
+}
+
+enum LocationType {
+  WAREHOUSE
+  STORE
+}
+
+enum StoreKind {
+  BRANCH
+  OWNER_DIRECT
+}
+
+enum StoreStatus {
+  ACTIVE
+  CLOSED
+  INVENTORY
+}
+
+enum TransferStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum SaleStatus {
+  COMPLETED
+  RETURNED
+  PARTIAL_RETURN
+}
+
+enum DiscountRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ReturnStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum InventoryStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum NotificationType {
+  LOW_STOCK
+  DISCOUNT_REQUEST
+  RETURN_REQUEST
+  BATCH_EMPTY
+  INVENTORY_DONE
+  TRANSFER_DONE
+  SYSTEM
+}
+
+// ─── Company (single-tenant now, multi later) ────────────────────────────────
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  currency  String   @default("TJS")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users           User[]
+  warehouses      Warehouse[]
+  stores          Store[]
+  categories      Category[]
+  brands          Brand[]
+  units           Unit[]
+  productTypes    ProductType[]
+  operationTypes  OperationType[]
+  expenseTypes    ExpenseType[]
+  products        Product[]
+  settings        Setting[]
+  giftRules       GiftRule[]
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         Role      @default(SELLER)
+  isActive     Boolean   @default(true)
+  companyId    String
+  storeId      String?
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  store   Store?  @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  managedStores  Store[] @relation("StoreManager")
+
+  priceChanges       PriceHistory[]
+  transfers          Transfer[]           @relation("TransferCreator")
+  sales              Sale[]
+  discountRequests   DiscountRequest[]    @relation("DiscountRequester")
+  discountReviews    DiscountRequest[]    @relation("DiscountReviewer")
+  returnRequests     SaleReturn[]         @relation("ReturnRequester")
+  returnReviews      SaleReturn[]         @relation("ReturnReviewer")
+  inventorySessions  InventorySession[]   @relation("InventoryCreator")
+  inventoryApprovals InventorySession[]   @relation("InventoryApprover")
+  notifications      Notification[]
+  expenses           Expense[]
+  activityLogs       ActivityLog[]
+
+  @@index([companyId])
+  @@index([storeId])
+  @@index([role])
+}
+
+// ─── Locations ───────────────────────────────────────────────────────────────
+
+model Warehouse {
+  id        String   @id @default(cuid())
+  name      String
+  companyId String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transfers Transfer[]
+
+  @@index([companyId])
+}
+
+model Store {
+  id              String      @id @default(cuid())
+  name            String
+  address         String?
+  phone           String?
+  workingHours    String?
+  companyId       String
+  kind            StoreKind   @default(BRANCH)
+  status          StoreStatus @default(ACTIVE)
+  isArchived      Boolean     @default(false)
+  openedAt        DateTime?
+  managerId       String?
+  isActive        Boolean     @default(true)
+  notifyLowStock  Boolean     @default(true)
+  notifyRequests  Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  manager           User?              @relation("StoreManager", fields: [managerId], references: [id], onDelete: SetNull)
+  users             User[]
+  transfers         Transfer[]
+  sales             Sale[]
+  inventorySessions InventorySession[]
+  expenses          Expense[]
+
+  @@index([companyId])
+  @@index([companyId, kind])
+  @@index([status])
+}
+
+// ─── Reference data ──────────────────────────────────────────────────────────
+
+model Category {
+  id                 String   @id @default(cuid())
+  name               String
+  companyId          String
+  lowStockThreshold  Decimal  @default(50) @db.Decimal(12, 3)
+  isArchived         Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model Brand {
+  id         String   @id @default(cuid())
+  name       String
+  companyId  String
+  imageUrl   String?
+  isArchived Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model Unit {
+  id        String   @id @default(cuid())
+  name      String
+  symbol    String
+  companyId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([companyId, symbol])
+  @@index([companyId])
+}
+
+model ProductType {
+  id        String   @id @default(cuid())
+  name      String
+  companyId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model OperationType {
+  id        String   @id @default(cuid())
+  name      String
+  code      String
+  companyId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([companyId])
+}
+
+model ExpenseType {
+  id        String   @id @default(cuid())
+  name      String
+  companyId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  expenses Expense[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+// ─── Products ────────────────────────────────────────────────────────────────
+
+model Product {
+  id             String         @id @default(cuid())
+  name           String
+  sku            String?
+  barcode        String?
+  description    String?
+  companyId      String
+  categoryId     String?
+  brandId        String?
+  unitId         String?
+  productTypeId  String?
+  accountingType AccountingType @default(PIECE)
+  salePrice      Decimal        @db.Decimal(12, 2)
+  minStock       Decimal        @default(0) @db.Decimal(14, 3)
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category    Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  brand       Brand?       @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  unit        Unit?        @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  productType ProductType? @relation(fields: [productTypeId], references: [id], onDelete: SetNull)
+
+  variants      ProductVariant[]
+  batches       Batch[]
+  stockBalances StockBalance[]
+  priceHistory  PriceHistory[]
+  transferItems TransferItem[]
+  saleItems     SaleItem[]
+  giftRulesAsGift GiftRule[] @relation("GiftProduct")
+
+  @@index([companyId])
+  @@index([companyId, name])
+  @@index([categoryId])
+  @@index([brandId])
+}
+
+model ProductVariant {
+  id        String   @id @default(cuid())
+  productId String
+  name      String
+  sku       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model PriceHistory {
+  id          String   @id @default(cuid())
+  productId   String
+  oldPrice    Decimal  @db.Decimal(12, 2)
+  newPrice    Decimal  @db.Decimal(12, 2)
+  changedById String
+  createdAt   DateTime @default(now())
+
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  changedBy User    @relation(fields: [changedById], references: [id])
+
+  @@index([productId, createdAt])
+}
+
+// ─── Batches & Stock ─────────────────────────────────────────────────────────
+
+model Batch {
+  id             String       @id @default(cuid())
+  productId      String
+  locationType   LocationType
+  locationId     String
+  quantity       Decimal      @db.Decimal(14, 3)
+  costPerUnit    Decimal      @db.Decimal(12, 4)
+  receivedAt     DateTime     @default(now())
+  notes          String?
+  transferItemId String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  product       Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  transferItems TransferItem[] @relation("SourceBatch")
+  saleItems     SaleItem[]
+
+  @@index([productId, locationType, locationId, receivedAt])
+  @@index([locationType, locationId])
+}
+
+model StockBalance {
+  id           String       @id @default(cuid())
+  productId    String
+  locationType LocationType
+  locationId   String
+  quantity     Decimal      @default(0) @db.Decimal(14, 3)
+  updatedAt    DateTime     @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, locationType, locationId])
+  @@index([locationType, locationId])
+}
+
+// ─── Transfers ───────────────────────────────────────────────────────────────
+
+model Transfer {
+  id              String         @id @default(cuid())
+  fromWarehouseId String
+  toStoreId       String
+  createdById     String
+  status          TransferStatus @default(COMPLETED)
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  fromWarehouse Warehouse      @relation(fields: [fromWarehouseId], references: [id])
+  toStore       Store          @relation(fields: [toStoreId], references: [id])
+  createdBy     User           @relation("TransferCreator", fields: [createdById], references: [id])
+  items         TransferItem[]
+
+  @@index([fromWarehouseId])
+  @@index([toStoreId])
+  @@index([createdAt])
+}
+
+model TransferItem {
+  id            String  @id @default(cuid())
+  transferId    String
+  productId     String
+  quantity      Decimal @db.Decimal(14, 3)
+  sourceBatchId String?
+  costPerUnit   Decimal @db.Decimal(12, 4)
+
+  transfer    Transfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  product     Product  @relation(fields: [productId], references: [id])
+  sourceBatch Batch?   @relation("SourceBatch", fields: [sourceBatchId], references: [id])
+
+  @@index([transferId])
+  @@index([productId])
+}
+
+// ─── Sales (schema ready, API later) ─────────────────────────────────────────
+
+model Sale {
+  id             String     @id @default(cuid())
+  storeId        String
+  sellerId       String
+  status         SaleStatus @default(COMPLETED)
+  subtotal       Decimal    @db.Decimal(12, 2)
+  discountAmount Decimal    @default(0) @db.Decimal(12, 2)
+  total          Decimal    @db.Decimal(12, 2)
+  paymentMethod  String     @default("CASH")
+  notes          String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  store            Store             @relation(fields: [storeId], references: [id])
+  seller           User              @relation(fields: [sellerId], references: [id])
+  items            SaleItem[]
+  discountRequests DiscountRequest[]
+  returns          SaleReturn[]
+
+  @@index([storeId, createdAt])
+  @@index([sellerId])
+}
+
+model SaleItem {
+  id          String  @id @default(cuid())
+  saleId      String
+  productId   String
+  batchId     String?
+  quantity    Decimal @db.Decimal(14, 3)
+  salePrice   Decimal @db.Decimal(12, 2)
+  costPerUnit Decimal @db.Decimal(12, 4)
+  isGift      Boolean @default(false)
+
+  sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product  @relation(fields: [productId], references: [id])
+  batch   Batch?   @relation(fields: [batchId], references: [id])
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+// ─── Discounts & Gifts ───────────────────────────────────────────────────────
+
+model DiscountRequest {
+  id           String                 @id @default(cuid())
+  saleId       String?
+  requesterId  String
+  reviewerId   String?
+  amount       Decimal                @db.Decimal(12, 2)
+  percent      Decimal?               @db.Decimal(5, 2)
+  status       DiscountRequestStatus  @default(PENDING)
+  reason       String?
+  reviewNote   String?
+  createdAt    DateTime               @default(now())
+  reviewedAt   DateTime?
+
+  sale      Sale? @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  requester User  @relation("DiscountRequester", fields: [requesterId], references: [id])
+  reviewer  User? @relation("DiscountReviewer", fields: [reviewerId], references: [id])
+
+  @@index([status])
+  @@index([requesterId])
+}
+
+model GiftRule {
+  id              String   @id @default(cuid())
+  companyId       String
+  name            String
+  minQuantity     Decimal? @db.Decimal(14, 3)
+  minAmount       Decimal? @db.Decimal(12, 2)
+  giftProductId   String
+  giftQuantity    Decimal  @default(1) @db.Decimal(14, 3)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  giftProduct Product @relation("GiftProduct", fields: [giftProductId], references: [id])
+
+  @@index([companyId])
+}
+
+// ─── Returns ─────────────────────────────────────────────────────────────────
+
+model SaleReturn {
+  id          String       @id @default(cuid())
+  saleId      String
+  requesterId String
+  reviewerId  String?
+  status      ReturnStatus @default(PENDING)
+  reason      String?
+  reviewNote  String?
+  createdAt   DateTime     @default(now())
+  reviewedAt  DateTime?
+
+  sale      Sale @relation(fields: [saleId], references: [id])
+  requester User @relation("ReturnRequester", fields: [requesterId], references: [id])
+  reviewer  User? @relation("ReturnReviewer", fields: [reviewerId], references: [id])
+
+  @@map("returns")
+  @@index([status])
+  @@index([saleId])
+}
+
+// ─── Inventory / Revision ────────────────────────────────────────────────────
+
+model InventorySession {
+  id          String          @id @default(cuid())
+  storeId     String
+  createdById String
+  approvedById String?
+  status      InventoryStatus @default(IN_PROGRESS)
+  comment     String?
+  createdAt   DateTime        @default(now())
+  completedAt DateTime?
+
+  store      Store           @relation(fields: [storeId], references: [id])
+  createdBy  User            @relation("InventoryCreator", fields: [createdById], references: [id])
+  approvedBy User?           @relation("InventoryApprover", fields: [approvedById], references: [id])
+  items      InventoryItem[]
+
+  @@index([storeId])
+  @@index([createdAt])
+}
+
+model InventoryItem {
+  id                  String  @id @default(cuid())
+  sessionId           String
+  productId           String
+  expectedQty         Decimal @db.Decimal(14, 3)
+  countedQty          Decimal @db.Decimal(14, 3)
+  difference          Decimal @db.Decimal(14, 3)
+  discrepancyReason   String?
+
+  session InventorySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
+
+// ─── Notifications, Expenses, Logs, Settings ─────────────────────────────────
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  entityType String?
+  entityId   String?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+}
+
+model Expense {
+  id            String   @id @default(cuid())
+  storeId       String?
+  expenseTypeId String
+  amount        Decimal  @db.Decimal(12, 2)
+  description   String?
+  createdById   String
+  incurredAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  store       Store?      @relation(fields: [storeId], references: [id])
+  expenseType ExpenseType @relation(fields: [expenseTypeId], references: [id])
+  createdBy   User        @relation(fields: [createdById], references: [id])
+
+  @@index([storeId, incurredAt])
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  companyId  String?
+  action     String
+  entityType String
+  entityId   String?
+  comment    String?
+  metadata   Json?
+  ip         String?
+  userAgent  String?
+  result     String?  // SUCCESS | FAIL
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+  @@index([companyId, createdAt])
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  companyId String
+  key       String
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, key])
+}
