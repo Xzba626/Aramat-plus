@@ -203,6 +203,9 @@ export function breadcrumbsForPath(pathname: string): BreadcrumbItem[] {
 }
 
 export function sectionTitleKeyForPath(pathname: string): string {
+  if (pathname.startsWith("/more")) return "nav.more";
+  if (pathname.startsWith("/attention")) return "dashboard.attentionTitle";
+
   const section = sectionForPath(pathname);
   if (!section) return "app.brand";
 

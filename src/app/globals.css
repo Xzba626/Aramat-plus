@@ -19,6 +19,19 @@
   --info: #2563eb;
   --accent: #1e3a5f;
 
+  /* Business zones — visual weight for owner dashboard */
+  --zone-money: #16a34a;
+  --zone-money-soft: rgba(22, 163, 74, 0.12);
+  --zone-money-deep: #15803d;
+  --zone-stock: #2563eb;
+  --zone-stock-soft: rgba(37, 99, 235, 0.12);
+  --zone-stock-deep: #1d4ed8;
+  --zone-stores: #7c3aed;
+  --zone-stores-soft: rgba(124, 58, 237, 0.12);
+  --zone-stores-deep: #6d28d9;
+  --zone-alert: #ea580c;
+  --zone-alert-soft: rgba(234, 88, 12, 0.12);
+
   /* Sidebar — graphite / deep slate (not pure black) */
   --sidebar: #243044;
   --sidebar-hover: #2d3a52;
@@ -41,6 +54,7 @@
   --foreground: var(--ink);
 
   --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 16px rgba(16, 24, 40, 0.04);
+  --shadow-lift: 0 4px 6px rgba(16, 24, 40, 0.04), 0 12px 28px rgba(16, 24, 40, 0.08);
 }
 
 @theme inline {
@@ -59,6 +73,17 @@
   --color-warning: var(--warning);
   --color-info: var(--info);
   --color-accent: var(--accent);
+  --color-zone-money: var(--zone-money);
+  --color-zone-money-soft: var(--zone-money-soft);
+  --color-zone-money-deep: var(--zone-money-deep);
+  --color-zone-stock: var(--zone-stock);
+  --color-zone-stock-soft: var(--zone-stock-soft);
+  --color-zone-stock-deep: var(--zone-stock-deep);
+  --color-zone-stores: var(--zone-stores);
+  --color-zone-stores-soft: var(--zone-stores-soft);
+  --color-zone-stores-deep: var(--zone-stores-deep);
+  --color-zone-alert: var(--zone-alert);
+  --color-zone-alert-soft: var(--zone-alert-soft);
   --color-sidebar: var(--sidebar);
   --color-sidebar-hover: var(--sidebar-hover);
   --color-sidebar-text: var(--sidebar-text);

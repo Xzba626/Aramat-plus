@@ -1,25 +1,91 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Card } from "@/components/ui/card";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  BarChart3,
+  CheckCircle2,
+  Package,
+  PackagePlus,
+  Store,
+  Truck,
+  AlertTriangle,
+  Wallet,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { DeltaBadge } from "@/components/layout/owner-top-bar";
 import type { DashboardPayload } from "@/lib/services/dashboard.service";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { HelpTip } from "@/components/ui/help-tip";
 
-const QUICK = [
-  { href: "/warehouse", labelKey: "dashboard.quickWarehouse" },
-  { href: "/stores", labelKey: "dashboard.quickStores" },
-  { href: "/returns", labelKey: "dashboard.quickReturns" },
-  { href: "/revision", labelKey: "dashboard.quickRevision" },
-  { href: "/analytics", labelKey: "dashboard.quickAnalytics" },
-  { href: "/users", labelKey: "dashboard.quickUsers" },
-  { href: "/journal", labelKey: "dashboard.quickJournal" },
-  { href: "/settings", labelKey: "dashboard.quickSettings" },
-] as const;
+function Sparkline({ values, className }: { values: number[]; className?: string }) {
+  const max = Math.max(...values, 1);
+  return (
+    <div
+      className={cn("flex h-10 items-end gap-1", className)}
+      aria-hidden
+    >
+      {values.map((v, i) => (
+        <span
+          key={i}
+          className="w-full min-w-[6px] rounded-sm bg-white/45"
+          style={{ height: `${Math.max(12, Math.round((v / max) * 100))}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function greetKey(hour: number): "dashboard.greetMorning" | "dashboard.greetDay" | "dashboard.greetEvening" {
+  if (hour < 12) return "dashboard.greetMorning";
+  if (hour < 18) return "dashboard.greetDay";
+  return "dashboard.greetEvening";
+}
+
+type ActionTile = {
+  href: string;
+  labelKey: string;
+  icon: LucideIcon;
+  tone: "money" | "stock" | "stores" | "brand" | "alert";
+};
+
+const ACTIONS: ActionTile[] = [
+  {
+    href: "/warehouse/receive?tab=batch",
+    labelKey: "dashboard.actionReceive",
+    icon: PackagePlus,
+    tone: "stock",
+  },
+  {
+    href: "/warehouse/transfers/new",
+    labelKey: "dashboard.actionTransfer",
+    icon: Truck,
+    tone: "stock",
+  },
+  {
+    href: "/analytics",
+    labelKey: "dashboard.actionReport",
+    icon: BarChart3,
+    tone: "brand",
+  },
+  {
+    href: "/stores",
+    labelKey: "dashboard.actionStores",
+    icon: Store,
+    tone: "stores",
+  },
+];
+
+const TONE_BG: Record<ActionTile["tone"], string> = {
+  money: "bg-zone-money-soft text-zone-money-deep",
+  stock: "bg-zone-stock-soft text-zone-stock-deep",
+  stores: "bg-zone-stores-soft text-zone-stores-deep",
+  brand: "bg-brand-soft text-brand",
+  alert: "bg-zone-alert-soft text-zone-alert",
+};
 
 export function OwnerDashboardClient({
   initial,
@@ -28,9 +94,10 @@ export function OwnerDashboardClient({
   initial: DashboardPayload;
   userName: string;
 }) {
-  const { t, formatMoney, formatDateTime, formatTime } = useI18n();
+  const { t, formatMoney, formatDateTime } = useI18n();
   const [data, setData] = useState(initial);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [hour, setHour] = useState(12);
 
   const refreshStats = useCallback(async () => {
     const res = await fetch("/api/dashboard");
@@ -40,6 +107,7 @@ export function OwnerDashboardClient({
   }, []);
 
   useEffect(() => {
+    setHour(new Date().getHours());
     const stats = setInterval(refreshStats, 30_000);
     const decisions = setInterval(refreshStats, 10_000);
     return () => {
@@ -68,130 +136,307 @@ export function OwnerDashboardClient({
   }
 
   const { today, decisionSummary, decisions } = data;
+  const pulse = data.pulse ?? {
+    warehouseUnits: 0,
+    warehouseSku: 0,
+    lowStockCount: data.lowStock.length,
+    storesOpen: data.stores.filter((s) => s.salesCount > 0).length,
+    storesTotal: data.stores.length,
+    sparkline: [0, 0, 0, 0, 0, 0, today.revenue],
+  };
+  const revDelta = today.deltas.revenue;
 
-  const kpis = [
-    {
-      key: "revenue",
-      labelKey: "dashboard.salesToday",
-      hintKey: "todayRevenue",
-      value: formatMoney(today.revenue),
-      delta: today.deltas.revenue,
-      profit: false,
-    },
-    {
-      key: "profit",
-      labelKey: "dashboard.netProfit",
-      hintKey: "todayProfit",
-      value: formatMoney(today.profit),
-      delta: today.deltas.profit,
-      profit: true,
-    },
-    {
-      key: "count",
-      labelKey: "dashboard.salesCount",
-      hintKey: "todayCount",
-      value: String(today.count),
-      delta: today.deltas.count,
-      profit: false,
-    },
-    {
-      key: "items",
-      labelKey: "dashboard.itemsSold",
-      hintKey: "todayItems",
-      value: String(Math.round(today.itemsSold * 10) / 10),
-      delta: today.deltas.itemsSold,
-      profit: false,
-    },
-    {
-      key: "avg",
-      labelKey: "dashboard.avgCheck",
-      hintKey: "todayAvgCheck",
-      value: formatMoney(today.avgCheck),
-      delta: today.deltas.avgCheck,
-      profit: false,
-    },
-  ];
+  const status = useMemo(() => {
+    if (decisionSummary.total > 0) {
+      return {
+        tone: "alert" as const,
+        text: t("dashboard.statusAttention", { n: decisionSummary.total }),
+        icon: AlertTriangle,
+      };
+    }
+    if (pulse.lowStockCount > 0) {
+      return {
+        tone: "alert" as const,
+        text: t("dashboard.statusLowStock", { n: pulse.lowStockCount }),
+        icon: AlertTriangle,
+      };
+    }
+    if (revDelta.pct > 0) {
+      return {
+        tone: "good" as const,
+        text: t("dashboard.statusSalesUp", { pct: revDelta.label }),
+        icon: CheckCircle2,
+      };
+    }
+    return {
+      tone: "good" as const,
+      text: t("dashboard.statusAllGood"),
+      icon: CheckCircle2,
+    };
+  }, [decisionSummary.total, pulse.lowStockCount, revDelta.label, revDelta.pct, t]);
+
+  const StatusIcon = status.icon;
+
+  const recommendations = useMemo(() => {
+    const items: { href: string; label: string }[] = [];
+    if (decisionSummary.total > 0) {
+      items.push({
+        href: "/dashboard#decisions",
+        label: t("dashboard.recommendDecide", { n: decisionSummary.total }),
+      });
+    }
+    for (const p of data.lowStock.slice(0, 2)) {
+      items.push({
+        href: `/warehouse/${p.productId}`,
+        label: t("dashboard.recommendOrder", { name: p.name }),
+      });
+    }
+    const quietStore = data.stores.find((s) => s.salesCount === 0);
+    if (quietStore) {
+      items.push({
+        href: `/stores/${quietStore.id}`,
+        label: t("dashboard.recommendStore", { name: quietStore.name }),
+      });
+    }
+    if (items.length === 0) {
+      items.push({
+        href: "/warehouse/receive?tab=batch",
+        label: t("dashboard.recommendReceive"),
+      });
+    }
+    return items.slice(0, 3);
+  }, [data.lowStock, data.stores, decisionSummary.total, t]);
+
+  const firstName = userName.split(/\s+/)[0] || userName;
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-[16px] border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
-        <div className="text-xs font-semibold uppercase tracking-wide text-brand">
-          {t("dashboard.commandCenter")}
+    <div className="space-y-8">
+      {/* Attention center */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+            {t(greetKey(hour), { name: firstName })}
+          </h2>
         </div>
-        <h2 className="mt-2 text-2xl font-bold tracking-tight text-ink">
-          {t("dashboard.welcome", { name: userName })}
-        </h2>
-        <p className="mt-1 text-sm text-muted">{t("dashboard.welcomeHint")}</p>
+        <div
+          className={cn(
+            "flex items-start gap-3 rounded-[20px] border px-4 py-4 shadow-[var(--shadow-card)] sm:px-5",
+            status.tone === "good"
+              ? "border-zone-money/20 bg-zone-money-soft"
+              : "border-zone-alert/25 bg-zone-alert-soft"
+          )}
+        >
+          <StatusIcon
+            className={cn(
+              "mt-0.5 h-6 w-6 shrink-0",
+              status.tone === "good" ? "text-zone-money-deep" : "text-zone-alert"
+            )}
+            strokeWidth={1.75}
+          />
+          <div className="min-w-0 flex-1">
+            <p
+              className={cn(
+                "text-sm font-medium leading-relaxed sm:text-base",
+                status.tone === "good" ? "text-zone-money-deep" : "text-zone-alert"
+              )}
+            >
+              {status.text}
+            </p>
+            {status.tone === "alert" ? (
+              <Link
+                href="/attention"
+                className="mt-2 inline-flex text-sm font-bold text-zone-alert underline-offset-2 hover:underline"
+              >
+                {t("dashboard.attentionGo")} →
+              </Link>
+            ) : null}
+          </div>
+        </div>
       </section>
 
-      <section>
-        <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
-          {t("dashboard.today")}
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          {kpis.map((kpi) => (
-            <Card key={kpi.key} className="p-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted">
-                <HelpTip hintKey={kpi.hintKey}>{t(kpi.labelKey)}</HelpTip>
+      {/* Three business zones — stacked on phone, row on desktop */}
+      <section className="grid gap-3 sm:gap-4 lg:grid-cols-3">
+        <Link
+          href="/analytics"
+          className="group relative overflow-hidden rounded-[20px] bg-zone-money p-5 text-white shadow-[var(--shadow-lift)] transition hover:brightness-105 sm:p-6"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-white/80">
+                {t("dashboard.moneyTitle")} · {t("dashboard.today")}
+              </div>
+              <div className="mt-3 text-3xl font-bold tabular-nums tracking-tight sm:text-4xl">
+                + {formatMoney(today.revenue, { short: true })}
+              </div>
+              <div className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-white/90">
+                {revDelta.pct >= 0 ? (
+                  <ArrowUpRight className="h-4 w-4" />
+                ) : (
+                  <ArrowDownRight className="h-4 w-4" />
+                )}
+                {revDelta.label} {t("dashboard.vsYesterday")}
+              </div>
+            </div>
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15">
+              <Wallet className="h-6 w-6" strokeWidth={1.75} />
+            </span>
+          </div>
+          <div className="mt-5">
+            <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-white/60">
+              {t("dashboard.weekSales")}
+            </div>
+            <Sparkline values={pulse.sparkline} />
+          </div>
+        </Link>
+
+        <Link
+          href="/warehouse"
+          className="group relative overflow-hidden rounded-[20px] bg-zone-stock p-5 text-white shadow-[var(--shadow-lift)] transition hover:brightness-105 sm:p-6"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-white/80">
+                {t("dashboard.stockTitle")}
+              </div>
+              <div className="mt-1 text-xs text-white/70">
+                {t("dashboard.stockOnHand")}
+              </div>
+              <div className="mt-3 text-3xl font-bold tabular-nums tracking-tight sm:text-4xl">
+                {t("dashboard.stockUnits", {
+                  n: Math.round(pulse.warehouseUnits),
+                })}
+              </div>
+              <div className="mt-2 text-sm text-white/85">
+                {t("dashboard.stockKinds", { n: pulse.warehouseSku })}
               </div>
               <div
                 className={cn(
-                  "mt-2 text-xl font-bold tabular-nums sm:text-2xl",
-                  kpi.profit ? "text-success" : "text-ink"
+                  "mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-bold",
+                  pulse.lowStockCount > 0
+                    ? "bg-white/20 text-white"
+                    : "bg-white/15 text-white/90"
                 )}
               >
-                {kpi.value}
+                {pulse.lowStockCount > 0
+                  ? t("dashboard.stockLow", { n: pulse.lowStockCount })
+                  : t("dashboard.stockOk")}
               </div>
-              <DeltaBadge
-                pct={kpi.delta?.pct ?? 0}
-                label={kpi.delta?.label ?? "0%"}
-              />
-            </Card>
+            </div>
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15">
+              <Package className="h-6 w-6" strokeWidth={1.75} />
+            </span>
+          </div>
+        </Link>
+
+        <Link
+          href="/stores"
+          className="group relative overflow-hidden rounded-[20px] bg-zone-stores p-5 text-white shadow-[var(--shadow-lift)] transition hover:brightness-105 sm:p-6"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-white/80">
+                {t("dashboard.storesTitle")}
+              </div>
+              <div className="mt-1 text-xs text-white/70">
+                {t("dashboard.storesWorking")}
+              </div>
+              <div className="mt-3 text-3xl font-bold tabular-nums tracking-tight sm:text-4xl">
+                {t("dashboard.storesOf", {
+                  open: pulse.storesOpen,
+                  total: pulse.storesTotal,
+                })}
+              </div>
+              <div className="mt-3 text-sm font-medium text-white/90">
+                {pulse.storesOpen > 0
+                  ? t("dashboard.storesSelling")
+                  : t("dashboard.storesQuiet")}
+              </div>
+            </div>
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15">
+              <Store className="h-6 w-6" strokeWidth={1.75} />
+            </span>
+          </div>
+        </Link>
+      </section>
+
+      {/* Smart recommendations */}
+      <section className="rounded-[20px] border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
+        <div className="mb-4 flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-soft text-brand">
+            <Sparkles className="h-5 w-5" strokeWidth={1.75} />
+          </span>
+          <h3 className="text-base font-bold text-ink">
+            {t("dashboard.recommendTitle")}
+          </h3>
+        </div>
+        <ul className="space-y-2">
+          {recommendations.map((r) => (
+            <li key={r.href + r.label}>
+              <Link
+                href={r.href}
+                className="flex items-center justify-between gap-3 rounded-2xl bg-page px-4 py-3 text-sm font-semibold text-ink transition hover:bg-brand-soft hover:text-brand"
+              >
+                <span>{r.label}</span>
+                <span className="text-muted">→</span>
+              </Link>
+            </li>
           ))}
+        </ul>
+      </section>
+
+      {/* Big action tiles */}
+      <section>
+        <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
+          {t("dashboard.actionsTitle")}
+        </h3>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {ACTIONS.map((a) => {
+            const Icon = a.icon;
+            return (
+              <Link
+                key={a.href}
+                href={a.href}
+                className="flex min-h-[108px] flex-col items-center justify-center gap-3 rounded-[20px] border border-border bg-card p-4 text-center shadow-[var(--shadow-card)] transition active:scale-[0.98] hover:border-brand/30 hover:shadow-[var(--shadow-lift)] sm:min-h-0 sm:p-5"
+              >
+                <span
+                  className={cn(
+                    "flex h-14 w-14 items-center justify-center rounded-2xl",
+                    TONE_BG[a.tone]
+                  )}
+                >
+                  <Icon className="h-7 w-7" strokeWidth={1.75} />
+                </span>
+                <span className="text-sm font-bold text-ink">{t(a.labelKey)}</span>
+              </Link>
+            );
+          })}
         </div>
       </section>
 
+      {/* Decisions */}
       <section id="decisions">
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-muted">
-            {t("dashboard.needDecision")}
-            {decisionSummary.total > 0 ? (
-              <span className="ml-2 rounded-full bg-brand px-2 py-0.5 text-xs text-white">
-                {decisionSummary.total}
-              </span>
-            ) : null}
-          </h2>
+        <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
+          {t("dashboard.needDecision")}
           {decisionSummary.total > 0 ? (
-            <p className="text-xs text-muted">
-              {decisionSummary.discount
-                ? t("dashboard.summaryDiscount", { n: decisionSummary.discount })
-                : ""}
-              {decisionSummary.return
-                ? t("dashboard.summaryReturn", { n: decisionSummary.return })
-                : ""}
-              {decisionSummary.price
-                ? t("dashboard.summaryPrice", { n: decisionSummary.price })
-                : ""}
-              {decisionSummary.writeOff
-                ? t("dashboard.summaryWriteOff", { n: decisionSummary.writeOff })
-                : ""}
-            </p>
+            <span className="ml-2 rounded-full bg-zone-alert px-2 py-0.5 text-xs text-white">
+              {decisionSummary.total}
+            </span>
           ) : null}
-        </div>
+        </h3>
 
         {decisionSummary.total === 0 ? (
-          <Card className="border-success/20 bg-success/5 p-5 text-sm text-success">
-            {t("dashboard.allClear")}
-          </Card>
+          <div className="flex items-start gap-3 rounded-[20px] border border-zone-money/20 bg-zone-money-soft p-5">
+            <CheckCircle2 className="h-6 w-6 shrink-0 text-zone-money-deep" />
+            <p className="text-sm font-medium text-zone-money-deep">
+              {t("dashboard.allClear")}
+            </p>
+          </div>
         ) : (
           <div className="space-y-3">
             {decisions.map((d) => (
-              <Card
+              <div
                 key={`${d.type}-${d.id}`}
-                className={cn(
-                  "border-l-4 p-4",
-                  d.priority === "urgent" ? "border-l-warning" : "border-l-border"
-                )}
+                className="rounded-[20px] border border-zone-alert/20 border-l-4 border-l-zone-alert bg-card p-4 shadow-[var(--shadow-card)] sm:p-5"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -239,168 +484,145 @@ export function OwnerDashboardClient({
                     </Button>
                   </div>
                 </div>
-              </Card>
+              </div>
             ))}
           </div>
         )}
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Stores cards */}
         <section>
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
-            {t("dashboard.importantNotifs")}
-          </h2>
-          <Card className="divide-y divide-border p-0">
-            {data.notifications.length === 0 ? (
-              <div className="p-4 text-sm text-muted">
-                {t("dashboard.noImportantNotifs")}
-              </div>
-            ) : (
-              data.notifications.map((n) => (
-                <Link
-                  key={n.id}
-                  href={n.href}
-                  className="block px-4 py-3 hover:bg-page"
-                >
-                  <div className="flex items-start gap-2">
-                    <span
-                      className={cn(
-                        "mt-1 h-2 w-2 shrink-0 rounded-full",
-                        n.tone === "danger" && "bg-danger",
-                        n.tone === "warning" && "bg-warning",
-                        n.tone !== "danger" && n.tone !== "warning" && "bg-info"
-                      )}
-                    />
-                    <div>
-                      <div className="text-sm font-semibold text-ink">{n.title}</div>
-                      <div className="text-xs text-muted">{n.message}</div>
-                    </div>
-                  </div>
-                </Link>
-              ))
-            )}
-          </Card>
-          <Link
-            href="/notifications"
-            className="mt-2 inline-block text-sm font-semibold text-brand hover:underline"
-          >
-            {t("common.showAll")}
-          </Link>
-        </section>
-
-        <section>
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
+          <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
             {t("dashboard.storesToday")}
-          </h2>
-          <div className="space-y-2">
+          </h3>
+          <div className="space-y-3">
             {data.stores.map((s) => (
-              <Link key={s.id} href={`/stores/${s.id}`}>
-                <Card className="mb-2 flex items-center justify-between p-4 transition hover:border-brand/30">
-                  <div>
-                    <div className="font-semibold text-ink">{s.name}</div>
+              <Link key={s.id} href={`/stores/${s.id}`} className="block">
+                <div className="flex items-center gap-4 rounded-[20px] border border-border bg-card p-4 shadow-[var(--shadow-card)] transition hover:border-zone-stores/40 hover:shadow-[var(--shadow-lift)]">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-zone-stores-soft text-zone-stores-deep">
+                    <Store className="h-6 w-6" strokeWidth={1.75} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-bold text-ink">{s.name}</div>
                     <div className="text-xs text-muted">
                       {t("dashboard.salesN", { n: s.salesCount })}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-bold text-ink">
-                      {formatMoney(s.revenue)}
+                    <div className="text-sm font-bold tabular-nums text-ink">
+                      {formatMoney(s.revenue, { short: true })}
                     </div>
-                    <div className="text-xs font-semibold text-success">
-                      {formatMoney(s.profit)}
+                    <div className="text-xs font-semibold tabular-nums text-zone-money-deep">
+                      {formatMoney(s.profit, { short: true })}
                     </div>
                   </div>
-                </Card>
+                </div>
               </Link>
             ))}
             {data.stores.length === 0 ? (
-              <Card className="p-4 text-sm text-muted">{t("dashboard.noStores")}</Card>
+              <div className="rounded-[20px] border border-dashed border-border p-5 text-sm text-muted">
+                {t("dashboard.noStores")}
+              </div>
             ) : null}
           </div>
         </section>
 
+        {/* Low stock cards */}
         <section>
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
+          <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
             {t("dashboard.productsAttention")}
-          </h2>
-          <div className="space-y-2">
-            {data.lowStock.map((p) => (
-              <Link key={p.id} href={`/warehouse/${p.productId}`}>
-                <Card
-                  className={cn(
-                    "mb-2 p-4",
-                    p.empty && "border-danger/40 bg-danger/5"
-                  )}
-                >
-                  <div className="font-semibold text-ink">{p.name}</div>
+          </h3>
+          <div className="space-y-3">
+            {data.lowStock.map((p) => {
+              const pct = Math.min(100, Math.round((p.quantity / 5) * 100));
+              return (
+                <Link key={p.id} href={`/warehouse/${p.productId}`} className="block">
                   <div
                     className={cn(
-                      "text-sm",
-                      p.empty ? "font-semibold text-danger" : "text-muted"
+                      "rounded-[20px] border bg-card p-4 shadow-[var(--shadow-card)] transition hover:shadow-[var(--shadow-lift)]",
+                      p.empty
+                        ? "border-danger/30"
+                        : "border-zone-alert/25"
                     )}
                   >
-                    {p.empty
-                      ? t("dashboard.outOfStock")
-                      : t("dashboard.leftQty", { qty: p.quantity, unit: p.unit })}
+                    <div className="flex items-start gap-3">
+                      <span
+                        className={cn(
+                          "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
+                          p.empty
+                            ? "bg-danger/10 text-danger"
+                            : "bg-zone-alert-soft text-zone-alert"
+                        )}
+                      >
+                        <Package className="h-6 w-6" strokeWidth={1.75} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-ink">{p.name}</div>
+                        <div
+                          className={cn(
+                            "mt-0.5 text-sm",
+                            p.empty
+                              ? "font-semibold text-danger"
+                              : "text-muted"
+                          )}
+                        >
+                          {p.empty
+                            ? t("dashboard.outOfStock")
+                            : t("dashboard.leftQty", {
+                                qty: p.quantity,
+                                unit: p.unit,
+                              })}
+                        </div>
+                        {!p.empty ? (
+                          <div className="mt-2 h-2 overflow-hidden rounded-full bg-page">
+                            <div
+                              className="h-full rounded-full bg-zone-alert"
+                              style={{ width: `${Math.max(8, pct)}%` }}
+                            />
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
-                </Card>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
             {data.lowStock.length === 0 ? (
-              <Card className="p-4 text-sm text-muted">
-                {t("dashboard.noCriticalStock")}
-              </Card>
+              <div className="flex items-start gap-3 rounded-[20px] border border-zone-money/20 bg-zone-money-soft p-5">
+                <CheckCircle2 className="h-6 w-6 shrink-0 text-zone-money-deep" />
+                <p className="text-sm font-medium text-zone-money-deep">
+                  {t("dashboard.noCriticalStock")}
+                </p>
+              </div>
             ) : null}
           </div>
         </section>
-
-        <section>
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
-            {t("dashboard.recentActions")}
-          </h2>
-          <Card className="divide-y divide-border p-0">
-            {data.recent.map((log) => (
-              <div key={log.id} className="px-4 py-3">
-                <div className="text-xs text-muted">{formatTime(log.createdAt)}</div>
-                <div className="text-sm font-semibold text-ink">
-                  {log.userName}
-                  {log.role ? ` · ${log.role}` : ""}
-                </div>
-                <div className="text-sm text-muted">
-                  {log.action}
-                  {log.comment ? ` — ${log.comment}` : ""}
-                </div>
-              </div>
-            ))}
-            {data.recent.length === 0 ? (
-              <div className="p-4 text-sm text-muted">{t("dashboard.noRecords")}</div>
-            ) : null}
-          </Card>
-          <Link
-            href="/journal"
-            className="mt-2 inline-block text-sm font-semibold text-brand hover:underline"
-          >
-            {t("dashboard.goJournal")}
-          </Link>
-        </section>
       </div>
-
-      <section>
-        <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
-          {t("dashboard.quickLinks")}
-        </h2>
-        <div className="flex flex-wrap gap-2">
-          {QUICK.map((q) => (
-            <Link
-              key={q.href}
-              href={q.href}
-              className="rounded-xl bg-brand-soft px-4 py-2.5 text-sm font-semibold text-brand ring-1 ring-brand/10 hover:bg-brand hover:text-white"
-            >
-              {t(q.labelKey)}
-            </Link>
-          ))}
-        </div>
-      </section>
     </div>
+  );
+}
+
+/** @deprecated kept for any imports */
+export function DeltaBadge({
+  pct,
+  label,
+}: {
+  pct: number;
+  label: string;
+}) {
+  const up = pct > 0;
+  const flat = pct === 0;
+  return (
+    <span
+      className={cn(
+        "mt-1 inline-flex text-xs font-semibold",
+        flat && "text-muted",
+        up && "text-success",
+        !up && !flat && "text-danger"
+      )}
+    >
+      {flat ? "→" : up ? "↑" : "↓"} {label}
+    </span>
   );
 }

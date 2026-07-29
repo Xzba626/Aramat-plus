@@ -121,6 +121,46 @@ export async function getDashboardPayload(companyId: string) {
       })
     : [];
 
+  const weekStart = startOfDay(new Date(now.getTime() - 6 * 86400000));
+  const [warehouseBalances, salesWeek] = await Promise.all([
+    warehouse
+      ? prisma.stockBalance.findMany({
+          where: {
+            locationType: LocationType.WAREHOUSE,
+            locationId: warehouse.id,
+            quantity: { gt: 0 },
+          },
+          select: { quantity: true },
+        })
+      : Promise.resolve([]),
+    prisma.sale.findMany({
+      where: {
+        store: { companyId },
+        status: "COMPLETED",
+        createdAt: { gte: weekStart, lte: now },
+      },
+      select: { total: true, createdAt: true },
+    }),
+  ]);
+
+  const warehouseUnits = warehouseBalances.reduce(
+    (s, b) => s + decimalToNumber(b.quantity),
+    0
+  );
+  const warehouseSku = warehouseBalances.length;
+
+  const sparkline: number[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const day = startOfDay(new Date(now.getTime() - i * 86400000));
+    const next = new Date(day.getTime() + 86400000);
+    const dayRev = salesWeek
+      .filter((s) => s.createdAt >= day && s.createdAt < next)
+      .reduce((sum, s) => sum + decimalToNumber(s.total), 0);
+    sparkline.push(Math.round(dayRev * 100) / 100);
+  }
+
+  const storesWithSales = storeToday.filter((s) => s.salesCount > 0).length;
+
   const [pendingDiscounts, pendingReturns] = await Promise.all([
     prisma.discountRequest.findMany({
       where: {
@@ -250,6 +290,14 @@ export async function getDashboardPayload(companyId: string) {
         itemsSold: pctChange(today.itemsSold, yday.itemsSold),
         avgCheck: pctChange(today.avgCheck, yday.avgCheck),
       },
+    },
+    pulse: {
+      warehouseUnits: Math.round(warehouseUnits * 1000) / 1000,
+      warehouseSku,
+      lowStockCount: lowStock.length,
+      storesOpen: storesWithSales,
+      storesTotal: stores.length,
+      sparkline,
     },
     stores: storeToday,
     lowStock: lowStock.map((b) => ({

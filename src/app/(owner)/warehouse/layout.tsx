@@ -1,6 +1,12 @@
 import { ReactNode } from "react";
+import { WarehouseMobileTabs } from "@/components/layout/warehouse-mobile-tabs";
 
-/** Warehouse sub-routes live in the grouped sidebar — no second nav strip. */
+/** Mobile: short task tabs. Desktop: full tree lives in the sidebar. */
 export default function WarehouseLayout({ children }: { children: ReactNode }) {
-  return <div>{children}</div>;
+  return (
+    <div>
+      <WarehouseMobileTabs />
+      {children}
+    </div>
+  );
 }

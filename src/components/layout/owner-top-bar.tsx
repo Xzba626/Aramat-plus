@@ -22,10 +22,10 @@ function initials(name: string) {
 export function OwnerTopBar({
   userName,
   role,
-  onMenu,
 }: {
   userName: string;
   role: string;
+  /** @deprecated Mobile no longer uses a drawer menu */
   onMenu?: () => void;
 }) {
   const pathname = usePathname();
@@ -65,18 +65,23 @@ export function OwnerTopBar({
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
-      <div className="flex h-14 items-center gap-3 px-4 sm:px-6 lg:px-8">
-        {onMenu ? (
-          <button
-            type="button"
-            onClick={onMenu}
-            className="rounded-xl border border-border px-3 py-2 text-sm font-semibold text-ink lg:hidden"
-            aria-label={t("common.menu")}
-          >
-            ☰
-          </button>
-        ) : null}
+      <div className="flex h-14 items-center gap-2.5 px-4 sm:gap-3 sm:px-6 lg:px-8">
+        {/* Mobile: brand mark (no hamburger — bottom nav is the menu) */}
+        <Link
+          href="/dashboard"
+          className="flex shrink-0 items-center gap-2 lg:hidden"
+          title="AROMAT PLUS"
+        >
+          <Image
+            src="/logo-aramat-plus.png"
+            alt=""
+            width={28}
+            height={28}
+            className="h-7 w-7 rounded-md object-contain"
+          />
+        </Link>
 
+        {/* Desktop: full brand */}
         <Link
           href="/dashboard"
           className="hidden items-center gap-2 lg:flex"
