@@ -1,6 +1,9 @@
+"use client";
+
 import { ReactNode } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/i18n-provider";
 
 export function EmptyState({
   title,
@@ -39,15 +42,17 @@ export function EmptyState({
 }
 
 export function LoadingBlock({
-  label = "Загрузка…",
+  label,
   rows = 4,
 }: {
   label?: string;
   rows?: number;
 }) {
+  const t = useT();
+  const text = label ?? t("common.loading");
   return (
-    <div className="space-y-3" aria-busy="true" aria-label={label}>
-      <p className="text-sm text-muted">{label}</p>
+    <div className="space-y-3" aria-busy="true" aria-label={text}>
+      <p className="text-sm text-muted">{text}</p>
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}

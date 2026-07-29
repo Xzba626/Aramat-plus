@@ -2,21 +2,21 @@
 
 export type WarehouseNavItem = {
   href: string;
-  label: string;
+  labelKey: string;
 };
 
 export const WAREHOUSE_INTERNAL_NAV: WarehouseNavItem[] = [
-  { href: "/warehouse", label: "Обзор" },
-  { href: "/warehouse/stock", label: "Остатки" },
-  { href: "/warehouse/products", label: "Каталог" },
-  { href: "/warehouse/categories", label: "Категории" },
-  { href: "/warehouse/brands", label: "Бренды" },
-  { href: "/warehouse/batches", label: "Партии" },
-  { href: "/warehouse/receive", label: "Поступление" },
-  { href: "/warehouse/transfers", label: "Отправка" },
-  { href: "/warehouse/return-in", label: "Возврат на склад" },
-  { href: "/warehouse/write-offs", label: "Списание" },
-  { href: "/warehouse/history", label: "История" },
+  { href: "/warehouse", labelKey: "nav.warehouseOverview" },
+  { href: "/warehouse/stock", labelKey: "nav.warehouseStock" },
+  { href: "/warehouse/products", labelKey: "nav.warehouseCatalog" },
+  { href: "/warehouse/categories", labelKey: "nav.warehouseCategories" },
+  { href: "/warehouse/brands", labelKey: "nav.warehouseBrands" },
+  { href: "/warehouse/batches", labelKey: "nav.warehouseBatches" },
+  { href: "/warehouse/receive", labelKey: "nav.warehouseReceive" },
+  { href: "/warehouse/transfers", labelKey: "nav.warehouseTransfers" },
+  { href: "/warehouse/return-in", labelKey: "nav.warehouseReturnIn" },
+  { href: "/warehouse/write-offs", labelKey: "nav.warehouseWriteOffs" },
+  { href: "/warehouse/history", labelKey: "nav.warehouseHistory" },
 ];
 
 export function isWarehouseNavActive(pathname: string, href: string): boolean {
@@ -26,7 +26,9 @@ export function isWarehouseNavActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function warehouseSectionLabel(pathname: string): string {
-  const item = WAREHOUSE_INTERNAL_NAV.find((n) => isWarehouseNavActive(pathname, n.href));
-  return item?.label ?? "Склад";
+export function warehouseSectionLabelKey(pathname: string): string {
+  const item = WAREHOUSE_INTERNAL_NAV.find((n) =>
+    isWarehouseNavActive(pathname, n.href)
+  );
+  return item?.labelKey ?? "nav.warehouse";
 }

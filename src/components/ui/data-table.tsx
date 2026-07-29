@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
+import { useT } from "@/components/i18n/i18n-provider";
 
 export function DataTable({
   children,
@@ -28,13 +29,14 @@ export function DataTableToolbar({
   filters?: ReactNode;
   actions?: ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
       <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
         {onSearchChange ? (
           <input
             className="max-w-xs"
-            placeholder="Поиск…"
+            placeholder={t("common.search")}
             value={search ?? ""}
             onChange={(e) => onSearchChange(e.target.value)}
           />
@@ -148,12 +150,13 @@ export function DataTablePagination({
   total: number;
   onPageChange: (p: number) => void;
 }) {
+  const t = useT();
   if (pages <= 1) return null;
 
   return (
     <div className="flex items-center justify-between border-t border-border px-4 py-3 text-xs text-muted">
       <span>
-        {total} записей · стр. {page}/{pages}
+        {t("common.recordsPage", { total, page, pages })}
       </span>
       <div className="flex gap-2">
         <button
@@ -162,7 +165,7 @@ export function DataTablePagination({
           onClick={() => onPageChange(page - 1)}
           className="rounded-lg px-2 py-1 hover:bg-page disabled:opacity-40"
         >
-          Назад
+          {t("common.back")}
         </button>
         <button
           type="button"
@@ -170,7 +173,7 @@ export function DataTablePagination({
           onClick={() => onPageChange(page + 1)}
           className="rounded-lg px-2 py-1 hover:bg-page disabled:opacity-40"
         >
-          Далее
+          {t("common.next")}
         </button>
       </div>
     </div>

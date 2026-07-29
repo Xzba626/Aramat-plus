@@ -32,6 +32,7 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
       lowStockCount: 0,
       totalCost: 0,
       totalSaleValue: 0,
+      productCount: 0,
       recentReceipts: [],
       recentTransfers: [],
       recentReturns: [],

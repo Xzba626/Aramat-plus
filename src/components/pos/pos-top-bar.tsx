@@ -6,6 +6,8 @@ import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
+import { useI18n } from "@/components/i18n/i18n-provider";
 
 export function PosTopBar({
   storeName,
@@ -13,12 +15,13 @@ export function PosTopBar({
   storeName?: string | null;
 }) {
   const { data } = useSession();
+  const { t, formatDate, formatTime } = useI18n();
   const [now, setNow] = useState(() => new Date());
   const [online, setOnline] = useState(true);
 
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -33,14 +36,8 @@ export function PosTopBar({
     };
   }, []);
 
-  const dateLabel = now.toLocaleDateString("ru-RU", {
-    day: "numeric",
-    month: "short",
-  });
-  const timeLabel = now.toLocaleTimeString("ru-RU", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const dateLabel = formatDate(now, { day: "numeric", month: "short" });
+  const timeLabel = formatTime(now);
 
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-card/95 px-4 py-3 backdrop-blur">
@@ -59,7 +56,8 @@ export function PosTopBar({
               ARAMAT <span className="text-brand">PLUS</span>
             </div>
             <div className="truncate text-xs text-muted">
-              {storeName || "Магазин"} · {data?.user?.name ?? "Продавец"}
+              {storeName || t("common.store")} ·{" "}
+              {data?.user?.name ?? t("common.seller")}
             </div>
             <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted">
               <span>
@@ -77,18 +75,21 @@ export function PosTopBar({
                     online ? "bg-success" : "bg-danger"
                   )}
                 />
-                {online ? "Онлайн" : "Офлайн"}
+                {online ? t("common.online") : t("common.offline")}
               </span>
             </div>
           </div>
         </div>
-        <Link
-          href="/pos/notifications"
-          className="rounded-xl p-2.5 text-muted hover:bg-page hover:text-ink"
-          aria-label="Уведомления"
-        >
-          <Bell className="h-5 w-5" strokeWidth={1.75} />
-        </Link>
+        <div className="flex shrink-0 items-center gap-1">
+          <LanguageSwitcher />
+          <Link
+            href="/pos/notifications"
+            className="rounded-xl p-2.5 text-muted hover:bg-page hover:text-ink"
+            aria-label={t("common.notifications")}
+          >
+            <Bell className="h-5 w-5" strokeWidth={1.75} />
+          </Link>
+        </div>
       </div>
     </header>
   );

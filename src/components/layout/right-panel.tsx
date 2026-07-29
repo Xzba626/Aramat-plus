@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/i18n-provider";
 
 type RightPanelState = {
   isOpen: boolean;
@@ -56,6 +57,7 @@ export function useRightPanel() {
 
 export function RightPanel() {
   const { isOpen, title, content, close } = useRightPanel();
+  const t = useT();
 
   if (!isOpen) return null;
 
@@ -67,12 +69,14 @@ export function RightPanel() {
       )}
     >
       <div className="flex h-14 items-center justify-between border-b border-border px-4">
-        <h2 className="truncate text-sm font-bold text-ink">{title ?? "Подробности"}</h2>
+        <h2 className="truncate text-sm font-bold text-ink">
+          {title ?? t("common.details")}
+        </h2>
         <button
           type="button"
           onClick={close}
           className="rounded-lg px-2 py-1 text-sm text-muted hover:bg-page hover:text-ink"
-          aria-label="Закрыть панель"
+          aria-label={t("common.closePanel")}
         >
           ✕
         </button>

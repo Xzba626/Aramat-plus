@@ -4,20 +4,22 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { formatMoney, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { DeltaBadge } from "@/components/layout/owner-top-bar";
 import type { DashboardPayload } from "@/lib/services/dashboard.service";
+import { useI18n } from "@/components/i18n/i18n-provider";
+import { HelpTip } from "@/components/ui/help-tip";
 
 const QUICK = [
-  { href: "/warehouse", label: "Склад" },
-  { href: "/stores", label: "Магазины" },
-  { href: "/returns", label: "Возвраты" },
-  { href: "/revision", label: "Ревизии" },
-  { href: "/analytics", label: "Аналитика" },
-  { href: "/users", label: "Пользователи" },
-  { href: "/journal", label: "Журнал" },
-  { href: "/settings", label: "Настройки" },
-];
+  { href: "/warehouse", labelKey: "dashboard.quickWarehouse" },
+  { href: "/stores", labelKey: "dashboard.quickStores" },
+  { href: "/returns", labelKey: "dashboard.quickReturns" },
+  { href: "/revision", labelKey: "dashboard.quickRevision" },
+  { href: "/analytics", labelKey: "dashboard.quickAnalytics" },
+  { href: "/users", labelKey: "dashboard.quickUsers" },
+  { href: "/journal", labelKey: "dashboard.quickJournal" },
+  { href: "/settings", labelKey: "dashboard.quickSettings" },
+] as const;
 
 export function OwnerDashboardClient({
   initial,
@@ -26,6 +28,7 @@ export function OwnerDashboardClient({
   initial: DashboardPayload;
   userName: string;
 }) {
+  const { t, formatMoney, formatDateTime, formatTime } = useI18n();
   const [data, setData] = useState(initial);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -66,61 +69,70 @@ export function OwnerDashboardClient({
 
   const { today, decisionSummary, decisions } = data;
 
+  const kpis = [
+    {
+      key: "revenue",
+      labelKey: "dashboard.salesToday",
+      hintKey: "todayRevenue",
+      value: formatMoney(today.revenue),
+      delta: today.deltas.revenue,
+      profit: false,
+    },
+    {
+      key: "profit",
+      labelKey: "dashboard.netProfit",
+      hintKey: "todayProfit",
+      value: formatMoney(today.profit),
+      delta: today.deltas.profit,
+      profit: true,
+    },
+    {
+      key: "count",
+      labelKey: "dashboard.salesCount",
+      hintKey: "todayCount",
+      value: String(today.count),
+      delta: today.deltas.count,
+      profit: false,
+    },
+    {
+      key: "items",
+      labelKey: "dashboard.itemsSold",
+      hintKey: "todayItems",
+      value: String(Math.round(today.itemsSold * 10) / 10),
+      delta: today.deltas.itemsSold,
+      profit: false,
+    },
+    {
+      key: "avg",
+      labelKey: "dashboard.avgCheck",
+      hintKey: "todayAvgCheck",
+      value: formatMoney(today.avgCheck),
+      delta: today.deltas.avgCheck,
+      profit: false,
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <section className="rounded-[16px] border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
         <div className="text-xs font-semibold uppercase tracking-wide text-brand">
-          AROMAT PLUS · Командный центр
+          {t("dashboard.commandCenter")}
         </div>
         <h2 className="mt-2 text-2xl font-bold tracking-tight text-ink">
-          Добро пожаловать, {userName}
+          {t("dashboard.welcome", { name: userName })}
         </h2>
-        <p className="mt-1 text-sm text-muted">
-          Сначала решения и продажи сегодня — всё остальное в меню слева.
-        </p>
+        <p className="mt-1 text-sm text-muted">{t("dashboard.welcomeHint")}</p>
       </section>
 
-      {/* Сегодня */}
       <section>
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
-          Сегодня
+          {t("dashboard.today")}
         </h2>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          {[
-            {
-              label: "Продажи сегодня",
-              value: formatMoney(today.revenue),
-              delta: today.deltas.revenue,
-              profit: false,
-            },
-            {
-              label: "Чистая прибыль",
-              value: formatMoney(today.profit),
-              delta: today.deltas.profit,
-              profit: true,
-            },
-            {
-              label: "Количество продаж",
-              value: String(today.count),
-              delta: today.deltas.count,
-              profit: false,
-            },
-            {
-              label: "Продано товаров",
-              value: String(Math.round(today.itemsSold * 10) / 10),
-              delta: today.deltas.itemsSold,
-              profit: false,
-            },
-            {
-              label: "Средний чек",
-              value: formatMoney(today.avgCheck),
-              delta: today.deltas.avgCheck,
-              profit: false,
-            },
-          ].map((kpi) => (
-            <Card key={kpi.label} className="p-4">
+          {kpis.map((kpi) => (
+            <Card key={kpi.key} className="p-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted">
-                {kpi.label}
+                <HelpTip hintKey={kpi.hintKey}>{t(kpi.labelKey)}</HelpTip>
               </div>
               <div
                 className={cn(
@@ -139,11 +151,10 @@ export function OwnerDashboardClient({
         </div>
       </section>
 
-      {/* Требуют моего решения */}
       <section id="decisions">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
           <h2 className="text-sm font-bold uppercase tracking-wide text-muted">
-            Требуют моего решения
+            {t("dashboard.needDecision")}
             {decisionSummary.total > 0 ? (
               <span className="ml-2 rounded-full bg-brand px-2 py-0.5 text-xs text-white">
                 {decisionSummary.total}
@@ -152,17 +163,25 @@ export function OwnerDashboardClient({
           </h2>
           {decisionSummary.total > 0 ? (
             <p className="text-xs text-muted">
-              {decisionSummary.discount ? `· ${decisionSummary.discount} скидки ` : ""}
-              {decisionSummary.return ? `· ${decisionSummary.return} возврата ` : ""}
-              {decisionSummary.price ? `· ${decisionSummary.price} цены ` : ""}
-              {decisionSummary.writeOff ? `· ${decisionSummary.writeOff} списания` : ""}
+              {decisionSummary.discount
+                ? t("dashboard.summaryDiscount", { n: decisionSummary.discount })
+                : ""}
+              {decisionSummary.return
+                ? t("dashboard.summaryReturn", { n: decisionSummary.return })
+                : ""}
+              {decisionSummary.price
+                ? t("dashboard.summaryPrice", { n: decisionSummary.price })
+                : ""}
+              {decisionSummary.writeOff
+                ? t("dashboard.summaryWriteOff", { n: decisionSummary.writeOff })
+                : ""}
             </p>
           ) : null}
         </div>
 
         {decisionSummary.total === 0 ? (
           <Card className="border-success/20 bg-success/5 p-5 text-sm text-success">
-            Все задачи обработаны. Новых запросов нет.
+            {t("dashboard.allClear")}
           </Card>
         ) : (
           <div className="space-y-3">
@@ -178,22 +197,25 @@ export function OwnerDashboardClient({
                   <div>
                     <div className="text-sm font-bold text-ink">{d.title}</div>
                     <div className="mt-1 text-xs text-muted">
-                      {new Date(d.createdAt).toLocaleString("ru-RU")} · {d.storeName} ·{" "}
-                      {d.actorName}
+                      {formatDateTime(d.createdAt)} · {d.storeName} · {d.actorName}
                     </div>
                     <div className="mt-2 text-sm text-ink">{d.products}</div>
                     {d.type === "DISCOUNT" ? (
                       <div className="mt-1 text-sm text-muted">
                         {d.originalTotal != null
-                          ? `Было: ${formatMoney(d.originalTotal)} · `
+                          ? t("dashboard.was", {
+                              amount: formatMoney(d.originalTotal),
+                            })
                           : ""}
-                        Запрос: {formatMoney(d.amount)}
+                        {t("dashboard.request", { amount: formatMoney(d.amount) })}
                         {d.percent != null ? ` (−${d.percent}%)` : ""}
                       </div>
                     ) : (
                       <div className="mt-1 text-sm text-muted">
-                        {d.reason || "Причина не указана"} · чек{" "}
-                        {d.originalTotal != null ? formatMoney(d.originalTotal) : "—"}
+                        {d.reason || t("dashboard.noReason")} · {t("dashboard.receipt")}{" "}
+                        {d.originalTotal != null
+                          ? formatMoney(d.originalTotal)
+                          : "—"}
                       </div>
                     )}
                   </div>
@@ -204,7 +226,7 @@ export function OwnerDashboardClient({
                       disabled={busyId === d.id}
                       onClick={() => decide(d.type, d.id, "APPROVE")}
                     >
-                      Одобрить
+                      {t("common.approve")}
                     </Button>
                     <Button
                       type="button"
@@ -213,7 +235,7 @@ export function OwnerDashboardClient({
                       disabled={busyId === d.id}
                       onClick={() => decide(d.type, d.id, "REJECT")}
                     >
-                      Отклонить
+                      {t("common.reject")}
                     </Button>
                   </div>
                 </div>
@@ -224,14 +246,15 @@ export function OwnerDashboardClient({
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Уведомления */}
         <section>
           <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
-            Важные уведомления
+            {t("dashboard.importantNotifs")}
           </h2>
           <Card className="divide-y divide-border p-0">
             {data.notifications.length === 0 ? (
-              <div className="p-4 text-sm text-muted">Нет важных уведомлений</div>
+              <div className="p-4 text-sm text-muted">
+                {t("dashboard.noImportantNotifs")}
+              </div>
             ) : (
               data.notifications.map((n) => (
                 <Link
@@ -261,14 +284,13 @@ export function OwnerDashboardClient({
             href="/notifications"
             className="mt-2 inline-block text-sm font-semibold text-brand hover:underline"
           >
-            Показать все
+            {t("common.showAll")}
           </Link>
         </section>
 
-        {/* Магазины */}
         <section>
           <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
-            Магазины / точки сегодня
+            {t("dashboard.storesToday")}
           </h2>
           <div className="space-y-2">
             {data.stores.map((s) => (
@@ -276,7 +298,9 @@ export function OwnerDashboardClient({
                 <Card className="mb-2 flex items-center justify-between p-4 transition hover:border-brand/30">
                   <div>
                     <div className="font-semibold text-ink">{s.name}</div>
-                    <div className="text-xs text-muted">{s.salesCount} продаж</div>
+                    <div className="text-xs text-muted">
+                      {t("dashboard.salesN", { n: s.salesCount })}
+                    </div>
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-bold text-ink">
@@ -290,15 +314,14 @@ export function OwnerDashboardClient({
               </Link>
             ))}
             {data.stores.length === 0 ? (
-              <Card className="p-4 text-sm text-muted">Нет магазинов</Card>
+              <Card className="p-4 text-sm text-muted">{t("dashboard.noStores")}</Card>
             ) : null}
           </div>
         </section>
 
-        {/* Товары */}
         <section>
           <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
-            Товары, требующие внимания
+            {t("dashboard.productsAttention")}
           </h2>
           <div className="space-y-2">
             {data.lowStock.map((p) => (
@@ -317,32 +340,28 @@ export function OwnerDashboardClient({
                     )}
                   >
                     {p.empty
-                      ? "Нет в наличии"
-                      : `Осталось ${p.quantity}${p.unit}`}
+                      ? t("dashboard.outOfStock")
+                      : t("dashboard.leftQty", { qty: p.quantity, unit: p.unit })}
                   </div>
                 </Card>
               </Link>
             ))}
             {data.lowStock.length === 0 ? (
-              <Card className="p-4 text-sm text-muted">Критичных остатков нет</Card>
+              <Card className="p-4 text-sm text-muted">
+                {t("dashboard.noCriticalStock")}
+              </Card>
             ) : null}
           </div>
         </section>
 
-        {/* Действия */}
         <section>
           <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
-            Последние действия
+            {t("dashboard.recentActions")}
           </h2>
           <Card className="divide-y divide-border p-0">
             {data.recent.map((log) => (
               <div key={log.id} className="px-4 py-3">
-                <div className="text-xs text-muted">
-                  {new Date(log.createdAt).toLocaleTimeString("ru-RU", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </div>
+                <div className="text-xs text-muted">{formatTime(log.createdAt)}</div>
                 <div className="text-sm font-semibold text-ink">
                   {log.userName}
                   {log.role ? ` · ${log.role}` : ""}
@@ -354,22 +373,21 @@ export function OwnerDashboardClient({
               </div>
             ))}
             {data.recent.length === 0 ? (
-              <div className="p-4 text-sm text-muted">Пока нет записей</div>
+              <div className="p-4 text-sm text-muted">{t("dashboard.noRecords")}</div>
             ) : null}
           </Card>
           <Link
             href="/journal"
             className="mt-2 inline-block text-sm font-semibold text-brand hover:underline"
           >
-            Перейти к журналу действий
+            {t("dashboard.goJournal")}
           </Link>
         </section>
       </div>
 
-      {/* Быстрые переходы */}
       <section>
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
-          Быстрые переходы
+          {t("dashboard.quickLinks")}
         </h2>
         <div className="flex flex-wrap gap-2">
           {QUICK.map((q) => (
@@ -378,7 +396,7 @@ export function OwnerDashboardClient({
               href={q.href}
               className="rounded-xl bg-brand-soft px-4 py-2.5 text-sm font-semibold text-brand ring-1 ring-brand/10 hover:bg-brand hover:text-white"
             >
-              {q.label}
+              {t(q.labelKey)}
             </Link>
           ))}
         </div>

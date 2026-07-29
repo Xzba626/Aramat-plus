@@ -21,6 +21,7 @@ import {
   type OwnerNavItem,
   type OwnerNavSection,
 } from "@/lib/navigation/owner-nav";
+import { useT } from "@/components/i18n/i18n-provider";
 
 const ICONS: Record<string, LucideIcon> = {
   home: Home,
@@ -44,6 +45,7 @@ function SubNavLink({
   pathname: string;
   onClose?: () => void;
 }) {
+  const t = useT();
   const active = isPathActive(pathname, item.href);
   return (
     <Link
@@ -56,7 +58,7 @@ function SubNavLink({
           : "text-sidebar-text/85 hover:bg-sidebar-hover hover:text-white"
       )}
     >
-      {item.label}
+      {t(item.labelKey)}
     </Link>
   );
 }
@@ -74,6 +76,7 @@ function SectionLink({
   onToggle: () => void;
   onClose?: () => void;
 }) {
+  const t = useT();
   const hasChildren = Boolean(section.children?.length);
   const childActive = section.children?.some((c) => isPathActive(pathname, c.href));
   const active = isPathActive(pathname, section.href) || Boolean(childActive);
@@ -91,7 +94,7 @@ function SectionLink({
         )}
       >
         <NavIcon name={section.icon} />
-        <span className="flex-1">{section.label}</span>
+        <span className="flex-1">{t(section.labelKey)}</span>
       </Link>
     );
   }
@@ -110,13 +113,13 @@ function SectionLink({
           )}
         >
           <NavIcon name={section.icon} />
-          <span className="flex-1 truncate text-left">{section.label}</span>
+          <span className="flex-1 truncate text-left">{t(section.labelKey)}</span>
         </Link>
         <button
           type="button"
           onClick={onToggle}
           className="rounded-lg px-2.5 py-2.5 text-xs text-white/45 hover:bg-sidebar-hover hover:text-white"
-          aria-label={expanded ? "Свернуть" : "Развернуть"}
+          aria-label={expanded ? t("common.collapse") : t("common.expand")}
           aria-expanded={expanded}
         >
           {expanded ? "▾" : "▸"}
@@ -126,7 +129,7 @@ function SectionLink({
         <div className="mt-0.5 space-y-0.5 pb-1">
           {section.children!.map((item) => (
             <SubNavLink
-              key={item.href + item.label}
+              key={item.href + item.labelKey}
               item={item}
               pathname={pathname}
               onClose={onClose}
@@ -147,6 +150,7 @@ export function OwnerSidebar({
   open?: boolean;
   onClose?: () => void;
 }) {
+  const t = useT();
   const pathname = usePathname();
   const sections = filterNavForRole(role as Role);
   const activeSectionId =
@@ -191,7 +195,7 @@ export function OwnerSidebar({
                 AROMAT <span className="text-brand">PLUS</span>
               </div>
               <div className="truncate text-[10px] tracking-wide text-white/40">
-                ERP · Управление сетью
+                {t("app.tagline")}
               </div>
             </div>
           </Link>

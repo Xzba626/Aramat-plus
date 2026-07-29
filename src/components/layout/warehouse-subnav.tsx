@@ -7,14 +7,16 @@ import {
   WAREHOUSE_INTERNAL_NAV,
   isWarehouseNavActive,
 } from "@/lib/navigation/warehouse-nav";
+import { useT } from "@/components/i18n/i18n-provider";
 
 export function WarehouseSubnav() {
   const pathname = usePathname();
+  const t = useT();
 
   return (
     <nav
       className="mb-6 -mx-1 flex gap-1 overflow-x-auto border-b border-border pb-3"
-      aria-label="Навигация склада"
+      aria-label={t("nav.subnavWarehouse")}
     >
       {WAREHOUSE_INTERNAL_NAV.map((item) => {
         const active = isWarehouseNavActive(pathname, item.href);
@@ -29,7 +31,7 @@ export function WarehouseSubnav() {
                 : "bg-card text-muted ring-1 ring-border hover:text-ink"
             )}
           >
-            {item.label}
+            {t(item.labelKey)}
           </Link>
         );
       })}

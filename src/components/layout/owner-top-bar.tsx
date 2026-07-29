@@ -7,7 +7,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { Bell, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { sectionTitleForPath } from "@/lib/navigation/owner-nav";
+import { sectionTitleKeyForPath } from "@/lib/navigation/owner-nav";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
+import { useI18n } from "@/components/i18n/i18n-provider";
 
 function initials(name: string) {
   return name
@@ -28,7 +30,8 @@ export function OwnerTopBar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const sectionTitle = sectionTitleForPath(pathname);
+  const { t, formatDate, formatTime } = useI18n();
+  const sectionTitle = t(sectionTitleKeyForPath(pathname));
   const [profileOpen, setProfileOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [now, setNow] = useState<Date | null>(null);
@@ -36,8 +39,8 @@ export function OwnerTopBar({
 
   useEffect(() => {
     setNow(new Date());
-    const t = setInterval(() => setNow(new Date()), 30_000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -54,20 +57,11 @@ export function OwnerTopBar({
     e.preventDefault();
     const q = search.trim();
     if (!q) return;
-    // Global search entry — warehouse catalog is the primary lookup
     router.push(`/warehouse/products?q=${encodeURIComponent(q)}`);
   }
 
-  const dateLabel = now
-    ? now.toLocaleDateString("ru-RU", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      })
-    : "—";
-  const timeLabel = now
-    ? now.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
-    : "--:--";
+  const dateLabel = now ? formatDate(now) : "—";
+  const timeLabel = now ? formatTime(now) : "--:--";
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
@@ -77,7 +71,7 @@ export function OwnerTopBar({
             type="button"
             onClick={onMenu}
             className="rounded-xl border border-border px-3 py-2 text-sm font-semibold text-ink lg:hidden"
-            aria-label="Меню"
+            aria-label={t("common.menu")}
           >
             ☰
           </button>
@@ -116,9 +110,9 @@ export function OwnerTopBar({
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Поиск…  ( / )"
+            placeholder={t("common.searchSlash")}
             className="border-0 bg-transparent p-0 text-sm shadow-none focus:ring-0"
-            aria-label="Глобальный поиск"
+            aria-label={t("common.globalSearch")}
           />
         </form>
 
@@ -131,10 +125,12 @@ export function OwnerTopBar({
         </div>
 
         <div className="flex items-center gap-1 sm:gap-2">
+          <LanguageSwitcher className="hidden sm:inline-flex" />
+
           <Link
             href="/notifications"
             className="relative rounded-xl p-2.5 text-muted hover:bg-page hover:text-ink"
-            title="Уведомления"
+            title={t("topbar.notifications")}
           >
             <Bell className="h-[18px] w-[18px]" strokeWidth={1.75} />
           </Link>
@@ -158,27 +154,30 @@ export function OwnerTopBar({
                 <div className="border-b border-border px-3 py-2">
                   <p className="truncate text-sm font-semibold text-ink">{userName}</p>
                   <p className="text-xs text-muted">{role}</p>
+                  <div className="mt-2 sm:hidden">
+                    <LanguageSwitcher />
+                  </div>
                 </div>
                 <Link
                   href="/settings"
                   className="block px-3 py-2 text-sm text-ink hover:bg-page"
                   onClick={() => setProfileOpen(false)}
                 >
-                  Настройки
+                  {t("common.settings")}
                 </Link>
                 <Link
                   href="/settings/password"
                   className="block px-3 py-2 text-sm text-ink hover:bg-page"
                   onClick={() => setProfileOpen(false)}
                 >
-                  Смена пароля
+                  {t("common.changePassword")}
                 </Link>
                 <button
                   type="button"
                   onClick={() => signOut({ callbackUrl: "/login" })}
                   className="block w-full px-3 py-2 text-left text-sm text-danger hover:bg-danger/5"
                 >
-                  Выход
+                  {t("common.exit")}
                 </button>
               </div>
             ) : null}
