@@ -4,6 +4,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
+import { useT } from "@/components/i18n/i18n-provider";
+import { labelRole } from "@/lib/i18n/labels";
 
 type UserRow = {
   id: string;
@@ -14,14 +16,19 @@ type UserRow = {
   store?: { id: string; name: string } | null;
 };
 
-type Store = { id: string; name: string };
+type Store = { id: string; name: string; kind?: string };
 
 export default function UsersPage() {
+  const t = useT();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [resetId, setResetId] = useState<string | null>(null);
+  const [resetPass, setResetPass] = useState("");
+  const [q, setQ] = useState("");
+  const [roleFilter, setRoleFilter] = useState("ALL");
 
   async function load() {
     const [uRes, sRes] = await Promise.all([
@@ -31,18 +38,19 @@ export default function UsersPage() {
     const uData = await uRes.json();
     const sData = await sRes.json();
     if (uRes.ok) setUsers(uData);
-    else setError(uData.error || "Ошибка");
-    if (sRes.ok) setStores(Array.isArray(sData) ? sData.filter((s: Store & { kind?: string }) => s.kind !== "OWNER_DIRECT") : []);
+    else setError(uData.error || t("usersPage.errorOwner"));
+    if (sRes.ok)
+      setStores(
+        Array.isArray(sData)
+          ? sData.filter((s: Store) => s.kind !== "OWNER_DIRECT")
+          : []
+      );
   }
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const [resetId, setResetId] = useState<string | null>(null);
-  const [resetPass, setResetPass] = useState("");
-  const [q, setQ] = useState("");
-  const [roleFilter, setRoleFilter] = useState("ALL");
 
   async function onCreate(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -58,15 +66,16 @@ export default function UsersPage() {
         email: String(fd.get("email")),
         password: String(fd.get("password")),
         role,
-        storeId: role === "SELLER" ? String(fd.get("storeId") || "") || null : null,
+        storeId:
+          role === "SELLER" ? String(fd.get("storeId") || "") || null : null,
       }),
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error || "Ошибка (нужны права Owner)");
+      setError(data.error || t("usersPage.errorOwner"));
       return;
     }
-    setMsg("Пользователь создан. Пароль больше не отображается — только сброс.");
+    setMsg(t("usersPage.created"));
     setShowForm(false);
     (e.target as HTMLFormElement).reset();
     load();
@@ -75,7 +84,7 @@ export default function UsersPage() {
   async function onReset(e: FormEvent) {
     e.preventDefault();
     if (!resetId || resetPass.length < 4) {
-      setError("Пароль не короче 4 символов");
+      setError(t("usersPage.passwordShort"));
       return;
     }
     setError("");
@@ -86,10 +95,10 @@ export default function UsersPage() {
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error || "Не удалось сбросить пароль");
+      setError(data.error || t("usersPage.resetFail"));
       return;
     }
-    setMsg("Пароль обновлён");
+    setMsg(t("usersPage.passwordUpdated"));
     setResetId(null);
     setResetPass("");
   }
@@ -107,12 +116,16 @@ export default function UsersPage() {
   return (
     <div>
       <PageHeader
-        title="Пользователи"
+        title={t("usersPage.title")}
         count={filtered.length || null}
-        subtitle="Owner · Manager · Seller — логин и пароль выдаёт владелец"
+        subtitle={t("usersPage.subtitle")}
         actions={
-          <Button fullWidth={false} type="button" onClick={() => setShowForm((v) => !v)}>
-            {showForm ? "Отмена" : "+ Создать"}
+          <Button
+            fullWidth={false}
+            type="button"
+            onClick={() => setShowForm((v) => !v)}
+          >
+            {showForm ? t("common.cancel") : t("usersPage.create")}
           </Button>
         }
       />
@@ -121,27 +134,33 @@ export default function UsersPage() {
         <Card className="mb-6 max-w-lg p-4">
           <form onSubmit={onCreate} className="space-y-3">
             <div>
-              <FieldLabel>Имя</FieldLabel>
+              <FieldLabel>{t("usersPage.name")}</FieldLabel>
               <input name="name" required className="w-full" />
             </div>
             <div>
-              <FieldLabel>Логин (email)</FieldLabel>
+              <FieldLabel>{t("usersPage.loginEmail")}</FieldLabel>
               <input name="email" type="email" required className="w-full" />
             </div>
             <div>
-              <FieldLabel>Временный пароль</FieldLabel>
-              <input name="password" type="password" required minLength={4} className="w-full" />
+              <FieldLabel>{t("usersPage.tempPassword")}</FieldLabel>
+              <input
+                name="password"
+                type="password"
+                required
+                minLength={4}
+                className="w-full"
+              />
             </div>
             <div>
-              <FieldLabel>Роль</FieldLabel>
+              <FieldLabel>{t("usersPage.role")}</FieldLabel>
               <select name="role" className="w-full" defaultValue="SELLER">
-                <option value="SELLER">Продавец</option>
-                <option value="MANAGER">Менеджер</option>
-                <option value="OWNER">Владелец</option>
+                <option value="SELLER">{t("roles.seller")}</option>
+                <option value="MANAGER">{t("roles.manager")}</option>
+                <option value="OWNER">{t("roles.owner")}</option>
               </select>
             </div>
             <div>
-              <FieldLabel>Магазин (для продавца)</FieldLabel>
+              <FieldLabel>{t("usersPage.storeForSeller")}</FieldLabel>
               <select name="storeId" className="w-full" defaultValue="">
                 <option value="">—</option>
                 {stores.map((s) => (
@@ -151,7 +170,7 @@ export default function UsersPage() {
                 ))}
               </select>
             </div>
-            <Button type="submit">Создать</Button>
+            <Button type="submit">{t("common.save")}</Button>
           </form>
         </Card>
       ) : null}
@@ -163,7 +182,7 @@ export default function UsersPage() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Поиск: имя, email, магазин…"
+          placeholder={t("usersPage.search")}
           className="min-w-[200px] flex-1 rounded-xl border border-border bg-card px-3 py-2 text-sm"
         />
         <select
@@ -171,14 +190,16 @@ export default function UsersPage() {
           onChange={(e) => setRoleFilter(e.target.value)}
           className="rounded-xl border border-border bg-card px-3 py-2 text-sm"
         >
-          <option value="ALL">Все роли</option>
-          <option value="OWNER">Owner</option>
-          <option value="MANAGER">Manager</option>
-          <option value="SELLER">Seller</option>
+          <option value="ALL">{t("usersPage.allRoles")}</option>
+          <option value="OWNER">{t("roles.owner")}</option>
+          <option value="MANAGER">{t("roles.manager")}</option>
+          <option value="SELLER">{t("roles.seller")}</option>
         </select>
       </div>
 
-      <SectionTitle>Сотрудники ({filtered.length})</SectionTitle>
+      <SectionTitle>
+        {t("usersPage.staff")} ({filtered.length})
+      </SectionTitle>
       <div className="space-y-2">
         {filtered.map((u) => (
           <Card key={u.id} className="p-4">
@@ -186,9 +207,9 @@ export default function UsersPage() {
               <div>
                 <div className="font-semibold text-ink">{u.name}</div>
                 <div className="text-xs text-muted">
-                  {u.email} · {u.role}
+                  {u.email} · {labelRole(u.role, t)}
                   {u.store ? ` · ${u.store.name}` : ""}
-                  {!u.isActive ? " · архив" : ""}
+                  {!u.isActive ? ` · ${t("usersPage.archived")}` : ""}
                 </div>
               </div>
               <Button
@@ -201,13 +222,16 @@ export default function UsersPage() {
                   setMsg("");
                 }}
               >
-                Сброс пароля
+                {t("usersPage.resetPassword")}
               </Button>
             </div>
             {resetId === u.id ? (
-              <form onSubmit={onReset} className="mt-3 flex flex-wrap items-end gap-2 border-t border-border pt-3">
+              <form
+                onSubmit={onReset}
+                className="mt-3 flex flex-wrap items-end gap-2 border-t border-border pt-3"
+              >
                 <div className="min-w-[180px] flex-1">
-                  <FieldLabel>Новый пароль</FieldLabel>
+                  <FieldLabel>{t("usersPage.newPassword")}</FieldLabel>
                   <input
                     type="password"
                     value={resetPass}
@@ -218,7 +242,7 @@ export default function UsersPage() {
                   />
                 </div>
                 <Button type="submit" fullWidth={false}>
-                  Сохранить
+                  {t("common.save")}
                 </Button>
                 <Button
                   type="button"
@@ -226,14 +250,14 @@ export default function UsersPage() {
                   fullWidth={false}
                   onClick={() => setResetId(null)}
                 >
-                  Отмена
+                  {t("common.cancel")}
                 </Button>
               </form>
             ) : null}
           </Card>
         ))}
         {filtered.length === 0 ? (
-          <p className="py-8 text-center text-muted">Нет пользователей</p>
+          <p className="py-8 text-center text-muted">{t("usersPage.noUsers")}</p>
         ) : null}
       </div>
     </div>

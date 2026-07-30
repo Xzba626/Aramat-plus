@@ -7,6 +7,8 @@ import {
   ModuleWorkspace,
 } from "@/components/ui/module-workspace";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/components/i18n/i18n-provider";
+import { labelAction, labelEntity, labelRole } from "@/lib/i18n/labels";
 
 type LogRow = {
   id: string;
@@ -23,6 +25,7 @@ type LogRow = {
 type Tab = "all" | "warehouse" | "sales" | "users";
 
 export default function JournalPage() {
+  const { t, formatDate, formatTime } = useI18n();
   const [rows, setRows] = useState<LogRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("all");
@@ -51,55 +54,53 @@ export default function JournalPage() {
       if (!matchQ) return false;
       if (tab === "warehouse")
         return /warehouse|batch|transfer|stock|product|return|write/i.test(blob);
-      if (tab === "sales")
-        return /sale|discount|pos|payment/i.test(blob);
-      if (tab === "users")
-        return /user|password|login|role/i.test(blob);
+      if (tab === "sales") return /sale|discount|pos|payment/i.test(blob);
+      if (tab === "users") return /user|password|login|role/i.test(blob);
       return true;
     });
   }, [rows, tab, q]);
 
+  const tabs: { id: Tab; labelKey: string }[] = [
+    { id: "all", labelKey: "journalPage.tabAll" },
+    { id: "warehouse", labelKey: "journalPage.tabWarehouse" },
+    { id: "sales", labelKey: "journalPage.tabSales" },
+    { id: "users", labelKey: "journalPage.tabUsers" },
+  ];
+
   return (
     <ModuleWorkspace
-      title="Журнал действий"
-      subtitle="Серверный лог системы. Записи не удаляются."
+      title={t("journalPage.title")}
+      subtitle={t("journalPage.subtitle")}
       kpis={[
         {
-          label: "Всего загружено",
+          label: t("journalPage.loaded"),
           value: loading ? "…" : String(rows.length),
         },
         {
-          label: "На экране",
+          label: t("journalPage.onScreen"),
           value: loading ? "…" : String(filtered.length),
         },
         {
-          label: "Удаление",
-          value: "Запрещено",
-          hint: "История сохраняется всегда",
+          label: t("journalPage.deletion"),
+          value: t("journalPage.deletionValue"),
+          hint: t("journalPage.deletionHint"),
         },
       ]}
     >
       <div className="mb-4 flex flex-wrap gap-1.5">
-        {(
-          [
-            ["all", "Все"],
-            ["warehouse", "Склад"],
-            ["sales", "Продажи"],
-            ["users", "Пользователи"],
-          ] as const
-        ).map(([id, label]) => (
+        {tabs.map((item) => (
           <button
-            key={id}
+            key={item.id}
             type="button"
-            onClick={() => setTab(id)}
+            onClick={() => setTab(item.id)}
             className={cn(
               "rounded-xl px-3.5 py-2 text-sm font-semibold",
-              tab === id
+              tab === item.id
                 ? "bg-brand text-white"
                 : "bg-card text-muted ring-1 ring-border"
             )}
           >
-            {label}
+            {t(item.labelKey)}
           </button>
         ))}
       </div>
@@ -107,16 +108,16 @@ export default function JournalPage() {
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Поиск: действие, пользователь, объект…"
+        placeholder={t("journalPage.search")}
         className="mb-4 w-full max-w-lg rounded-xl border border-border bg-card px-3 py-2 text-sm"
       />
 
-      <ModuleSection title="Лог">
+      <ModuleSection title={t("journalPage.log")}>
         {loading ? (
-          <Card className="p-5 text-sm text-muted">Загрузка…</Card>
+          <Card className="p-5 text-sm text-muted">{t("common.loading")}</Card>
         ) : filtered.length === 0 ? (
           <Card className="p-8 text-center text-sm text-muted">
-            Нет записей по фильтру
+            {t("journalPage.empty")}
           </Card>
         ) : (
           <Card className="overflow-hidden p-0">
@@ -124,12 +125,24 @@ export default function JournalPage() {
               <table className="min-w-full text-left text-sm">
                 <thead className="border-b border-border bg-page/80 text-xs uppercase tracking-wide text-muted">
                   <tr>
-                    <th className="px-4 py-3 font-semibold">Дата</th>
-                    <th className="px-4 py-3 font-semibold">Время</th>
-                    <th className="px-4 py-3 font-semibold">Пользователь</th>
-                    <th className="px-4 py-3 font-semibold">Роль</th>
-                    <th className="px-4 py-3 font-semibold">Действие</th>
-                    <th className="px-4 py-3 font-semibold">Объект</th>
+                    <th className="px-4 py-3 font-semibold">
+                      {t("journalPage.colDate")}
+                    </th>
+                    <th className="px-4 py-3 font-semibold">
+                      {t("journalPage.colTime")}
+                    </th>
+                    <th className="px-4 py-3 font-semibold">
+                      {t("journalPage.colUser")}
+                    </th>
+                    <th className="px-4 py-3 font-semibold">
+                      {t("journalPage.colRole")}
+                    </th>
+                    <th className="px-4 py-3 font-semibold">
+                      {t("journalPage.colAction")}
+                    </th>
+                    <th className="px-4 py-3 font-semibold">
+                      {t("journalPage.colObject")}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -141,22 +154,23 @@ export default function JournalPage() {
                         className="border-b border-border last:border-0"
                       >
                         <td className="px-4 py-3 tabular-nums text-muted">
-                          {d.toLocaleDateString("ru-RU")}
-                        </td>
-                        <td className="px-4 py-3 tabular-nums text-muted">
-                          {d.toLocaleTimeString("ru-RU", {
-                            hour: "2-digit",
-                            minute: "2-digit",
+                          {formatDate(d, {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
                           })}
                         </td>
+                        <td className="px-4 py-3 tabular-nums text-muted">
+                          {formatTime(d)}
+                        </td>
                         <td className="px-4 py-3 font-semibold text-ink">
-                          {log.userName ?? "Система"}
+                          {log.userName ?? t("journalPage.system")}
                         </td>
                         <td className="px-4 py-3 text-muted">
-                          {log.role ?? "—"}
+                          {labelRole(log.role, t)}
                         </td>
                         <td className="px-4 py-3 text-ink">
-                          {log.action}
+                          {labelAction(log.action, t)}
                           {log.comment ? (
                             <span className="block text-xs text-muted">
                               {log.comment}
@@ -164,8 +178,7 @@ export default function JournalPage() {
                           ) : null}
                         </td>
                         <td className="px-4 py-3 text-muted">
-                          {log.entityType}
-                          {log.entityId ? ` · ${log.entityId.slice(0, 8)}` : ""}
+                          {labelEntity(log.entityType, t)}
                         </td>
                       </tr>
                     );

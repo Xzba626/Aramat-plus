@@ -8,6 +8,7 @@ import {
   ModuleWorkspace,
 } from "@/components/ui/module-workspace";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/components/i18n/i18n-provider";
 
 type Notif = {
   id: string;
@@ -22,6 +23,7 @@ type Notif = {
 type Tab = "all" | "stock" | "actions" | "unread";
 
 export default function NotificationsPage() {
+  const { t, formatDateTime } = useI18n();
   const [items, setItems] = useState<Notif[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("all");
@@ -54,24 +56,39 @@ export default function NotificationsPage() {
       if (!matchQ) return false;
       if (tab === "unread") return !n.isRead;
       if (tab === "stock")
-        return /stock|остат|товар|парти/i.test(text);
+        return /stock|остат|товар|парти|боқимонда|мол/i.test(text);
       if (tab === "actions")
-        return /скидк|возврат|ревиз|запрос|решен/i.test(text);
+        return /скидк|возврат|ревиз|запрос|решен|тахфиф|бозгашт|дархост/i.test(
+          text
+        );
       return true;
     });
   }, [items, tab, q]);
 
   const unread = items.filter((n) => !n.isRead).length;
 
+  const tabs: { id: Tab; labelKey: string }[] = [
+    { id: "all", labelKey: "notificationsPage.tabAll" },
+    { id: "unread", labelKey: "notificationsPage.tabUnread" },
+    { id: "stock", labelKey: "notificationsPage.tabStock" },
+    { id: "actions", labelKey: "notificationsPage.tabActions" },
+  ];
+
   return (
     <ModuleWorkspace
-      title="Уведомления"
-      subtitle="Остатки, партии, запросы и действия, требующие внимания"
+      title={t("notificationsPage.title")}
+      subtitle={t("notificationsPage.subtitle")}
       kpis={[
-        { label: "Всего", value: loading ? "…" : String(items.length) },
-        { label: "Непрочитанные", value: loading ? "…" : String(unread) },
         {
-          label: "На экране",
+          label: t("notificationsPage.total"),
+          value: loading ? "…" : String(items.length),
+        },
+        {
+          label: t("notificationsPage.unread"),
+          value: loading ? "…" : String(unread),
+        },
+        {
+          label: t("notificationsPage.onScreen"),
           value: loading ? "…" : String(filtered.length),
         },
       ]}
@@ -83,31 +100,24 @@ export default function NotificationsPage() {
           onClick={markAllRead}
           disabled={!unread}
         >
-          Отметить все прочитанными
+          {t("notificationsPage.markAll")}
         </Button>
       }
     >
       <div className="mb-4 flex flex-wrap gap-1.5">
-        {(
-          [
-            ["all", "Все"],
-            ["unread", "Непрочитанные"],
-            ["stock", "Остатки"],
-            ["actions", "Требуют действия"],
-          ] as const
-        ).map(([id, label]) => (
+        {tabs.map((item) => (
           <button
-            key={id}
+            key={item.id}
             type="button"
-            onClick={() => setTab(id)}
+            onClick={() => setTab(item.id)}
             className={cn(
               "rounded-xl px-3.5 py-2 text-sm font-semibold",
-              tab === id
+              tab === item.id
                 ? "bg-brand text-white"
                 : "bg-card text-muted ring-1 ring-border"
             )}
           >
-            {label}
+            {t(item.labelKey)}
           </button>
         ))}
       </div>
@@ -115,42 +125,43 @@ export default function NotificationsPage() {
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Поиск по уведомлениям…"
-        className="mb-4 w-full max-w-md rounded-xl border border-border bg-card px-3 py-2 text-sm"
+        placeholder={t("notificationsPage.search")}
+        className="mb-4 w-full max-w-lg rounded-xl border border-border bg-card px-3 py-2 text-sm"
       />
 
-      <ModuleSection title="Лента">
+      <ModuleSection title={t("notificationsPage.feed")}>
         {loading ? (
-          <Card className="p-5 text-sm text-muted">Загрузка…</Card>
+          <Card className="p-5 text-sm text-muted">{t("common.loading")}</Card>
         ) : filtered.length === 0 ? (
           <Card className="p-8 text-center text-sm text-muted">
-            Нет уведомлений по выбранному фильтру
+            {t("notificationsPage.empty")}
           </Card>
         ) : (
-          <Card className="divide-y divide-border p-0">
+          <div className="space-y-2">
             {filtered.map((n) => (
-              <div
+              <Card
                 key={n.id}
-                className={cn("px-4 py-3", !n.isRead && "bg-brand-soft/30")}
+                className={cn(
+                  "flex gap-3 p-4",
+                  !n.isRead && "border-brand/30 bg-brand-soft/40"
+                )}
               >
-                <div className="flex items-start gap-3">
-                  <span
-                    className={cn(
-                      "mt-1.5 h-2 w-2 shrink-0 rounded-full",
-                      n.isRead ? "bg-border" : "bg-brand"
-                    )}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold text-ink">{n.title}</div>
-                    <div className="mt-0.5 text-sm text-muted">{n.message}</div>
-                    <div className="mt-1 text-xs text-muted">
-                      {new Date(n.createdAt).toLocaleString("ru-RU")}
-                    </div>
+                <span
+                  className={cn(
+                    "mt-1.5 h-2 w-2 shrink-0 rounded-full",
+                    n.isRead ? "bg-border" : "bg-danger"
+                  )}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-ink">{n.title}</div>
+                  <div className="text-sm text-muted">{n.message}</div>
+                  <div className="mt-1 text-xs text-muted">
+                    {formatDateTime(n.createdAt)}
                   </div>
                 </div>
-              </div>
+              </Card>
             ))}
-          </Card>
+          </div>
         )}
       </ModuleSection>
     </ModuleWorkspace>

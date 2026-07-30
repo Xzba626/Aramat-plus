@@ -153,7 +153,7 @@ export async function createSale(params: {
       action: "SALE_CREATE",
       entityType: "Sale",
       entityId: sale.id,
-      comment: `${store.name} · ${decimalToNumber(total)} TJS`,
+      comment: `${store.name} · ${decimalToNumber(total)} с.`,
       metadata: {
         storeId: store.id,
         locationType,

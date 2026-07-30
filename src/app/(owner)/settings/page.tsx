@@ -1,51 +1,56 @@
+"use client";
+
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import {
   ModuleSection,
   ModuleWorkspace,
 } from "@/components/ui/module-workspace";
-
-const SETTINGS_CARDS = [
-  {
-    href: "/settings/password",
-    title: "Пароль и вход",
-    description: "Смена пароля владельца и доступ к аккаунту.",
-  },
-  {
-    href: "/settings/references",
-    title: "Справочники",
-    description: "Единицы измерения, типы операций, типы расходов.",
-  },
-  {
-    href: "/users",
-    title: "Роли и пользователи",
-    description: "Owner · Manager · Seller. Выдача логина и пароля.",
-  },
-  {
-    href: "/notifications",
-    title: "Уведомления",
-    description: "Какие события показывать владельцу и менеджеру.",
-  },
-  {
-    href: "/settings/company",
-    title: "Компания",
-    description: "Название, контакты и параметры сети AROMAT PLUS.",
-  },
-];
+import { useT } from "@/components/i18n/i18n-provider";
 
 export default function SettingsPage() {
+  const t = useT();
+
+  const cards = [
+    {
+      href: "/settings/password",
+      titleKey: "settingsPage.password",
+      descKey: "settingsPage.passwordDesc",
+    },
+    {
+      href: "/settings/references",
+      titleKey: "settingsPage.references",
+      descKey: "settingsPage.referencesDesc",
+    },
+    {
+      href: "/users",
+      titleKey: "settingsPage.users",
+      descKey: "settingsPage.usersDesc",
+    },
+    {
+      href: "/notifications",
+      titleKey: "settingsPage.notifications",
+      descKey: "settingsPage.notificationsDesc",
+    },
+    {
+      href: "/settings/company",
+      titleKey: "settingsPage.company",
+      descKey: "settingsPage.companyDesc",
+    },
+  ];
+
   return (
     <ModuleWorkspace
-      title="Настройки"
-      subtitle="Владелец управляет доступом, справочниками и параметрами компании"
+      title={t("settingsPage.title")}
+      subtitle={t("settingsPage.subtitle")}
     >
-      <ModuleSection title="Разделы">
+      <ModuleSection title={t("settingsPage.sections")}>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {SETTINGS_CARDS.map((card) => (
+          {cards.map((card) => (
             <Link key={card.href} href={card.href}>
               <Card className="h-full p-5 transition hover:border-brand/30">
-                <div className="text-sm font-bold text-ink">{card.title}</div>
-                <p className="mt-2 text-sm text-muted">{card.description}</p>
+                <div className="text-sm font-bold text-ink">{t(card.titleKey)}</div>
+                <p className="mt-2 text-sm text-muted">{t(card.descKey)}</p>
               </Card>
             </Link>
           ))}

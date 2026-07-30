@@ -583,7 +583,7 @@ export async function getStoreRequests(
       status: d.status,
       createdAt: d.createdAt,
       requester: d.requester,
-      summary: `${decimalToNumber(d.amount)} TJS · ${d.reason ?? "—"}`,
+      summary: `${decimalToNumber(d.amount)} с. · ${d.reason ?? "—"}`,
     })),
     ...returns.map((r) => ({
       id: r.id,

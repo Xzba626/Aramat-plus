@@ -11,7 +11,8 @@ import {
   MOCK_ANALYTICS_PRODUCTS,
   MOCK_ANALYTICS_SELLERS,
 } from "@/lib/ui-mocks";
-import { cn, formatMoney } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useI18n } from "@/components/i18n/i18n-provider";
 
 type StoreRow = {
   id: string;
@@ -27,6 +28,7 @@ type StoreRow = {
 type Tab = "network" | "stores" | "products" | "sellers" | "expenses";
 
 export default function AnalyticsPage() {
+  const { t, formatMoney } = useI18n();
   const [tab, setTab] = useState<Tab>("network");
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,51 +71,51 @@ export default function AnalyticsPage() {
     [q]
   );
 
+  const tabs: { id: Tab; labelKey: string }[] = [
+    { id: "network", labelKey: "analyticsPage.tabNetwork" },
+    { id: "stores", labelKey: "analyticsPage.tabStores" },
+    { id: "products", labelKey: "analyticsPage.tabProducts" },
+    { id: "sellers", labelKey: "analyticsPage.tabSellers" },
+    { id: "expenses", labelKey: "analyticsPage.tabExpenses" },
+  ];
+
   return (
     <ModuleWorkspace
-      title="Аналитика"
-      subtitle="Каждый магазин отдельно и сводка по всей сети"
+      title={t("analyticsPage.title")}
+      subtitle={t("analyticsPage.subtitle")}
       kpis={[
         {
-          label: "Продажи сегодня",
-          value: loading ? "…" : formatMoney(networkRevenue),
+          label: t("analyticsPage.salesToday"),
+          value: loading ? "…" : formatMoney(networkRevenue, { short: true }),
         },
         {
-          label: "Прибыль сегодня",
-          value: loading ? "…" : formatMoney(networkProfit),
+          label: t("analyticsPage.profitToday"),
+          value: loading ? "…" : formatMoney(networkProfit, { short: true }),
         },
         {
-          label: "Чеков сегодня",
+          label: t("analyticsPage.checksToday"),
           value: loading ? "…" : String(networkSales),
         },
         {
-          label: "Выручка за месяц",
-          value: loading ? "…" : formatMoney(monthRevenue),
+          label: t("analyticsPage.monthRevenue"),
+          value: loading ? "…" : formatMoney(monthRevenue, { short: true }),
         },
       ]}
     >
       <div className="mb-5 flex flex-wrap gap-1.5 border-b border-border pb-3">
-        {(
-          [
-            ["network", "Сеть"],
-            ["stores", "По магазинам"],
-            ["products", "Товары"],
-            ["sellers", "Продавцы"],
-            ["expenses", "Расходы"],
-          ] as const
-        ).map(([id, label]) => (
+        {tabs.map((item) => (
           <button
-            key={id}
+            key={item.id}
             type="button"
-            onClick={() => setTab(id)}
+            onClick={() => setTab(item.id)}
             className={cn(
               "rounded-xl px-3.5 py-2 text-sm font-semibold transition",
-              tab === id
+              tab === item.id
                 ? "bg-brand text-white"
                 : "bg-card text-muted ring-1 ring-border hover:text-ink"
             )}
           >
-            {label}
+            {t(item.labelKey)}
           </button>
         ))}
       </div>
@@ -122,34 +124,40 @@ export default function AnalyticsPage() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Поиск…"
+          placeholder={t("common.search")}
           className="mb-4 w-full max-w-md rounded-xl border border-border bg-card px-3 py-2 text-sm"
         />
       )}
 
-      {tab === "network" || tab === "stores" ? (
-        <ModuleSection title="Магазины сегодня">
+      {tab === "network" ? (
+        <ModuleSection title={t("analyticsPage.storesToday")}>
           {loading ? (
-            <Card className="p-5 text-sm text-muted">Загрузка…</Card>
+            <Card className="p-5 text-sm text-muted">{t("common.loading")}</Card>
           ) : (
             <div className="space-y-2">
               {stores.map((s) => (
                 <Link key={s.id} href={`/stores/${s.id}`}>
                   <Card className="mb-2 flex flex-wrap items-center justify-between gap-3 p-4 transition hover:border-brand/30">
                     <div>
-                      <div className="font-semibold text-ink">{s.name}</div>
+                      <div className="font-semibold text-ink">
+                        {s.kind === "OWNER_DIRECT"
+                          ? t("nav.storesOwnerDirect")
+                          : s.name}
+                      </div>
                       <div className="text-xs text-muted">
                         {s.kind === "OWNER_DIRECT"
-                          ? "Личные продажи владельца"
-                          : `${s.todaySalesCount} продаж сегодня`}
+                          ? t("storesPage.ownerDirectHint")
+                          : t("analyticsPage.salesTodayCount", {
+                              n: s.todaySalesCount,
+                            })}
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-bold text-ink">
-                        {formatMoney(s.todayRevenue)}
+                        {formatMoney(s.todayRevenue, { short: true })}
                       </div>
                       <div className="text-xs font-semibold text-success">
-                        {formatMoney(s.todayProfit)}
+                        {formatMoney(s.todayProfit, { short: true })}
                       </div>
                     </div>
                   </Card>
@@ -160,16 +168,63 @@ export default function AnalyticsPage() {
         </ModuleSection>
       ) : null}
 
+      {tab === "stores" ? (
+        <ModuleSection title={t("analyticsPage.storesMonth")}>
+          {loading ? (
+            <Card className="p-5 text-sm text-muted">{t("common.loading")}</Card>
+          ) : (
+            <div className="space-y-2">
+              {[...stores]
+                .sort((a, b) => b.monthRevenue - a.monthRevenue)
+                .map((s) => (
+                  <Link key={s.id} href={`/stores/${s.id}`}>
+                    <Card className="mb-2 flex flex-wrap items-center justify-between gap-3 p-4 transition hover:border-brand/30">
+                      <div>
+                        <div className="font-semibold text-ink">
+                          {s.kind === "OWNER_DIRECT"
+                            ? t("nav.storesOwnerDirect")
+                            : s.name}
+                        </div>
+                        <div className="text-xs text-muted">
+                          {t("analyticsPage.monthRevenueShort", {
+                            amount: formatMoney(s.monthRevenue, { short: true }),
+                          })}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-ink">
+                          {formatMoney(s.monthRevenue, { short: true })}
+                        </div>
+                        <div className="text-xs font-semibold text-success">
+                          {formatMoney(s.monthProfit, { short: true })}
+                        </div>
+                      </div>
+                    </Card>
+                  </Link>
+                ))}
+            </div>
+          )}
+        </ModuleSection>
+      ) : null}
+
       {tab === "products" ? (
-        <ModuleSection title="Топ товары">
+        <ModuleSection title={t("analyticsPage.topProducts")}>
           <Card className="overflow-hidden p-0">
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-border bg-page/80 text-xs uppercase tracking-wide text-muted">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Товар</th>
-                  <th className="px-4 py-3 font-semibold">Продано</th>
-                  <th className="px-4 py-3 font-semibold">Выручка</th>
-                  <th className="px-4 py-3 font-semibold">Прибыль</th>
+                  <th className="px-4 py-3 font-semibold">
+                    {t("analyticsPage.colProduct")}
+                  </th>
+                  <th className="px-4 py-3 font-semibold">
+                    {t("analyticsPage.colSold")}
+                  </th>
+                  <th className="px-4 py-3 font-semibold">
+                    {t("analyticsPage.colRevenue")}
+                  </th>
+                  <th className="px-4 py-3 font-semibold">
+                    {t("analyticsPage.colProfit")}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -177,8 +232,12 @@ export default function AnalyticsPage() {
                   <tr key={p.name} className="border-b border-border last:border-0">
                     <td className="px-4 py-3 font-semibold text-ink">{p.name}</td>
                     <td className="px-4 py-3 text-muted">{p.sold}</td>
-                    <td className="px-4 py-3">{formatMoney(p.revenue)}</td>
-                    <td className="px-4 py-3 text-success">{formatMoney(p.profit)}</td>
+                    <td className="px-4 py-3">
+                      {formatMoney(p.revenue, { short: true })}
+                    </td>
+                    <td className="px-4 py-3 text-success">
+                      {formatMoney(p.profit, { short: true })}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -188,15 +247,23 @@ export default function AnalyticsPage() {
       ) : null}
 
       {tab === "sellers" ? (
-        <ModuleSection title="Лучшие продавцы">
+        <ModuleSection title={t("analyticsPage.topSellers")}>
           <Card className="overflow-hidden p-0">
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-border bg-page/80 text-xs uppercase tracking-wide text-muted">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Продавец</th>
-                  <th className="px-4 py-3 font-semibold">Магазин</th>
-                  <th className="px-4 py-3 font-semibold">Чеки</th>
-                  <th className="px-4 py-3 font-semibold">Выручка</th>
+                  <th className="px-4 py-3 font-semibold">
+                    {t("analyticsPage.colSeller")}
+                  </th>
+                  <th className="px-4 py-3 font-semibold">
+                    {t("analyticsPage.colStore")}
+                  </th>
+                  <th className="px-4 py-3 font-semibold">
+                    {t("analyticsPage.colChecks")}
+                  </th>
+                  <th className="px-4 py-3 font-semibold">
+                    {t("analyticsPage.colRevenue")}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -205,7 +272,9 @@ export default function AnalyticsPage() {
                     <td className="px-4 py-3 font-semibold text-ink">{s.name}</td>
                     <td className="px-4 py-3 text-muted">{s.store}</td>
                     <td className="px-4 py-3">{s.checks}</td>
-                    <td className="px-4 py-3">{formatMoney(s.revenue)}</td>
+                    <td className="px-4 py-3">
+                      {formatMoney(s.revenue, { short: true })}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -215,10 +284,9 @@ export default function AnalyticsPage() {
       ) : null}
 
       {tab === "expenses" ? (
-        <ModuleSection title="Расходы по магазинам">
+        <ModuleSection title={t("analyticsPage.expensesTitle")}>
           <Card className="p-5 text-sm text-muted">
-            Расходы ведутся в карточке каждого магазина (вкладка «Расходы»). Откройте
-            точку, чтобы добавить аренду, зарплату или коммунальные.
+            {t("analyticsPage.expensesHint")}
           </Card>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {stores
@@ -227,7 +295,9 @@ export default function AnalyticsPage() {
                 <Link key={s.id} href={`/stores/${s.id}?tab=expenses`}>
                   <Card className="p-4 transition hover:border-brand/30">
                     <div className="font-semibold text-ink">{s.name}</div>
-                    <div className="mt-1 text-sm text-brand">Открыть расходы →</div>
+                    <div className="mt-1 text-sm text-brand">
+                      {t("analyticsPage.openExpenses")}
+                    </div>
                   </Card>
                 </Link>
               ))}
