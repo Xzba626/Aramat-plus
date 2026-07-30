@@ -24,10 +24,7 @@ import { useI18n } from "@/components/i18n/i18n-provider";
 function Sparkline({ values, className }: { values: number[]; className?: string }) {
   const max = Math.max(...values, 1);
   return (
-    <div
-      className={cn("flex h-10 items-end gap-1", className)}
-      aria-hidden
-    >
+    <div className={cn("flex h-10 items-end gap-1", className)} aria-hidden>
       {values.map((v, i) => (
         <span
           key={i}
@@ -39,7 +36,9 @@ function Sparkline({ values, className }: { values: number[]; className?: string
   );
 }
 
-function greetKey(hour: number): "dashboard.greetMorning" | "dashboard.greetDay" | "dashboard.greetEvening" {
+function greetKey(
+  hour: number
+): "dashboard.greetMorning" | "dashboard.greetDay" | "dashboard.greetEvening" {
   if (hour < 12) return "dashboard.greetMorning";
   if (hour < 18) return "dashboard.greetDay";
   return "dashboard.greetEvening";
@@ -86,6 +85,8 @@ const TONE_BG: Record<ActionTile["tone"], string> = {
   brand: "bg-brand-soft text-brand",
   alert: "bg-zone-alert-soft text-zone-alert",
 };
+
+type AttentionTone = "danger" | "warning" | "ok";
 
 export function OwnerDashboardClient({
   initial,
@@ -145,6 +146,12 @@ export function OwnerDashboardClient({
     sparkline: [0, 0, 0, 0, 0, 0, today.revenue],
   };
   const revDelta = today.deltas.revenue;
+  const cost = Number(
+    today.cost ?? Math.max(0, today.revenue - today.profit)
+  );
+
+  const displayName =
+    userName.trim() || t("roles.owner");
 
   const status = useMemo(() => {
     if (decisionSummary.total > 0) {
@@ -177,6 +184,38 @@ export function OwnerDashboardClient({
 
   const StatusIcon = status.icon;
 
+  const attentionItems = useMemo(() => {
+    const items: { id: string; href: string; label: string; tone: AttentionTone }[] = [];
+
+    for (const d of decisions) {
+      items.push({
+        id: `dec-${d.type}-${d.id}`,
+        href: "/dashboard#decisions",
+        label: t(d.titleKey),
+        tone: "danger",
+      });
+    }
+    for (const p of data.lowStock.slice(0, 4)) {
+      items.push({
+        id: `stock-${p.id}`,
+        href: `/warehouse/${p.productId}`,
+        label: p.empty
+          ? t("dashboard.attentionOut", { name: p.name })
+          : t("dashboard.attentionLow", { name: p.name }),
+        tone: p.empty ? "danger" : "warning",
+      });
+    }
+    for (const s of data.stores.filter((x) => x.salesCount === 0).slice(0, 3)) {
+      items.push({
+        id: `store-${s.id}`,
+        href: `/stores/${s.id}`,
+        label: t("dashboard.attentionNoSales", { name: s.name }),
+        tone: "warning",
+      });
+    }
+    return items.slice(0, 6);
+  }, [data.lowStock, data.stores, decisions, t]);
+
   const recommendations = useMemo(() => {
     const items: { href: string; label: string }[] = [];
     if (decisionSummary.total > 0) {
@@ -207,11 +246,13 @@ export function OwnerDashboardClient({
     return items.slice(0, 3);
   }, [data.lowStock, data.stores, decisionSummary.total, t]);
 
-  const firstName = userName.split(/\s+/)[0] || userName;
+  const bestStore = data.stores.find((s) => s.id === data.bestStoreId) ??
+    [...data.stores].sort((a, b) => b.revenue - a.revenue)[0];
+
+  const firstName = displayName.split(/\s+/)[0] || displayName;
 
   return (
     <div className="space-y-8">
-      {/* Attention center */}
       <section className="space-y-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
@@ -254,30 +295,114 @@ export function OwnerDashboardClient({
         </div>
       </section>
 
-      {/* Three business zones — stacked on phone, row on desktop */}
+      {/* Attention strip: red / yellow / green */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-bold uppercase tracking-wide text-muted">
+            {t("dashboard.attentionTitle")}
+          </h3>
+          {attentionItems.length > 0 ? (
+            <Link
+              href="/attention"
+              className="text-xs font-semibold text-brand hover:underline"
+            >
+              {t("dashboard.attentionGo")} →
+            </Link>
+          ) : null}
+        </div>
+        {attentionItems.length === 0 ? (
+          <div className="flex items-start gap-3 rounded-[20px] border border-zone-money/20 bg-zone-money-soft p-4">
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-zone-money-deep" />
+            <p className="text-sm font-medium text-zone-money-deep">
+              {t("dashboard.attentionOk")}
+            </p>
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {attentionItems.map((item) => (
+              <li key={item.id}>
+                <Link
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-[16px] border px-4 py-3 text-sm font-semibold transition hover:shadow-[var(--shadow-card)]",
+                    item.tone === "danger" &&
+                      "border-danger/25 bg-danger/5 text-danger",
+                    item.tone === "warning" &&
+                      "border-zone-alert/25 bg-zone-alert-soft text-zone-alert"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "h-2.5 w-2.5 shrink-0 rounded-full",
+                      item.tone === "danger" ? "bg-danger" : "bg-zone-alert"
+                    )}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-ink">{item.label}</span>
+                  <span className="text-muted">→</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Three business zones */}
       <section className="grid gap-3 sm:gap-4 lg:grid-cols-3">
         <Link
           href="/analytics"
           className="group relative overflow-hidden rounded-[20px] bg-zone-money p-5 text-white shadow-[var(--shadow-lift)] transition hover:brightness-105 sm:p-6"
         >
           <div className="flex items-start justify-between gap-3">
-            <div>
+            <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold text-white/80">
-                {t("dashboard.moneyTitle")} · {t("dashboard.today")}
+                {t("dashboard.salesToday")}
               </div>
+              <p className="mt-0.5 text-[11px] leading-snug text-white/55">
+                {t("dashboard.moneyHint")}
+              </p>
               <div className="mt-3 text-3xl font-bold tabular-nums tracking-tight sm:text-4xl">
-                + {formatMoney(today.revenue, { short: true })}
+                {formatMoney(today.revenue, { short: true })}
               </div>
-              <div className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-white/90">
-                {revDelta.pct >= 0 ? (
-                  <ArrowUpRight className="h-4 w-4" />
-                ) : (
-                  <ArrowDownRight className="h-4 w-4" />
-                )}
-                {revDelta.label} {t("dashboard.vsYesterday")}
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-white/90">
+                <span className="inline-flex items-center gap-1">
+                  {revDelta.pct >= 0 ? (
+                    <ArrowUpRight className="h-4 w-4" />
+                  ) : (
+                    <ArrowDownRight className="h-4 w-4" />
+                  )}
+                  {revDelta.label} {t("dashboard.vsYesterday")}
+                </span>
+                <span className="font-medium text-white/75">
+                  {t("dashboard.salesCountShort", { n: today.count })}
+                </span>
+              </div>
+              <div className="mt-3 space-y-1 border-t border-white/15 pt-3 text-xs text-white/80">
+                <div className="flex justify-between gap-2">
+                  <span>{t("dashboard.revenueLabel")}</span>
+                  <span className="tabular-nums font-semibold">
+                    {formatMoney(today.revenue, { short: true })}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span>{t("dashboard.costLabel")}</span>
+                  <span className="tabular-nums font-semibold">
+                    {formatMoney(cost, { short: true })}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2 text-white">
+                  <span className="font-bold">{t("dashboard.profitLabel")}</span>
+                  <span className="tabular-nums font-bold">
+                    {formatMoney(today.profit, { short: true })}
+                  </span>
+                </div>
+                <div className="pt-1 text-white/65">
+                  {t("dashboard.avgCheckShort", {
+                    amount: formatMoney(today.avgCheck, { short: true }),
+                  })}
+                </div>
               </div>
             </div>
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15">
               <Wallet className="h-6 w-6" strokeWidth={1.75} />
             </span>
           </div>
@@ -298,9 +423,9 @@ export function OwnerDashboardClient({
               <div className="text-sm font-semibold text-white/80">
                 {t("dashboard.stockTitle")}
               </div>
-              <div className="mt-1 text-xs text-white/70">
-                {t("dashboard.stockOnHand")}
-              </div>
+              <p className="mt-0.5 text-[11px] leading-snug text-white/55">
+                {t("dashboard.stockHint")}
+              </p>
               <div className="mt-3 text-3xl font-bold tabular-nums tracking-tight sm:text-4xl">
                 {t("dashboard.stockUnits", {
                   n: Math.round(pulse.warehouseUnits),
@@ -322,7 +447,7 @@ export function OwnerDashboardClient({
                   : t("dashboard.stockOk")}
               </div>
             </div>
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15">
               <Package className="h-6 w-6" strokeWidth={1.75} />
             </span>
           </div>
@@ -337,9 +462,9 @@ export function OwnerDashboardClient({
               <div className="text-sm font-semibold text-white/80">
                 {t("dashboard.storesTitle")}
               </div>
-              <div className="mt-1 text-xs text-white/70">
-                {t("dashboard.storesWorking")}
-              </div>
+              <p className="mt-0.5 text-[11px] leading-snug text-white/55">
+                {t("dashboard.storesHint")}
+              </p>
               <div className="mt-3 text-3xl font-bold tabular-nums tracking-tight sm:text-4xl">
                 {t("dashboard.storesOf", {
                   open: pulse.storesOpen,
@@ -351,15 +476,19 @@ export function OwnerDashboardClient({
                   ? t("dashboard.storesSelling")
                   : t("dashboard.storesQuiet")}
               </div>
+              {bestStore && bestStore.revenue > 0 ? (
+                <div className="mt-2 text-xs font-semibold text-white/75">
+                  {t("dashboard.bestStore", { name: bestStore.name })}
+                </div>
+              ) : null}
             </div>
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15">
               <Store className="h-6 w-6" strokeWidth={1.75} />
             </span>
           </div>
         </Link>
       </section>
 
-      {/* Smart recommendations */}
       <section className="rounded-[20px] border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
         <div className="mb-4 flex items-center gap-2">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-soft text-brand">
@@ -384,7 +513,6 @@ export function OwnerDashboardClient({
         </ul>
       </section>
 
-      {/* Big action tiles */}
       <section>
         <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
           {t("dashboard.actionsTitle")}
@@ -413,7 +541,6 @@ export function OwnerDashboardClient({
         </div>
       </section>
 
-      {/* Decisions */}
       <section id="decisions">
         <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
           {t("dashboard.needDecision")}
@@ -440,11 +567,14 @@ export function OwnerDashboardClient({
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <div className="text-sm font-bold text-ink">{d.title}</div>
+                    <div className="text-sm font-bold text-ink">{t(d.titleKey)}</div>
                     <div className="mt-1 text-xs text-muted">
                       {formatDateTime(d.createdAt)} · {d.storeName} · {d.actorName}
                     </div>
-                    <div className="mt-2 text-sm text-ink">{d.products}</div>
+                    <div className="mt-2 text-sm text-ink">
+                      {d.products ||
+                        (d.productsFallbackKey ? t(d.productsFallbackKey) : "—")}
+                    </div>
                     {d.type === "DISCOUNT" ? (
                       <div className="mt-1 text-sm text-muted">
                         {d.originalTotal != null
@@ -491,7 +621,6 @@ export function OwnerDashboardClient({
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Stores cards */}
         <section>
           <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
             {t("dashboard.storesToday")}
@@ -514,7 +643,9 @@ export function OwnerDashboardClient({
                       {formatMoney(s.revenue, { short: true })}
                     </div>
                     <div className="text-xs font-semibold tabular-nums text-zone-money-deep">
-                      {formatMoney(s.profit, { short: true })}
+                      {t("dashboard.profitTodayShort", {
+                        amount: formatMoney(s.profit, { short: true }),
+                      })}
                     </div>
                   </div>
                 </div>
@@ -528,7 +659,6 @@ export function OwnerDashboardClient({
           </div>
         </section>
 
-        {/* Low stock cards */}
         <section>
           <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
             {t("dashboard.productsAttention")}
@@ -541,9 +671,7 @@ export function OwnerDashboardClient({
                   <div
                     className={cn(
                       "rounded-[20px] border bg-card p-4 shadow-[var(--shadow-card)] transition hover:shadow-[var(--shadow-lift)]",
-                      p.empty
-                        ? "border-danger/30"
-                        : "border-zone-alert/25"
+                      p.empty ? "border-danger/30" : "border-zone-alert/25"
                     )}
                   >
                     <div className="flex items-start gap-3">
@@ -562,9 +690,7 @@ export function OwnerDashboardClient({
                         <div
                           className={cn(
                             "mt-0.5 text-sm",
-                            p.empty
-                              ? "font-semibold text-danger"
-                              : "text-muted"
+                            p.empty ? "font-semibold text-danger" : "text-muted"
                           )}
                         >
                           {p.empty

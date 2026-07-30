@@ -46,7 +46,7 @@ function saleMetrics(
   const count = sales.length;
   const profit = revenue - cost;
   const avgCheck = count ? revenue / count : 0;
-  return { revenue, profit, count, itemsSold, avgCheck };
+  return { revenue, cost, profit, count, itemsSold, avgCheck };
 }
 
 export async function getDashboardPayload(companyId: string) {
@@ -202,37 +202,49 @@ export async function getDashboardPayload(companyId: string) {
     }),
   ]);
 
+  /** UI must translate via titleKey — never ship locale-fixed copy from the server. */
   const decisions = [
-    ...pendingDiscounts.map((d) => ({
-      id: d.id,
-      type: "DISCOUNT" as const,
-      priority: "urgent" as const,
-      createdAt: d.createdAt.toISOString(),
-      storeName: d.sale?.store.name ?? "—",
-      actorName: d.requester.name,
-      title: "Запрос скидки",
-      amount: decimalToNumber(d.amount),
-      percent: d.percent != null ? decimalToNumber(d.percent) : null,
-      reason: d.reason,
-      products:
-        d.sale?.items.map((i) => i.product.name).join(", ") ||
-        "Корзина / чек",
-      originalTotal: d.sale ? decimalToNumber(d.sale.total) : null,
-    })),
-    ...pendingReturns.map((r) => ({
-      id: r.id,
-      type: "RETURN" as const,
-      priority: "urgent" as const,
-      createdAt: r.createdAt.toISOString(),
-      storeName: r.sale.store.name,
-      actorName: r.requester.name,
-      title: "Запрос возврата",
-      amount: decimalToNumber(r.sale.total),
-      percent: null as number | null,
-      reason: r.reason,
-      products: r.sale.items.map((i) => i.product.name).join(", ") || "—",
-      originalTotal: decimalToNumber(r.sale.total),
-    })),
+    ...pendingDiscounts.map((d) => {
+      const productNames =
+        d.sale?.items.map((i) => i.product.name).join(", ") ?? "";
+      return {
+        id: d.id,
+        type: "DISCOUNT" as const,
+        priority: "urgent" as const,
+        createdAt: d.createdAt.toISOString(),
+        storeName: d.sale?.store.name ?? "—",
+        actorName: d.requester.name,
+        titleKey: "dashboard.decisionDiscount" as const,
+        amount: decimalToNumber(d.amount),
+        percent: d.percent != null ? decimalToNumber(d.percent) : null,
+        reason: d.reason,
+        products: productNames,
+        productsFallbackKey: productNames
+          ? null
+          : ("dashboard.cartOrReceipt" as const),
+        originalTotal: d.sale ? decimalToNumber(d.sale.total) : null,
+      };
+    }),
+    ...pendingReturns.map((r) => {
+      const productNames = r.sale.items.map((i) => i.product.name).join(", ");
+      return {
+        id: r.id,
+        type: "RETURN" as const,
+        priority: "urgent" as const,
+        createdAt: r.createdAt.toISOString(),
+        storeName: r.sale.store.name,
+        actorName: r.requester.name,
+        titleKey: "dashboard.decisionReturn" as const,
+        amount: decimalToNumber(r.sale.total),
+        percent: null as number | null,
+        reason: r.reason,
+        products: productNames,
+        productsFallbackKey: productNames
+          ? null
+          : ("dashboard.cartOrReceipt" as const),
+        originalTotal: decimalToNumber(r.sale.total),
+      };
+    }),
   ].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
@@ -250,7 +262,7 @@ export async function getDashboardPayload(companyId: string) {
     ...decisions.slice(0, 5).map((d) => ({
       id: `dec-${d.type}-${d.id}`,
       tone: "warning" as const,
-      title: d.title,
+      titleKey: d.titleKey,
       message: `${d.storeName} · ${d.actorName}`,
       href:
         d.type === "DISCOUNT" ? "/dashboard#decisions" : "/returns",
@@ -262,10 +274,10 @@ export async function getDashboardPayload(companyId: string) {
         decimalToNumber(b.quantity) <= 0
           ? ("danger" as const)
           : ("warning" as const),
-      title:
+      titleKey:
         decimalToNumber(b.quantity) <= 0
-          ? "Нет в наличии"
-          : "Заканчивается товар",
+          ? ("dashboard.outOfStock" as const)
+          : ("dashboard.stockRunningLow" as const),
       message: `${b.product.name} · ${decimalToNumber(b.quantity)}${b.product.unit?.symbol ?? ""}`,
       href: `/warehouse/${b.product.id}`,
       createdAt: new Date().toISOString(),
@@ -316,9 +328,13 @@ export async function getDashboardPayload(companyId: string) {
       action: log.action,
       comment: log.comment,
       createdAt: log.createdAt.toISOString(),
-      userName: log.user?.name ?? "Система",
+      userName: log.user?.name ?? "",
       role: log.user?.role ?? "",
     })),
+    bestStoreId:
+      storeToday.length === 0
+        ? null
+        : [...storeToday].sort((a, b) => b.revenue - a.revenue)[0]?.id ?? null,
   };
 }
 

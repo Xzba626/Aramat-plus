@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { sectionTitleKeyForPath } from "@/lib/navigation/owner-nav";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { labelRole } from "@/lib/i18n/labels";
 
 function initials(name: string) {
   return name
@@ -158,7 +159,7 @@ export function OwnerTopBar({
               <div className="absolute right-0 top-full z-50 mt-1 min-w-[200px] rounded-xl border border-border bg-card py-1 shadow-lg">
                 <div className="border-b border-border px-3 py-2">
                   <p className="truncate text-sm font-semibold text-ink">{userName}</p>
-                  <p className="text-xs text-muted">{role}</p>
+                  <p className="text-xs text-muted">{labelRole(role, t)}</p>
                   <div className="mt-2 sm:hidden">
                     <LanguageSwitcher />
                   </div>

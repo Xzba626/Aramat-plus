@@ -23,6 +23,7 @@ export async function GET() {
       id: n.id,
       type: n.type,
       title: n.title,
+      titleKey: null as string | null,
       message: n.message,
       isRead: n.isRead,
       createdAt: n.createdAt.toISOString(),
@@ -32,7 +33,8 @@ export async function GET() {
     const fromDash = dash.notifications.map((n) => ({
       id: n.id,
       type: n.tone,
-      title: n.title,
+      title: null as string | null,
+      titleKey: n.titleKey,
       message: n.message,
       isRead: false,
       createdAt: n.createdAt,

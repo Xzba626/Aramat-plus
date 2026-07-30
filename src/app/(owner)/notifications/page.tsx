@@ -13,7 +13,8 @@ import { useI18n } from "@/components/i18n/i18n-provider";
 type Notif = {
   id: string;
   type: string;
-  title: string;
+  title: string | null;
+  titleKey?: string | null;
   message: string;
   isRead: boolean;
   createdAt: string;
@@ -51,7 +52,8 @@ export default function NotificationsPage() {
 
   const filtered = useMemo(() => {
     return items.filter((n) => {
-      const text = `${n.title} ${n.message} ${n.type}`.toLowerCase();
+      const title = n.titleKey ? t(n.titleKey) : n.title ?? "";
+      const text = `${title} ${n.message} ${n.type}`.toLowerCase();
       const matchQ = !q.trim() || text.includes(q.toLowerCase());
       if (!matchQ) return false;
       if (tab === "unread") return !n.isRead;
@@ -63,7 +65,7 @@ export default function NotificationsPage() {
         );
       return true;
     });
-  }, [items, tab, q]);
+  }, [items, tab, q, t]);
 
   const unread = items.filter((n) => !n.isRead).length;
 
@@ -153,7 +155,9 @@ export default function NotificationsPage() {
                   )}
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="font-semibold text-ink">{n.title}</div>
+                  <div className="font-semibold text-ink">
+                    {n.titleKey ? t(n.titleKey) : n.title}
+                  </div>
                   <div className="text-sm text-muted">{n.message}</div>
                   <div className="mt-1 text-xs text-muted">
                     {formatDateTime(n.createdAt)}

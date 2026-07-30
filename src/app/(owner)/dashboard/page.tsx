@@ -8,7 +8,7 @@ export default async function DashboardPage() {
   return (
     <OwnerDashboardClient
       initial={data}
-      userName={session!.user.name ?? "Владелец"}
+      userName={session!.user.name ?? ""}
     />
   );
 }

@@ -51,7 +51,7 @@ export function AttentionClient() {
       list.push({
         id: `dec-${d.type}-${d.id}`,
         href: "/dashboard#decisions",
-        label: t("dashboard.attentionDecision", { title: d.title }),
+        label: t("dashboard.attentionDecision", { title: t(d.titleKey) }),
         tone: "alert",
       });
     }

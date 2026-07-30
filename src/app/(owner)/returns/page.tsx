@@ -11,11 +11,13 @@ import {
 import { MOCK_RETURNS_HISTORY } from "@/lib/ui-mocks";
 import { cn, formatMoney } from "@/lib/utils";
 import type { DashboardPayload } from "@/lib/services/dashboard.service";
+import { useI18n } from "@/components/i18n/i18n-provider";
 
 type Decision = DashboardPayload["decisions"][number];
 type Tab = "pending" | "history" | "warehouse";
 
 export default function ReturnsPage() {
+  const { t } = useI18n();
   const [tab, setTab] = useState<Tab>("pending");
   const [pending, setPending] = useState<Decision[]>([]);
   const [history, setHistory] = useState(MOCK_RETURNS_HISTORY);
@@ -155,7 +157,7 @@ export default function ReturnsPage() {
                 <Card key={d.id} className="border-l-4 border-l-warning p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <div className="text-sm font-bold text-ink">{d.title}</div>
+                      <div className="text-sm font-bold text-ink">{t(d.titleKey)}</div>
                       <div className="mt-1 text-xs text-muted">
                         {new Date(d.createdAt).toLocaleString("ru-RU")} ·{" "}
                         {d.storeName} · {d.actorName}
