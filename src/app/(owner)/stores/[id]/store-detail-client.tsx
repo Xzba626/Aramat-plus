@@ -7,8 +7,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { MOCK_EXPENSES } from "@/lib/ui-mocks";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { apiErrorMessage } from "@/lib/i18n/labels";
 
 type StoreDetail = {
   id: string;
@@ -199,7 +199,14 @@ export default function StoreDetailClient() {
       {tab === "discounts" ? <DiscountsTab storeId={id} t={t} formatMoney={formatMoney} formatDateTime={formatDateTime} /> : null}
       {tab === "returns" ? <ReturnsTab storeId={id} t={t} formatDateTime={formatDateTime} /> : null}
       {tab === "revisions" && !isOwnerDirect ? <RevisionsTab storeId={id} t={t} formatDateTime={formatDateTime} /> : null}
-      {tab === "expenses" && !isOwnerDirect ? <ExpensesTab t={t} formatMoney={formatMoney} /> : null}
+      {tab === "expenses" && !isOwnerDirect && store ? (
+        <StoreExpensesPanel
+          storeId={store.id}
+          t={t}
+          formatMoney={formatMoney}
+          formatDateTime={formatDateTime}
+        />
+      ) : null}
       {tab === "requests" ? <RequestsTab storeId={id} t={t} formatDateTime={formatDateTime} /> : null}
       {tab === "settings" ? (
         <SettingsTab
@@ -943,113 +950,174 @@ function RevisionsTab({
   );
 }
 
-function ExpensesTab({
-  t,
-  formatMoney,
-}: {
-  t: (key: string, params?: Record<string, string | number>) => string;
-  formatMoney: (value: number | string, opts?: { short?: boolean }) => string;
-}) {
-  return <StoreExpensesPanel t={t} formatMoney={formatMoney} />;
-}
-
 function StoreExpensesPanel({
+  storeId,
   t,
   formatMoney,
+  formatDateTime,
 }: {
+  storeId: string;
   t: (key: string, params?: Record<string, string | number>) => string;
   formatMoney: (value: number | string, opts?: { short?: boolean }) => string;
+  formatDateTime: (date: Date | string | number) => string;
 }) {
-  const [rows, setRows] = useState(
-    () =>
-      MOCK_EXPENSES.map((e) => ({ ...e })) as Array<{
-        id: string;
-        date: string;
-        type: string;
-        amount: number;
-        description: string;
-        actor: string;
-      }>
-  );
+  const [rows, setRows] = useState<
+    Array<{
+      id: string;
+      incurredAt: string;
+      type: string;
+      typeId: string;
+      amount: number;
+      description: string | null;
+      actor: string;
+    }>
+  >([]);
+  const [expenseTypes, setExpenseTypes] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
   const [showForm, setShowForm] = useState(false);
   const [q, setQ] = useState("");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  const types = useMemo(
-    () => [
-      { key: "RENT", label: t("storeDetail.expenseRent") },
-      { key: "SALARY", label: t("storeDetail.expenseSalary") },
-      { key: "UTILITIES", label: t("storeDetail.expenseUtilities") },
-      { key: "OTHER", label: t("storeDetail.expenseOther") },
-    ],
-    [t]
-  );
-  const expenseTypeLabel = (typeKey: string) =>
-    types.find((item) => item.key === typeKey)?.label ?? typeKey;
+  const reload = useCallback(async () => {
+    setLoading(true);
+    const [expRes, typesRes] = await Promise.all([
+      fetch(`/api/expenses?storeId=${storeId}`),
+      fetch("/api/expense-types"),
+    ]);
+    const exp = await expRes.json();
+    const types = await typesRes.json();
+    if (expRes.ok && Array.isArray(exp)) {
+      setRows(
+        exp.map(
+          (e: {
+            id: string;
+            incurredAt: string;
+            amount: number;
+            description: string | null;
+            expenseType: { id: string; name: string };
+            createdBy: string;
+          }) => ({
+            id: e.id,
+            incurredAt: e.incurredAt,
+            type: e.expenseType.name,
+            typeId: e.expenseType.id,
+            amount: e.amount,
+            description: e.description,
+            actor: e.createdBy,
+          })
+        )
+      );
+    }
+    if (typesRes.ok && Array.isArray(types)) {
+      setExpenseTypes(types.map((x: { id: string; name: string }) => ({ id: x.id, name: x.name })));
+    }
+    setLoading(false);
+  }, [storeId]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
   const filtered = rows.filter((r) => {
     const matchQ =
       !q.trim() ||
-      `${expenseTypeLabel(r.type)} ${r.description} ${r.actor}`
+      `${r.type} ${r.description ?? ""} ${r.actor}`
         .toLowerCase()
         .includes(q.toLowerCase());
-    const matchT = typeFilter === "ALL" || r.type === typeFilter;
+    const matchT = typeFilter === "ALL" || r.typeId === typeFilter;
     return matchQ && matchT;
   });
   const total = filtered.reduce((s, r) => s + r.amount, 0);
 
-  function onAdd(e: FormEvent<HTMLFormElement>) {
+  async function onAdd(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const row = {
-      id: `ex-${Date.now()}`,
-      date: new Date().toLocaleDateString("ru-RU"),
-      type: String(fd.get("type")),
-      amount: Number(fd.get("amount")),
-      description: String(fd.get("description") || ""),
-      actor: "Вы",
-    };
-    setRows((prev) => [row, ...prev]);
+    setError("");
+    const res = await fetch("/api/expenses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        storeId,
+        expenseTypeId: String(fd.get("type")),
+        amount: Number(fd.get("amount")),
+        description: String(fd.get("description") || "") || undefined,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t, "common.error"));
+      return;
+    }
     setShowForm(false);
     setMsg(t("storeDetail.expenseAdded"));
     e.currentTarget.reset();
+    await reload();
   }
 
   return (
     <div className="space-y-4">
       <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
         <div>
-          <div className="text-xs font-semibold uppercase text-muted">{t("storeDetail.filterTotal")}</div>
-          <div className="mt-1 text-xl font-bold text-ink">{formatMoney(total)}</div>
+          <div className="text-xs font-semibold uppercase text-muted">
+            {t("storeDetail.filterTotal")}
+          </div>
+          <div className="mt-1 text-xl font-bold text-ink">
+            {formatMoney(total)}
+          </div>
           <p className="mt-1 text-xs text-muted">{t("storeDetail.expensesHint")}</p>
         </div>
-        <Button type="button" fullWidth={false} onClick={() => setShowForm((v) => !v)}>
+        <Button
+          type="button"
+          fullWidth={false}
+          onClick={() => setShowForm((v) => !v)}
+        >
           {showForm ? t("common.cancel") : t("storeDetail.addExpense")}
         </Button>
       </Card>
 
       {msg ? <p className="text-sm text-success">{msg}</p> : null}
+      {error ? <p className="text-sm text-danger">{error}</p> : null}
 
       {showForm ? (
         <Card className="max-w-lg p-4">
           <form onSubmit={onAdd} className="space-y-3">
             <div>
               <FieldLabel>{t("storeDetail.type")}</FieldLabel>
-              <select name="type" required className="w-full" defaultValue={types[0]?.key}>
-                {types.map((typeItem) => (
-                  <option key={typeItem.key} value={typeItem.key}>
-                    {typeItem.label}
+              <select
+                name="type"
+                required
+                className="w-full"
+                defaultValue={expenseTypes[0]?.id}
+              >
+                {expenseTypes.map((typeItem) => (
+                  <option key={typeItem.id} value={typeItem.id}>
+                    {typeItem.name}
                   </option>
                 ))}
               </select>
             </div>
             <div>
               <FieldLabel>{t("storeDetail.amount")}</FieldLabel>
-              <input name="amount" type="number" min="1" step="0.01" required className="w-full" />
+              <input
+                name="amount"
+                type="number"
+                min="1"
+                step="0.01"
+                required
+                className="w-full"
+              />
             </div>
             <div>
               <FieldLabel>{t("storeDetail.description")}</FieldLabel>
-              <input name="description" className="w-full" placeholder={t("storeDetail.forWhat")} />
+              <input
+                name="description"
+                className="w-full"
+                placeholder={t("storeDetail.forWhat")}
+              />
             </div>
             <Button type="submit">{t("storeDetail.save")}</Button>
           </form>
@@ -1069,9 +1137,9 @@ function StoreExpensesPanel({
           className="rounded-xl border border-border bg-card px-3 py-2 text-sm"
         >
           <option value="ALL">{t("storeDetail.allTypes")}</option>
-          {types.map((typeItem) => (
-            <option key={typeItem.key} value={typeItem.key}>
-              {typeItem.label}
+          {expenseTypes.map((typeItem) => (
+            <option key={typeItem.id} value={typeItem.id}>
+              {typeItem.name}
             </option>
           ))}
         </select>
@@ -1082,30 +1150,46 @@ function StoreExpensesPanel({
           <table className="min-w-full text-left text-sm">
             <thead className="border-b border-border bg-page/80 text-xs uppercase tracking-wide text-muted">
               <tr>
-                <th className="px-4 py-3 font-semibold">{t("storeDetail.date")}</th>
-                <th className="px-4 py-3 font-semibold">{t("storeDetail.type")}</th>
-                <th className="px-4 py-3 font-semibold">{t("storeDetail.amount")}</th>
-                <th className="px-4 py-3 font-semibold">{t("storeDetail.description")}</th>
-                <th className="px-4 py-3 font-semibold">{t("storeDetail.who")}</th>
+                <th className="px-4 py-3 font-semibold">
+                  {t("storeDetail.date")}
+                </th>
+                <th className="px-4 py-3 font-semibold">
+                  {t("storeDetail.type")}
+                </th>
+                <th className="px-4 py-3 font-semibold">
+                  {t("storeDetail.amount")}
+                </th>
+                <th className="px-4 py-3 font-semibold">
+                  {t("storeDetail.description")}
+                </th>
+                <th className="px-4 py-3 font-semibold">
+                  {t("storeDetail.who")}
+                </th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((r) => (
                 <tr key={r.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3 text-muted">{r.date}</td>
-                  <td className="px-4 py-3 font-semibold text-ink">{expenseTypeLabel(r.type)}</td>
+                  <td className="px-4 py-3 text-muted">
+                    {formatDateTime(r.incurredAt)}
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-ink">{r.type}</td>
                   <td className="px-4 py-3 tabular-nums text-ink">
                     {formatMoney(r.amount)}
                   </td>
-                  <td className="px-4 py-3 text-muted">{r.description || "—"}</td>
+                  <td className="px-4 py-3 text-muted">
+                    {r.description || "—"}
+                  </td>
                   <td className="px-4 py-3 text-muted">{r.actor}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        {filtered.length === 0 ? (
-          <div className="px-4 py-10 text-center text-sm text-muted">{t("storeDetail.noExpenses")}</div>
+        {!loading && filtered.length === 0 ? (
+          <div className="px-4 py-10 text-center text-sm text-muted">
+            {t("storeDetail.noExpenses")}
+          </div>
         ) : null}
       </Card>
     </div>

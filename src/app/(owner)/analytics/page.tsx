@@ -7,10 +7,6 @@ import {
   ModuleSection,
   ModuleWorkspace,
 } from "@/components/ui/module-workspace";
-import {
-  MOCK_ANALYTICS_PRODUCTS,
-  MOCK_ANALYTICS_SELLERS,
-} from "@/lib/ui-mocks";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
 
@@ -25,22 +21,59 @@ type StoreRow = {
   monthProfit: number;
 };
 
+type ProductRow = {
+  name: string;
+  sold: number;
+  revenue: number;
+  profit: number;
+};
+
+type SellerRow = {
+  name: string;
+  store: string;
+  checks: number;
+  revenue: number;
+};
+
+type ExpenseRow = {
+  id: string;
+  amount: number;
+  type: string;
+  store: string | null;
+  description: string | null;
+  incurredAt: string;
+};
+
 type Tab = "network" | "stores" | "products" | "sellers" | "expenses";
 
 export default function AnalyticsPage() {
-  const { t, formatMoney } = useI18n();
+  const { t, formatMoney, formatDate } = useI18n();
   const [tab, setTab] = useState<Tab>("network");
   const [stores, setStores] = useState<StoreRow[]>([]);
+  const [products, setProducts] = useState<ProductRow[]>([]);
+  const [sellers, setSellers] = useState<SellerRow[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
+  const [expenseTotal, setExpenseTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
 
   useEffect(() => {
     let alive = true;
     async function load() {
-      const res = await fetch("/api/stores");
-      const data = await res.json();
+      const [storesRes, analyticsRes] = await Promise.all([
+        fetch("/api/stores"),
+        fetch("/api/analytics"),
+      ]);
+      const storesData = await storesRes.json();
+      const analyticsData = await analyticsRes.json();
       if (!alive) return;
-      if (res.ok && Array.isArray(data)) setStores(data);
+      if (storesRes.ok && Array.isArray(storesData)) setStores(storesData);
+      if (analyticsRes.ok) {
+        setProducts(analyticsData.products ?? []);
+        setSellers(analyticsData.sellers ?? []);
+        setExpenses(analyticsData.expenses?.items ?? []);
+        setExpenseTotal(analyticsData.expenses?.total ?? 0);
+      }
       setLoading(false);
     }
     load();
@@ -54,21 +87,21 @@ export default function AnalyticsPage() {
   const networkSales = stores.reduce((s, x) => s + x.todaySalesCount, 0);
   const monthRevenue = stores.reduce((s, x) => s + x.monthRevenue, 0);
 
-  const products = useMemo(
+  const filteredProducts = useMemo(
     () =>
-      MOCK_ANALYTICS_PRODUCTS.filter(
+      products.filter(
         (p) => !q.trim() || p.name.toLowerCase().includes(q.toLowerCase())
       ),
-    [q]
+    [q, products]
   );
-  const sellers = useMemo(
+  const filteredSellers = useMemo(
     () =>
-      MOCK_ANALYTICS_SELLERS.filter(
+      sellers.filter(
         (p) =>
           !q.trim() ||
           `${p.name} ${p.store}`.toLowerCase().includes(q.toLowerCase())
       ),
-    [q]
+    [q, sellers]
   );
 
   const tabs: { id: Tab; labelKey: string }[] = [
@@ -187,7 +220,9 @@ export default function AnalyticsPage() {
                         </div>
                         <div className="text-xs text-muted">
                           {t("analyticsPage.monthRevenueShort", {
-                            amount: formatMoney(s.monthRevenue, { short: true }),
+                            amount: formatMoney(s.monthRevenue, {
+                              short: true,
+                            }),
                           })}
                         </div>
                       </div>
@@ -228,8 +263,11 @@ export default function AnalyticsPage() {
                 </tr>
               </thead>
               <tbody>
-                {products.map((p) => (
-                  <tr key={p.name} className="border-b border-border last:border-0">
+                {filteredProducts.map((p) => (
+                  <tr
+                    key={p.name}
+                    className="border-b border-border last:border-0"
+                  >
                     <td className="px-4 py-3 font-semibold text-ink">{p.name}</td>
                     <td className="px-4 py-3 text-muted">{p.sold}</td>
                     <td className="px-4 py-3">
@@ -242,6 +280,11 @@ export default function AnalyticsPage() {
                 ))}
               </tbody>
             </table>
+            {!loading && filteredProducts.length === 0 ? (
+              <div className="px-4 py-10 text-center text-sm text-muted">
+                {t("journalPage.empty")}
+              </div>
+            ) : null}
           </Card>
         </ModuleSection>
       ) : null}
@@ -267,8 +310,11 @@ export default function AnalyticsPage() {
                 </tr>
               </thead>
               <tbody>
-                {sellers.map((s) => (
-                  <tr key={s.name} className="border-b border-border last:border-0">
+                {filteredSellers.map((s) => (
+                  <tr
+                    key={`${s.name}-${s.store}`}
+                    className="border-b border-border last:border-0"
+                  >
                     <td className="px-4 py-3 font-semibold text-ink">{s.name}</td>
                     <td className="px-4 py-3 text-muted">{s.store}</td>
                     <td className="px-4 py-3">{s.checks}</td>
@@ -279,15 +325,57 @@ export default function AnalyticsPage() {
                 ))}
               </tbody>
             </table>
+            {!loading && filteredSellers.length === 0 ? (
+              <div className="px-4 py-10 text-center text-sm text-muted">
+                {t("journalPage.empty")}
+              </div>
+            ) : null}
           </Card>
         </ModuleSection>
       ) : null}
 
       {tab === "expenses" ? (
         <ModuleSection title={t("analyticsPage.expensesTitle")}>
-          <Card className="p-5 text-sm text-muted">
-            {t("analyticsPage.expensesHint")}
+          <Card className="mb-3 p-4 text-sm">
+            <span className="text-muted">{t("analyticsPage.expensesHint")}</span>
+            <div className="mt-2 text-lg font-bold text-ink">
+              {formatMoney(expenseTotal, { short: true })}
+            </div>
           </Card>
+          {expenses.length > 0 ? (
+            <Card className="mb-3 overflow-hidden p-0">
+              <table className="min-w-full text-left text-sm">
+                <thead className="border-b border-border bg-page/80 text-xs uppercase text-muted">
+                  <tr>
+                    <th className="px-4 py-3">{t("journalPage.colDate")}</th>
+                    <th className="px-4 py-3">{t("analyticsPage.colStore")}</th>
+                    <th className="px-4 py-3">{t("analyticsPage.colRevenue")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {expenses.map((e) => (
+                    <tr key={e.id} className="border-b border-border last:border-0">
+                      <td className="px-4 py-3 text-muted">
+                        {formatDate(e.incurredAt)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-ink">
+                          {e.type}
+                        </div>
+                        <div className="text-xs text-muted">
+                          {e.store ?? "—"}
+                          {e.description ? ` · ${e.description}` : ""}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {formatMoney(e.amount, { short: true })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          ) : null}
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {stores
               .filter((s) => s.kind !== "OWNER_DIRECT")

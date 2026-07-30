@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel } from "@/components/ui/card";
@@ -10,52 +10,108 @@ import {
 } from "@/components/ui/module-workspace";
 import { useToast } from "@/components/ui/toast";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { MOCK_WRITE_OFFS } from "@/lib/ui-mocks";
+import { apiErrorMessage } from "@/lib/i18n/labels";
+import { decimalToNumber } from "@/lib/utils";
 
 const REASON_VALUES = ["DEFECT", "DAMAGED", "EXPIRED", "LOSS", "OTHER"] as const;
 
-type Row = (typeof MOCK_WRITE_OFFS)[number] & { reasonValue?: string };
+type StockItem = {
+  productId: string;
+  name: string;
+  quantity: number;
+  unit: string;
+};
+
+type WriteOffRow = {
+  id: string;
+  createdAt: string;
+  actor: string;
+  reason: string;
+  itemCount: number;
+  totalCost: number;
+};
 
 export default function WriteOffsPage() {
   const { toast } = useToast();
-  const { t, formatDate, formatTime } = useI18n();
-  const [rows, setRows] = useState<Row[]>(MOCK_WRITE_OFFS);
+  const { t, formatDateTime, formatMoney } = useI18n();
+  const [rows, setRows] = useState<WriteOffRow[]>([]);
+  const [stock, setStock] = useState<StockItem[]>([]);
+  const [productId, setProductId] = useState("");
   const [q, setQ] = useState("");
-  const [reasonFilter, setReasonFilter] = useState("ALL");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
-  const filtered = rows.filter((r) => {
-    const matchQ =
-      !q.trim() ||
-      `${r.product} ${r.batch} ${r.actor}`.toLowerCase().includes(q.toLowerCase());
-    const matchR =
-      reasonFilter === "ALL" ||
-      r.reasonValue === reasonFilter ||
-      r.reason === reasonFilter;
-    return matchQ && matchR;
-  });
+  const reload = useCallback(async () => {
+    const [woRes, stockRes] = await Promise.all([
+      fetch("/api/warehouse/write-offs"),
+      fetch("/api/warehouse/stock"),
+    ]);
+    const wo = await woRes.json();
+    const st = await stockRes.json();
+    if (woRes.ok && Array.isArray(wo)) setRows(wo);
+    if (stockRes.ok && Array.isArray(st.items)) {
+      setStock(
+        st.items.map(
+          (b: {
+            productId: string;
+            quantity: unknown;
+            product: {
+              name: string;
+              unit?: { symbol: string } | null;
+            };
+          }) => ({
+            productId: b.productId,
+            name: b.product.name,
+            quantity: decimalToNumber(b.quantity as never),
+            unit: b.product.unit?.symbol ?? "",
+          })
+        )
+      );
+    }
+  }, []);
 
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  const filtered = useMemo(() => {
+    return rows.filter(
+      (r) =>
+        !q.trim() ||
+        `${r.reason} ${r.actor}`.toLowerCase().includes(q.toLowerCase())
+    );
+  }, [rows, q]);
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const reasonValue = String(fd.get("reason"));
-    const now = new Date();
-    const row: Row = {
-      id: `wo-${Date.now()}`,
-      date: formatDate(now),
-      time: formatTime(now),
-      product: String(fd.get("product")),
-      batch: String(fd.get("batch") || "—"),
-      qty: `${fd.get("qty")} ${t("warehouse.unitMl")}`,
-      reason: t("wh.actionWriteOff"),
-      reasonValue,
-      actor: t("common.seller"),
-    };
-    setRows((prev) => [row, ...prev]);
+    const pid = String(fd.get("productId") || productId);
+    const qty = Number(fd.get("qty"));
+    const reasonCode = String(fd.get("reason"));
+    const comment = String(fd.get("comment") || "").trim();
+    if (!pid || !qty) return;
+
+    setBusy(true);
+    setError("");
+    const res = await fetch("/api/warehouse/write-offs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reason: comment || reasonCode,
+        items: [{ productId: pid, quantity: qty }],
+      }),
+    });
+    const data = await res.json();
+    setBusy(false);
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t, "common.error"));
+      return;
+    }
     toast(t("wh.writeOffConfirm"));
     e.currentTarget.reset();
+    setProductId("");
+    await reload();
   }
-
-  const todayStr = formatDate(new Date());
 
   return (
     <ModuleWorkspace
@@ -64,13 +120,9 @@ export default function WriteOffsPage() {
       kpis={[
         { label: t("journalPage.loaded"), value: String(rows.length) },
         {
-          label: t("dashboard.today"),
-          value: String(rows.filter((r) => r.date === todayStr).length),
-        },
-        {
           label: t("wh.centralWarehouse"),
           hint: t("dashboard.stockOnHand"),
-          value: t("wh.centralWarehouse"),
+          value: String(stock.length),
         },
       ]}
       actions={
@@ -88,18 +140,20 @@ export default function WriteOffsPage() {
             <form onSubmit={onSubmit} className="space-y-3">
               <div>
                 <FieldLabel>{t("wh.colName")}</FieldLabel>
-                <input
-                  name="product"
+                <select
+                  name="productId"
                   required
+                  value={productId}
+                  onChange={(e) => setProductId(e.target.value)}
                   className="w-full rounded-xl border border-border bg-page px-3 py-2.5 text-sm"
-                />
-              </div>
-              <div>
-                <FieldLabel>{t("wh.batchesTitle")}</FieldLabel>
-                <input
-                  name="batch"
-                  className="w-full rounded-xl border border-border bg-page px-3 py-2.5 text-sm"
-                />
+                >
+                  <option value="">{t("common.search")}</option>
+                  {stock.map((s) => (
+                    <option key={s.productId} value={s.productId}>
+                      {s.name} ({s.quantity} {s.unit})
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
@@ -126,7 +180,7 @@ export default function WriteOffsPage() {
                     </option>
                     {REASON_VALUES.map((value) => (
                       <option key={value} value={value}>
-                        {t("wh.actionWriteOff")} · {value}
+                        {value}
                       </option>
                     ))}
                   </select>
@@ -140,8 +194,9 @@ export default function WriteOffsPage() {
                   className="w-full rounded-xl border border-border bg-page px-3 py-2.5 text-sm"
                 />
               </div>
-              <Button type="submit" fullWidth={false}>
-                {t("wh.writeOffConfirm")}
+              {error ? <p className="text-sm text-danger">{error}</p> : null}
+              <Button type="submit" fullWidth={false} disabled={busy}>
+                {busy ? t("common.loading") : t("wh.writeOffConfirm")}
               </Button>
             </form>
           </Card>
@@ -155,30 +210,24 @@ export default function WriteOffsPage() {
               placeholder={t("common.search")}
               className="min-w-[200px] flex-1 rounded-xl border border-border bg-card px-3 py-2 text-sm"
             />
-            <select
-              value={reasonFilter}
-              onChange={(e) => setReasonFilter(e.target.value)}
-              className="rounded-xl border border-border bg-card px-3 py-2 text-sm"
-            >
-              <option value="ALL">{t("wh.filterAll")}</option>
-              {REASON_VALUES.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
           </div>
           <Card className="overflow-hidden p-0">
             <div className="max-h-[520px] overflow-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="sticky top-0 z-10 border-b border-border bg-page text-xs uppercase tracking-wide text-muted">
                   <tr>
-                    <th className="px-4 py-3 font-semibold">{t("journalPage.colDate")}</th>
-                    <th className="px-4 py-3 font-semibold">{t("wh.colName")}</th>
-                    <th className="px-4 py-3 font-semibold">{t("wh.batchesTitle")}</th>
-                    <th className="px-4 py-3 font-semibold">{t("wh.colQty")}</th>
-                    <th className="px-4 py-3 font-semibold">{t("warehouse.productBatchNotes")}</th>
-                    <th className="px-4 py-3 font-semibold">{t("journalPage.colUser")}</th>
+                    <th className="px-4 py-3 font-semibold">
+                      {t("journalPage.colDate")}
+                    </th>
+                    <th className="px-4 py-3 font-semibold">
+                      {t("warehouse.productBatchNotes")}
+                    </th>
+                    <th className="px-4 py-3 font-semibold">
+                      {t("wh.colQty")}
+                    </th>
+                    <th className="px-4 py-3 font-semibold">
+                      {t("journalPage.colUser")}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -188,20 +237,16 @@ export default function WriteOffsPage() {
                       className="border-b border-border last:border-0"
                     >
                       <td className="px-4 py-3 tabular-nums text-muted">
-                        {r.date}
-                        <span className="block text-xs">{r.time}</span>
-                      </td>
-                      <td className="px-4 py-3 font-semibold text-ink">
-                        {r.product}
-                      </td>
-                      <td className="px-4 py-3 text-muted">{r.batch}</td>
-                      <td className="px-4 py-3 tabular-nums text-ink">
-                        {r.qty}
+                        {formatDateTime(r.createdAt)}
                       </td>
                       <td className="px-4 py-3">
-                        <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold text-warning">
-                          {r.reason}
-                        </span>
+                        <div className="font-semibold text-ink">{r.reason}</div>
+                        <div className="text-xs text-muted">
+                          {formatMoney(r.totalCost)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 tabular-nums text-ink">
+                        {r.itemCount}
                       </td>
                       <td className="px-4 py-3 text-muted">{r.actor}</td>
                     </tr>

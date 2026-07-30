@@ -55,7 +55,9 @@
     "WRONG_PASSWORD": "Рамзи ҳозира нодуруст",
     "SELLER_NO_STORE": "Ба фурӯшанда мағоза таъин нашудааст",
     "ID_REQUIRED": "Идентификаторро нишон диҳед",
-    "ARCHIVE_ONLY": "Несткунӣ манъ. Архивацияро истифода баред."
+    "ARCHIVE_ONLY": "Несткунӣ манъ. Архивацияро истифода баред.",
+    "FORBIDDEN": "Ҳуқуқи кофӣ нест",
+    "RETURN_ALREADY_PENDING": "Барои ин фурӯш дархости бозгашт аллакай ҳаст"
   },
   "productTypes": {
     "perfume": "Атр",
@@ -791,6 +793,7 @@
     "add": "Илова",
     "save": "Нигоҳ доштан",
     "name": "Ном",
+    "currency": "Асъор",
     "phone": "Телефон",
     "address": "Суроға",
     "currentPassword": "Рамзи ҳозира",
@@ -824,6 +827,7 @@
     "statusInProgress": "Дар ҷараён",
     "statusPendingApproval": "Барои тасдиқ",
     "statusApproved": "Тасдиқшуда",
-    "createdByManager": "Менеҷер"
+    "createdByManager": "Менеҷер",
+    "listHint": "Рӯйхат аз пойгоҳ (InventorySession). Эҷоди ревизия ва ислоҳи боқимонда — дар корти мағоза (варақаи «Ревизияҳо»). Давраи пурраи тасдиқ бо FIFO — марҳалаи оянда."
   }
 }

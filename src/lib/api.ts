@@ -42,9 +42,11 @@ export function handleApiError(err: unknown) {
       "BRAND_NAME_REQUIRED",
       "BRAND_NOT_FOUND",
       "COST_REQUIRED_FOR_STOCK",
+      "FORBIDDEN",
       "ID_REQUIRED",
       "NOT_FOUND",
       "PRODUCT_NOT_FOUND",
+      "RETURN_ALREADY_PENDING",
       "SELLER_NO_STORE",
       "STORE_NOT_FOUND",
       "UNAUTHORIZED",
@@ -54,7 +56,15 @@ export function handleApiError(err: unknown) {
       "WRONG_PASSWORD",
     ]);
     if (safeCodes.has(err.message)) {
-      return jsonError(err.message, 400);
+      const status =
+        err.message === "UNAUTHORIZED"
+          ? 401
+          : err.message === "FORBIDDEN"
+            ? 403
+            : err.message === "NOT_FOUND"
+              ? 404
+              : 400;
+      return jsonError(err.message, status);
     }
     // Don't forward Prisma-looking messages
     if (/prisma|invocation|column|relation/i.test(err.message)) {

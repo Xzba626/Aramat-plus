@@ -64,7 +64,8 @@ export async function createSale(params: {
   const discount = new Prisma.Decimal(params.discountAmount ?? 0);
   if (discount.lt(0)) throw new Error("Скидка не может быть отрицательной");
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(
+    async (tx) => {
     let subtotal = new Prisma.Decimal(0);
     const lineRows: Array<{
       productId: string;
@@ -164,5 +165,7 @@ export async function createSale(params: {
     });
 
     return sale;
-  });
+  },
+  { timeout: 20000 }
+  );
 }

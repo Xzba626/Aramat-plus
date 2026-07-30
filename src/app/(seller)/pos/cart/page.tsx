@@ -61,9 +61,24 @@ export default function PosCartPage() {
     setTimeout(() => router.push("/pos"), 1500);
   }
 
-  function submitDiscount(e: FormEvent) {
+  async function submitDiscount(e: FormEvent) {
     e.preventDefault();
-    // UI request — Backend create endpoint later
+    const pct = Number(discountPercent) || 0;
+    const amount = Math.round(((subtotal * pct) / 100) * 100) / 100;
+    const res = await fetch("/api/discount-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amount,
+        percent: pct,
+        reason: discountNote.trim() || undefined,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast(apiErrorMessage(data.error, t, "common.error"));
+      return;
+    }
     toast(t("pos.discountSent", { pct: discountPercent }));
     setShowDiscount(false);
     setDiscountNote("");

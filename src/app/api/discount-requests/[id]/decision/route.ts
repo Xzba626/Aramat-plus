@@ -1,8 +1,7 @@
 import { getSessionUser } from "@/lib/session";
 import { requireOwner } from "@/lib/rbac";
-import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonOk } from "@/lib/api";
-import { logActivity } from "@/lib/services/activity-log.service";
+import { decideDiscountRequest } from "@/lib/services/discount-request.service";
 
 export async function POST(
   req: Request,
@@ -20,36 +19,12 @@ export async function POST(
       return handleApiError(new Error("VALIDATION_ERROR"));
     }
 
-    const existing = await prisma.discountRequest.findFirst({
-      where: {
-        id,
-        status: "PENDING",
-        OR: [
-          { sale: { store: { companyId: user!.companyId } } },
-          { requester: { companyId: user!.companyId } },
-        ],
-      },
-    });
-    if (!existing) return handleApiError(new Error("NOT_FOUND"));
-
-    const status = decision === "APPROVE" ? "APPROVED" : "REJECTED";
-    const updated = await prisma.discountRequest.update({
-      where: { id },
-      data: {
-        status,
-        reviewerId: user!.id,
-        reviewedAt: new Date(),
-        reviewNote: body.note ? String(body.note) : null,
-      },
-    });
-
-    await logActivity({
-      userId: user!.id,
+    const updated = await decideDiscountRequest({
       companyId: user!.companyId,
-      action: decision === "APPROVE" ? "DISCOUNT_APPROVE" : "DISCOUNT_REJECT",
-      entityType: "DiscountRequest",
-      entityId: id,
-      comment: body.note ? String(body.note) : undefined,
+      requestId: id,
+      reviewerId: user!.id,
+      decision,
+      note: body.note ? String(body.note) : undefined,
     });
 
     return jsonOk(updated);

@@ -1,0 +1,54 @@
+import { z } from "zod";
+import { getSessionUser } from "@/lib/session";
+import { requireOwnerOrManager } from "@/lib/rbac";
+import { handleApiError, jsonOk } from "@/lib/api";
+import {
+  createExpense,
+  listExpenses,
+} from "@/lib/services/expense.service";
+
+const createSchema = z.object({
+  expenseTypeId: z.string().min(1),
+  amount: z.coerce.number().positive(),
+  storeId: z.string().min(1).optional().nullable(),
+  description: z.string().max(500).optional().nullable(),
+  incurredAt: z.string().datetime().optional().nullable(),
+});
+
+export async function GET(req: Request) {
+  try {
+    const user = await getSessionUser();
+    const denied = requireOwnerOrManager(user);
+    if (denied) return denied;
+
+    const storeId =
+      new URL(req.url).searchParams.get("storeId") ?? undefined;
+    return jsonOk(
+      await listExpenses(user!.companyId, { storeId, limit: 100 })
+    );
+  } catch (err) {
+    return handleApiError(err);
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const user = await getSessionUser();
+    const denied = requireOwnerOrManager(user);
+    if (denied) return denied;
+
+    const body = createSchema.parse(await req.json());
+    const row = await createExpense({
+      companyId: user!.companyId,
+      createdById: user!.id,
+      expenseTypeId: body.expenseTypeId,
+      amount: body.amount,
+      storeId: body.storeId,
+      description: body.description ?? undefined,
+      incurredAt: body.incurredAt ? new Date(body.incurredAt) : undefined,
+    });
+    return jsonOk(row, 201);
+  } catch (err) {
+    return handleApiError(err);
+  }
+}

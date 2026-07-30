@@ -1,8 +1,7 @@
 import { getSessionUser } from "@/lib/session";
 import { requireOwner } from "@/lib/rbac";
-import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonOk } from "@/lib/api";
-import { logActivity } from "@/lib/services/activity-log.service";
+import { decideSaleReturn } from "@/lib/services/sale-return.service";
 
 export async function POST(
   req: Request,
@@ -20,34 +19,12 @@ export async function POST(
       return handleApiError(new Error("VALIDATION_ERROR"));
     }
 
-    const existing = await prisma.saleReturn.findFirst({
-      where: {
-        id,
-        status: "PENDING",
-        sale: { store: { companyId: user!.companyId } },
-      },
-    });
-    if (!existing) return handleApiError(new Error("NOT_FOUND"));
-
-    const status = decision === "APPROVE" ? "APPROVED" : "REJECTED";
-    const updated = await prisma.saleReturn.update({
-      where: { id },
-      data: {
-        status,
-        reviewerId: user!.id,
-        reviewedAt: new Date(),
-        reviewNote: body.note ? String(body.note) : null,
-      },
-    });
-
-    // Полный пересчёт остатков — в Milestone 2; сейчас фиксируем решение + audit
-    await logActivity({
-      userId: user!.id,
+    const updated = await decideSaleReturn({
       companyId: user!.companyId,
-      action: decision === "APPROVE" ? "RETURN_APPROVE" : "RETURN_REJECT",
-      entityType: "SaleReturn",
-      entityId: id,
-      comment: body.note ? String(body.note) : undefined,
+      returnId: id,
+      reviewerId: user!.id,
+      decision,
+      note: body.note ? String(body.note) : undefined,
     });
 
     return jsonOk(updated);

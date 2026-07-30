@@ -39,9 +39,22 @@ export default function PosHistoryPage() {
       });
   }, [t]);
 
-  function submitReturn(e: FormEvent) {
+  async function submitReturn(e: FormEvent) {
     e.preventDefault();
     if (!returnFor) return;
+    const res = await fetch("/api/returns", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        saleId: returnFor.id,
+        reason: reason.trim() || undefined,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast(apiErrorMessage(data.error, t, "common.error"));
+      return;
+    }
     toast(
       t("pos.returnSent", {
         id: returnFor.id.slice(-8).toUpperCase(),
@@ -49,6 +62,11 @@ export default function PosHistoryPage() {
     );
     setReturnFor(null);
     setReason("");
+    setSales((prev) =>
+      prev.map((s) =>
+        s.id === returnFor.id ? { ...s, status: "COMPLETED" } : s
+      )
+    );
   }
 
   return (
@@ -100,9 +118,12 @@ export default function PosHistoryPage() {
               variant="secondary"
               className="mt-3"
               fullWidth={false}
+              disabled={s.status !== "COMPLETED"}
               onClick={() => setReturnFor(s)}
             >
-              {t("pos.requestReturn")}
+              {s.status === "COMPLETED"
+                ? t("pos.requestReturn")
+                : s.status}
             </Button>
           </div>
         );
