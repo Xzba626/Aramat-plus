@@ -6,6 +6,7 @@ import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { LocationType, Prisma } from "@prisma/client";
 import { decimalToNumber } from "@/lib/utils";
+import { addBatch } from "@/lib/services/stock.service";
 import {
   nextProductSku,
   resolveUnitId,
@@ -105,12 +106,21 @@ export async function POST(req: Request) {
 
     const data = await req.json();
     const body = productSchema.parse(data);
+    const initialQty =
+      data.initialQuantity != null ? Number(data.initialQuantity) : null;
+    const costPerUnit =
+      body.defaultCostPerUnit != null
+        ? Number(body.defaultCostPerUnit)
+        : data.costPerUnit != null
+          ? Number(data.costPerUnit)
+          : null;
 
     const warehouse = await prisma.warehouse.findFirst({
       where: { companyId: user!.companyId, isActive: true },
     });
-    if (!warehouse)
-      return handleApiError(new Error("Склад не найден. Запустите seed."));
+    if (!warehouse) {
+      return handleApiError(new Error("WAREHOUSE_MISSING"));
+    }
 
     const brand = body.brandId
       ? await prisma.brand.findFirst({
@@ -129,6 +139,10 @@ export async function POST(req: Request) {
       body.unitId
     );
 
+    if (initialQty != null && initialQty > 0 && !(costPerUnit && costPerUnit > 0)) {
+      return handleApiError(new Error("COST_REQUIRED_FOR_STOCK"));
+    }
+
     const product = await prisma.$transaction(async (tx) => {
       const created = await tx.product.create({
         data: {
@@ -144,12 +158,23 @@ export async function POST(req: Request) {
           accountingType: body.accountingType,
           salePrice: new Prisma.Decimal(body.salePrice),
           defaultCostPerUnit:
-            body.defaultCostPerUnit != null
-              ? new Prisma.Decimal(body.defaultCostPerUnit)
+            costPerUnit != null && costPerUnit > 0
+              ? new Prisma.Decimal(costPerUnit)
               : null,
           minStock: new Prisma.Decimal(0),
         },
       });
+
+      if (initialQty && initialQty > 0 && costPerUnit && costPerUnit > 0) {
+        await addBatch(tx, {
+          productId: created.id,
+          locationType: LocationType.WAREHOUSE,
+          locationId: warehouse.id,
+          quantity: initialQty,
+          costPerUnit,
+          notes: "Начальный остаток",
+        });
+      }
 
       await logActivity({
         tx,

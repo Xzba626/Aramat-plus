@@ -70,3 +70,35 @@ export function labelEntity(entityType: string, t: TranslateFn): string {
   const key = ENTITY_KEYS[entityType];
   return key ? t(key) : entityType;
 }
+
+/** DB stores canonical RU names; UI always goes through i18n. */
+export const PRODUCT_TYPE_KEYS: Record<string, string> = {
+  Парфюм: "productTypes.perfume",
+  "Масляные духи": "productTypes.oilPerfume",
+  Дезодорант: "productTypes.deodorant",
+  "Освежитель воздуха": "productTypes.airFreshener",
+  Часы: "productTypes.watches",
+  Аксессуары: "productTypes.accessories",
+  Другое: "productTypes.other",
+};
+
+export function labelProductType(
+  name: string | null | undefined,
+  t: TranslateFn
+): string {
+  if (!name) return "—";
+  const key = PRODUCT_TYPE_KEYS[name];
+  return key ? t(key) : name;
+}
+
+/** Map API error codes to i18n keys under errors.* */
+export function apiErrorMessage(
+  code: string | undefined,
+  t: TranslateFn,
+  fallbackKey = "common.error"
+): string {
+  if (!code) return t(fallbackKey);
+  const key = `errors.${code}`;
+  const translated = t(key);
+  return translated === key ? t(fallbackKey) : translated;
+}

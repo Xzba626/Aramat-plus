@@ -6,6 +6,10 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import {
+  apiErrorMessage,
+  labelProductType,
+} from "@/lib/i18n/labels";
 import { ImagePlus } from "lucide-react";
 
 type RefItem = { id: string; name: string };
@@ -15,15 +19,24 @@ export default function NewProductPage() {
   const { t, formatMoney } = useI18n();
   const [brands, setBrands] = useState<RefItem[]>([]);
   const [types, setTypes] = useState<RefItem[]>([]);
+  const [brandId, setBrandId] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [brandBusy, setBrandBusy] = useState(false);
   const [accountingType, setAccountingType] = useState<"PIECE" | "WEIGHT">(
     "WEIGHT"
   );
   const [salePrice, setSalePrice] = useState("");
   const [cost, setCost] = useState("");
+  const [initialQty, setInitialQty] = useState("");
   const [newBrand, setNewBrand] = useState(false);
   const [brandName, setBrandName] = useState("");
+
+  async function loadBrands() {
+    const res = await fetch("/api/brands");
+    const b = await res.json();
+    if (Array.isArray(b)) setBrands(b);
+  }
 
   useEffect(() => {
     Promise.all([
@@ -35,7 +48,9 @@ export default function NewProductPage() {
     });
   }, []);
 
-  const unitLabel = accountingType === "WEIGHT" ? "мл" : "шт";
+  const unitLabel =
+    accountingType === "WEIGHT" ? t("warehouse.unitMl") : t("warehouse.unitPcs");
+
   const profit = useMemo(() => {
     const s = Number(salePrice);
     const c = Number(cost);
@@ -43,21 +58,34 @@ export default function NewProductPage() {
     return s - c;
   }, [salePrice, cost]);
 
-  async function ensureBrandId(fd: FormData): Promise<string | null> {
-    if (!newBrand) {
-      const id = String(fd.get("brandId") || "");
-      return id || null;
-    }
+  async function createBrand() {
     const name = brandName.trim();
-    if (!name) return null;
-    const res = await fetch("/api/brands", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Brand error");
-    return data.id as string;
+    if (!name) {
+      setError(t("errors.BRAND_NAME_REQUIRED"));
+      return;
+    }
+    setBrandBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/brands", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(apiErrorMessage(data.error, t));
+        setBrandBusy(false);
+        return;
+      }
+      await loadBrands();
+      setBrandId(data.id);
+      setNewBrand(false);
+      setBrandName("");
+    } catch {
+      setError(t("common.error"));
+    }
+    setBrandBusy(false);
   }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -65,18 +93,51 @@ export default function NewProductPage() {
     setLoading(true);
     setError("");
     const fd = new FormData(e.currentTarget);
-    try {
-      const brandId = await ensureBrandId(fd);
-      const payload = {
-        name: String(fd.get("name") || ""),
-        description: String(fd.get("description") || "") || null,
-        brandId,
-        productTypeId: String(fd.get("productTypeId") || "") || null,
-        accountingType,
-        salePrice: Number(salePrice),
-        defaultCostPerUnit: cost ? Number(cost) : null,
-      };
 
+    let resolvedBrandId = brandId || null;
+    if (newBrand) {
+      const name = brandName.trim();
+      if (!name) {
+        setError(t("errors.BRAND_NAME_REQUIRED"));
+        setLoading(false);
+        return;
+      }
+      try {
+        const res = await fetch("/api/brands", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(apiErrorMessage(data.error, t));
+          setLoading(false);
+          return;
+        }
+        resolvedBrandId = data.id;
+        setBrandId(data.id);
+        setNewBrand(false);
+        await loadBrands();
+      } catch {
+        setLoading(false);
+        setError(t("common.error"));
+        return;
+      }
+    }
+
+    const qty = Number(initialQty);
+    const payload = {
+      name: String(fd.get("name") || ""),
+      description: String(fd.get("description") || "") || null,
+      brandId: resolvedBrandId,
+      productTypeId: String(fd.get("productTypeId") || "") || null,
+      accountingType,
+      salePrice: Number(salePrice),
+      defaultCostPerUnit: cost ? Number(cost) : null,
+      ...(qty > 0 ? { initialQuantity: qty } : {}),
+    };
+
+    try {
       const res = await fetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -85,14 +146,14 @@ export default function NewProductPage() {
       const data = await res.json();
       setLoading(false);
       if (!res.ok) {
-        setError(data.error || t("common.error"));
+        setError(apiErrorMessage(data.error, t));
         return;
       }
       router.push(`/warehouse/${data.id}`);
       router.refresh();
-    } catch (err) {
+    } catch {
       setLoading(false);
-      setError(err instanceof Error ? err.message : t("common.error"));
+      setError(t("common.error"));
     }
   }
 
@@ -119,9 +180,10 @@ export default function NewProductPage() {
             <input
               disabled
               className="w-full opacity-70"
+              value=""
               placeholder={t("warehouse.productSkuAuto")}
+              readOnly
             />
-            <p className="mt-1 text-xs text-muted">{t("warehouse.productSkuAuto")}</p>
           </div>
 
           <div>
@@ -145,7 +207,12 @@ export default function NewProductPage() {
             <FieldLabel>{t("warehouse.productBrand")}</FieldLabel>
             {!newBrand ? (
               <div className="flex gap-2">
-                <select name="brandId" defaultValue="" className="w-full">
+                <select
+                  name="brandId"
+                  value={brandId}
+                  onChange={(e) => setBrandId(e.target.value)}
+                  className="w-full"
+                >
                   <option value="">—</option>
                   {brands.map((b) => (
                     <option key={b.id} value={b.id}>
@@ -163,14 +230,21 @@ export default function NewProductPage() {
                 </Button>
               </div>
             ) : (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <input
                   value={brandName}
                   onChange={(e) => setBrandName(e.target.value)}
-                  className="w-full"
+                  className="min-w-[140px] flex-1"
                   placeholder="Dior"
-                  required
                 />
+                <Button
+                  type="button"
+                  fullWidth={false}
+                  disabled={brandBusy}
+                  onClick={createBrand}
+                >
+                  {t("warehouse.productBrandAdd")}
+                </Button>
                 <Button
                   type="button"
                   variant="secondary"
@@ -192,7 +266,7 @@ export default function NewProductPage() {
               <option value="">—</option>
               {types.map((pt) => (
                 <option key={pt.id} value={pt.id}>
-                  {pt.name}
+                  {labelProductType(pt.name, t)}
                 </option>
               ))}
             </select>
@@ -233,6 +307,23 @@ export default function NewProductPage() {
                 {t("warehouse.productSellVolume")}
               </label>
             </div>
+          </div>
+
+          <div>
+            <FieldLabel>
+              {t("warehouse.productInitialQty", { unit: unitLabel })}
+            </FieldLabel>
+            <input
+              type="number"
+              step={accountingType === "WEIGHT" ? "0.001" : "1"}
+              min="0"
+              value={initialQty}
+              onChange={(e) => setInitialQty(e.target.value)}
+              className="w-full"
+            />
+            <p className="mt-1 text-xs text-muted">
+              {t("warehouse.productInitialQtyHint")}
+            </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -278,7 +369,7 @@ export default function NewProductPage() {
           ) : null}
 
           {error ? <p className="text-sm text-danger">{error}</p> : null}
-          <Button type="submit" disabled={loading}>
+          <Button type="submit" disabled={loading || brandBusy}>
             {loading ? t("warehouse.productSaving") : t("warehouse.productCreateBtn")}
           </Button>
         </form>

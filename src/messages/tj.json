@@ -37,6 +37,26 @@
     "breadcrumb": "Роҳнамо",
     "error": "Хато"
   },
+  "errors": {
+    "RECORD_EXISTS": "Чунин сабт аллакай ҳаст",
+    "NOT_FOUND": "Ёфт нашуд",
+    "DB_SCHEMA_MISMATCH": "Пойгоҳи додаҳо ҳамоҳанг нест. Ба маъмур муроҷиат кунед.",
+    "DB_ERROR": "Хатои пойгоҳи додаҳо. Баъдтар кӯшиш кунед.",
+    "VALIDATION_ERROR": "Маълумоти воридшударо санҷед",
+    "INTERNAL_ERROR": "Хатои дохилии сервер",
+    "WAREHOUSE_MISSING": "Анбор ёфт нашуд. Танзимоти системаро иҷро кунед.",
+    "COST_REQUIRED_FOR_STOCK": "Барои боқимондаи аввал арзиши аслиро нишон диҳед",
+    "BRAND_NAME_REQUIRED": "Номи брендро ворид кунед"
+  },
+  "productTypes": {
+    "perfume": "Атр",
+    "oilPerfume": "Атрҳои равғанӣ",
+    "deodorant": "Дезодорант",
+    "airFreshener": "Хушбӯйкунандаи ҳаво",
+    "watches": "Соат",
+    "accessories": "Лавозимот",
+    "other": "Дигар"
+  },
   "nav": {
     "home": "Асосӣ",
     "warehouse": "Анбор",
@@ -73,7 +93,7 @@
     "journal": "Журнали амалҳо",
     "settings": "Танзимот",
     "productCard": "Корти мол",
-    "newProduct": "Моли нав",
+    "newProduct": "Эҷоди мол",
     "more": "Бештар",
     "posSell": "Фурӯш",
     "posHistory": "Таърих",
@@ -310,7 +330,12 @@
     "productBatchNotes": "Шарҳ",
     "productBatchKeepPrice": "Нархи фурӯш бе тағйир",
     "productBatchSubmit": "Ба анбор илова кардан",
-    "productPerUnit": "барои {{unit}}"
+    "productPerUnit": "барои {{unit}}",
+    "productInitialQty": "Миқдор ({{unit}})",
+    "productInitialQtyHint": "Боқимондаи аввал дар анбори марказӣ пас аз эҷод",
+    "productBrandAdd": "Илова кардан",
+    "unitPcs": "адад",
+    "unitMl": "мл"
   },
   "roles": {
     "owner": "Соҳиб",

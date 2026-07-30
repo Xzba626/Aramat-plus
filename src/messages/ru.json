@@ -37,6 +37,26 @@
     "breadcrumb": "Навигация",
     "error": "Ошибка"
   },
+  "errors": {
+    "RECORD_EXISTS": "Такая запись уже есть",
+    "NOT_FOUND": "Не найдено",
+    "DB_SCHEMA_MISMATCH": "База данных не синхронизирована. Обратитесь к администратору.",
+    "DB_ERROR": "Ошибка базы данных. Попробуйте позже.",
+    "VALIDATION_ERROR": "Проверьте введённые данные",
+    "INTERNAL_ERROR": "Внутренняя ошибка сервера",
+    "WAREHOUSE_MISSING": "Склад не найден. Выполните настройку системы.",
+    "COST_REQUIRED_FOR_STOCK": "Укажите себестоимость для начального остатка",
+    "BRAND_NAME_REQUIRED": "Введите название бренда"
+  },
+  "productTypes": {
+    "perfume": "Парфюм",
+    "oilPerfume": "Масляные духи",
+    "deodorant": "Дезодорант",
+    "airFreshener": "Освежитель воздуха",
+    "watches": "Часы",
+    "accessories": "Аксессуары",
+    "other": "Другое"
+  },
   "nav": {
     "home": "Главная",
     "warehouse": "Склад",
@@ -73,7 +93,7 @@
     "journal": "Журнал действий",
     "settings": "Настройки",
     "productCard": "Карточка товара",
-    "newProduct": "Новый товар",
+    "newProduct": "Создание товара",
     "more": "Ещё",
     "posSell": "Продажа",
     "posHistory": "История",
@@ -310,7 +330,12 @@
     "productBatchNotes": "Комментарий",
     "productBatchKeepPrice": "Цена продажи без изменений",
     "productBatchSubmit": "Добавить на склад",
-    "productPerUnit": "за {{unit}}"
+    "productPerUnit": "за {{unit}}",
+    "productInitialQty": "Количество ({{unit}})",
+    "productInitialQtyHint": "Начальный остаток на центральном складе после создания",
+    "productBrandAdd": "Добавить",
+    "unitPcs": "шт",
+    "unitMl": "мл"
   },
   "roles": {
     "owner": "Владелец",
