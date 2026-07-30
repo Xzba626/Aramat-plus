@@ -1,172 +1,285 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
+import { Card, FieldLabel } from "@/components/ui/card";
+import { useI18n } from "@/components/i18n/i18n-provider";
+import { ImagePlus } from "lucide-react";
 
-type RefItem = { id: string; name: string; symbol?: string };
+type RefItem = { id: string; name: string };
 
 export default function NewProductPage() {
   const router = useRouter();
-  const [categories, setCategories] = useState<RefItem[]>([]);
+  const { t, formatMoney } = useI18n();
   const [brands, setBrands] = useState<RefItem[]>([]);
-  const [units, setUnits] = useState<RefItem[]>([]);
+  const [types, setTypes] = useState<RefItem[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [accountingType, setAccountingType] = useState<"PIECE" | "WEIGHT">(
+    "WEIGHT"
+  );
+  const [salePrice, setSalePrice] = useState("");
+  const [cost, setCost] = useState("");
+  const [newBrand, setNewBrand] = useState(false);
+  const [brandName, setBrandName] = useState("");
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/categories").then((r) => r.json()),
       fetch("/api/brands").then((r) => r.json()),
-      fetch("/api/units").then((r) => r.json()),
-    ]).then(([c, b, u]) => {
-      setCategories(Array.isArray(c) ? c : []);
+      fetch("/api/product-types").then((r) => r.json()),
+    ]).then(([b, pt]) => {
       setBrands(Array.isArray(b) ? b : []);
-      setUnits(Array.isArray(u) ? u : []);
+      setTypes(Array.isArray(pt) ? pt : []);
     });
   }, []);
+
+  const unitLabel = accountingType === "WEIGHT" ? "мл" : "шт";
+  const profit = useMemo(() => {
+    const s = Number(salePrice);
+    const c = Number(cost);
+    if (!s || !c || s <= 0 || c <= 0) return null;
+    return s - c;
+  }, [salePrice, cost]);
+
+  async function ensureBrandId(fd: FormData): Promise<string | null> {
+    if (!newBrand) {
+      const id = String(fd.get("brandId") || "");
+      return id || null;
+    }
+    const name = brandName.trim();
+    if (!name) return null;
+    const res = await fetch("/api/brands", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Brand error");
+    return data.id as string;
+  }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError("");
     const fd = new FormData(e.currentTarget);
-    const initialQuantity = Number(fd.get("initialQuantity") || 0);
-    const costPerUnit = Number(fd.get("costPerUnit") || 0);
-    const payload = {
-      name: String(fd.get("name") || ""),
-      sku: String(fd.get("sku") || "") || null,
-      barcode: String(fd.get("barcode") || "") || null,
-      description: String(fd.get("description") || "") || null,
-      brandId: String(fd.get("brandId") || "") || null,
-      categoryId: String(fd.get("categoryId") || "") || null,
-      unitId: String(fd.get("unitId") || "") || null,
-      accountingType: String(fd.get("accountingType") || "PIECE"),
-      salePrice: Number(fd.get("salePrice")),
-      minStock: Number(fd.get("minStock") || 0),
-      ...(initialQuantity > 0 && costPerUnit > 0
-        ? { initialQuantity, costPerUnit }
-        : {}),
-    };
+    try {
+      const brandId = await ensureBrandId(fd);
+      const payload = {
+        name: String(fd.get("name") || ""),
+        description: String(fd.get("description") || "") || null,
+        brandId,
+        productTypeId: String(fd.get("productTypeId") || "") || null,
+        accountingType,
+        salePrice: Number(salePrice),
+        defaultCostPerUnit: cost ? Number(cost) : null,
+      };
 
-    const res = await fetch("/api/products", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (!res.ok) {
-      setError(data.error || "Ошибка");
-      return;
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      setLoading(false);
+      if (!res.ok) {
+        setError(data.error || t("common.error"));
+        return;
+      }
+      router.push(`/warehouse/${data.id}`);
+      router.refresh();
+    } catch (err) {
+      setLoading(false);
+      setError(err instanceof Error ? err.message : t("common.error"));
     }
-    router.push(`/warehouse/${data.id}`);
-    router.refresh();
   }
 
   return (
-    <div className="max-w-xl">
+    <div className="mx-auto max-w-xl">
       <PageHeader
-        title="Создание товара"
-        subtitle="Остаток будет 0, пока не оформите поступление (новую партию)"
+        title={t("warehouse.productCreateTitle")}
+        subtitle={t("warehouse.productCreateSubtitle")}
       />
-      <Card className="p-4">
-        <form onSubmit={onSubmit} className="space-y-3">
-          <SectionTitle>Основная информация</SectionTitle>
+      <Card className="p-5 sm:p-6">
+        <form onSubmit={onSubmit} className="space-y-5">
           <div>
-            <FieldLabel>Название</FieldLabel>
-            <input name="name" required className="w-full" placeholder="Dior Sauvage" />
+            <FieldLabel>{t("warehouse.productName")}</FieldLabel>
+            <input
+              name="name"
+              required
+              className="w-full"
+              placeholder="Dior Sauvage"
+            />
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <FieldLabel>Артикул (SKU)</FieldLabel>
-              <input name="sku" className="w-full" placeholder="ARM-000125" />
-            </div>
-            <div>
-              <FieldLabel>Штрихкод</FieldLabel>
-              <input name="barcode" className="w-full" />
-            </div>
-          </div>
+
           <div>
-            <FieldLabel>Описание</FieldLabel>
-            <textarea name="description" rows={2} className="w-full rounded-xl border border-border px-3 py-2" />
+            <FieldLabel>{t("warehouse.productSku")}</FieldLabel>
+            <input
+              disabled
+              className="w-full opacity-70"
+              placeholder={t("warehouse.productSkuAuto")}
+            />
+            <p className="mt-1 text-xs text-muted">{t("warehouse.productSkuAuto")}</p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <FieldLabel>Бренд</FieldLabel>
-              <select name="brandId" defaultValue="" className="w-full">
-                <option value="">—</option>
-                {brands.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <FieldLabel>Категория</FieldLabel>
-              <select name="categoryId" defaultValue="" className="w-full">
-                <option value="">—</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <FieldLabel>Тип</FieldLabel>
-              <select name="accountingType" defaultValue="PIECE" className="w-full">
-                <option value="PIECE">Штучный / аксессуар</option>
-                <option value="WEIGHT">Парфюм на разлив (мл)</option>
-              </select>
-            </div>
-            <div>
-              <FieldLabel>Единица</FieldLabel>
-              <select name="unitId" defaultValue="" className="w-full">
-                <option value="">—</option>
-                {units.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({u.symbol})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <FieldLabel>Цена продажи</FieldLabel>
-              <input name="salePrice" type="number" step="0.01" required className="w-full" />
-            </div>
-            <div>
-              <FieldLabel>Мин. остаток</FieldLabel>
-              <input name="minStock" type="number" step="any" min="0" defaultValue={0} className="w-full" />
+
+          <div>
+            <FieldLabel>{t("warehouse.productPhoto")}</FieldLabel>
+            <div className="flex items-center gap-3 rounded-xl border border-dashed border-border bg-page px-4 py-6 text-sm text-muted">
+              <ImagePlus className="h-5 w-5 shrink-0" strokeWidth={1.75} />
+              {t("warehouse.productPhotoSoon")}
             </div>
           </div>
 
-          <SectionTitle>Первая партия (необязательно)</SectionTitle>
-          <p className="text-xs text-muted">
-            По спецификации остаток может остаться нулевым. Партию лучше оформить через
-            «Поступление».
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <FieldLabel>Кол-во партии</FieldLabel>
-              <input name="initialQuantity" type="number" step="any" min="0" className="w-full" />
-            </div>
-            <div>
-              <FieldLabel>Себестоимость</FieldLabel>
-              <input name="costPerUnit" type="number" step="any" min="0" className="w-full" />
+          <div>
+            <FieldLabel>{t("warehouse.productDesc")}</FieldLabel>
+            <textarea
+              name="description"
+              rows={2}
+              className="w-full rounded-xl border border-border px-3 py-2"
+            />
+          </div>
+
+          <div>
+            <FieldLabel>{t("warehouse.productBrand")}</FieldLabel>
+            {!newBrand ? (
+              <div className="flex gap-2">
+                <select name="brandId" defaultValue="" className="w-full">
+                  <option value="">—</option>
+                  {brands.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  fullWidth={false}
+                  onClick={() => setNewBrand(true)}
+                >
+                  {t("warehouse.productBrandNew")}
+                </Button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  value={brandName}
+                  onChange={(e) => setBrandName(e.target.value)}
+                  className="w-full"
+                  placeholder="Dior"
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  fullWidth={false}
+                  onClick={() => {
+                    setNewBrand(false);
+                    setBrandName("");
+                  }}
+                >
+                  ←
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <FieldLabel>{t("warehouse.productType")}</FieldLabel>
+            <select name="productTypeId" defaultValue="" className="w-full" required>
+              <option value="">—</option>
+              {types.map((pt) => (
+                <option key={pt.id} value={pt.id}>
+                  {pt.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-muted">{t("warehouse.productTypeHint")}</p>
+          </div>
+
+          <div>
+            <FieldLabel>{t("warehouse.productSellHow")}</FieldLabel>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label
+                className={`cursor-pointer rounded-xl border px-3 py-3 text-sm ${
+                  accountingType === "PIECE"
+                    ? "border-brand bg-brand-soft font-semibold text-brand"
+                    : "border-border bg-card"
+                }`}
+              >
+                <input
+                  type="radio"
+                  className="sr-only"
+                  checked={accountingType === "PIECE"}
+                  onChange={() => setAccountingType("PIECE")}
+                />
+                {t("warehouse.productSellPiece")}
+              </label>
+              <label
+                className={`cursor-pointer rounded-xl border px-3 py-3 text-sm ${
+                  accountingType === "WEIGHT"
+                    ? "border-brand bg-brand-soft font-semibold text-brand"
+                    : "border-border bg-card"
+                }`}
+              >
+                <input
+                  type="radio"
+                  className="sr-only"
+                  checked={accountingType === "WEIGHT"}
+                  onChange={() => setAccountingType("WEIGHT")}
+                />
+                {t("warehouse.productSellVolume")}
+              </label>
             </div>
           </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <FieldLabel>
+                {t("warehouse.productCost")} ({unitLabel})
+              </FieldLabel>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
+                className="w-full"
+              />
+              <p className="mt-1 text-xs text-muted">{t("warehouse.productCostHint")}</p>
+            </div>
+            <div>
+              <FieldLabel>
+                {t("warehouse.productSalePrice")} ({unitLabel})
+              </FieldLabel>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                value={salePrice}
+                onChange={(e) => setSalePrice(e.target.value)}
+                className="w-full"
+              />
+              <p className="mt-1 text-xs text-muted">{t("warehouse.productSaleHint")}</p>
+            </div>
+          </div>
+
+          {profit != null && profit >= 0 ? (
+            <p className="rounded-xl bg-zone-money-soft px-3 py-2 text-sm font-semibold text-zone-money-deep">
+              {t("warehouse.productProfitHint", {
+                amount: formatMoney(profit, { short: true }),
+              })}{" "}
+              / {unitLabel}
+            </p>
+          ) : null}
 
           {error ? <p className="text-sm text-danger">{error}</p> : null}
           <Button type="submit" disabled={loading}>
-            {loading ? "Сохранение…" : "Создать товар"}
+            {loading ? t("warehouse.productSaving") : t("warehouse.productCreateBtn")}
           </Button>
         </form>
       </Card>

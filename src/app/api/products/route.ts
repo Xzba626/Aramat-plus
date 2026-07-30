@@ -5,8 +5,11 @@ import { productSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { LocationType, Prisma } from "@prisma/client";
-import { addBatch } from "@/lib/services/stock.service";
 import { decimalToNumber } from "@/lib/utils";
+import {
+  nextProductSku,
+  resolveUnitId,
+} from "@/lib/services/product-nomenclature.service";
 
 export async function GET(req: Request) {
   try {
@@ -102,10 +105,6 @@ export async function POST(req: Request) {
 
     const data = await req.json();
     const body = productSchema.parse(data);
-    const initialQty =
-      data.initialQuantity != null ? Number(data.initialQuantity) : null;
-    const costPerUnit =
-      data.costPerUnit != null ? Number(data.costPerUnit) : null;
 
     const warehouse = await prisma.warehouse.findFirst({
       where: { companyId: user!.companyId, isActive: true },
@@ -113,35 +112,44 @@ export async function POST(req: Request) {
     if (!warehouse)
       return handleApiError(new Error("Склад не найден. Запустите seed."));
 
+    const brand = body.brandId
+      ? await prisma.brand.findFirst({
+          where: { id: body.brandId, companyId: user!.companyId },
+        })
+      : null;
+
+    const sku =
+      (body.sku && body.sku.trim()) ||
+      (await nextProductSku(prisma, user!.companyId, brand?.name));
+
+    const unitId = await resolveUnitId(
+      prisma,
+      user!.companyId,
+      body.accountingType,
+      body.unitId
+    );
+
     const product = await prisma.$transaction(async (tx) => {
       const created = await tx.product.create({
         data: {
           name: body.name,
-          sku: body.sku ?? null,
+          sku,
           barcode: body.barcode ?? null,
           description: body.description ?? null,
           companyId: user!.companyId,
-          categoryId: body.categoryId ?? null,
+          categoryId: null,
           brandId: body.brandId ?? null,
-          unitId: body.unitId ?? null,
+          unitId,
           productTypeId: body.productTypeId ?? null,
           accountingType: body.accountingType,
           salePrice: new Prisma.Decimal(body.salePrice),
-          minStock: new Prisma.Decimal(body.minStock ?? 0),
+          defaultCostPerUnit:
+            body.defaultCostPerUnit != null
+              ? new Prisma.Decimal(body.defaultCostPerUnit)
+              : null,
+          minStock: new Prisma.Decimal(0),
         },
       });
-
-      // Остаток = 0 до поставки; партия только если явно переданы qty+cost
-      if (initialQty && initialQty > 0 && costPerUnit && costPerUnit > 0) {
-        await addBatch(tx, {
-          productId: created.id,
-          locationType: LocationType.WAREHOUSE,
-          locationId: warehouse.id,
-          quantity: initialQty,
-          costPerUnit,
-          notes: "Начальная партия",
-        });
-      }
 
       await logActivity({
         tx,
@@ -162,6 +170,7 @@ export async function POST(req: Request) {
         brand: true,
         category: true,
         unit: true,
+        productType: true,
         batches: true,
         stockBalances: true,
       },

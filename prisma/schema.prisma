@@ -292,6 +292,8 @@ model Product {
   productTypeId  String?
   accountingType AccountingType @default(PIECE)
   salePrice      Decimal        @db.Decimal(12, 2)
+  /// Справочная / плановая себестоимость за единицу (мл или шт). Реальная с/с — на Batch.
+  defaultCostPerUnit Decimal?   @db.Decimal(12, 2)
   minStock       Decimal        @default(0) @db.Decimal(14, 3)
   isActive       Boolean        @default(true)
   createdAt      DateTime       @default(now())

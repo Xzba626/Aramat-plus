@@ -59,6 +59,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
         accountingType: body.accountingType,
         salePrice:
           body.salePrice != null ? new Prisma.Decimal(body.salePrice) : undefined,
+        defaultCostPerUnit:
+          body.defaultCostPerUnit === undefined
+            ? undefined
+            : body.defaultCostPerUnit == null
+              ? null
+              : new Prisma.Decimal(body.defaultCostPerUnit),
       },
     });
     await logActivity({

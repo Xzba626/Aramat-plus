@@ -3,12 +3,14 @@ import { requireOwnerOrManager, requireOwner } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { productTypeSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
+import { ensureDefaultProductTypes } from "@/lib/services/product-nomenclature.service";
 
 export async function GET() {
   try {
     const user = await getSessionUser();
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
+    await ensureDefaultProductTypes(prisma, user!.companyId);
     const items = await prisma.productType.findMany({
       where: { companyId: user!.companyId },
       orderBy: { name: "asc" },

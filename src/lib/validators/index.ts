@@ -40,6 +40,7 @@ export const productSchema = z.object({
   productTypeId: z.string().optional().nullable(),
   accountingType: z.nativeEnum(AccountingType).default(AccountingType.PIECE),
   salePrice: z.coerce.number().positive(),
+  defaultCostPerUnit: z.coerce.number().positive().optional().nullable(),
   minStock: z.coerce.number().min(0).optional(),
 });
 
