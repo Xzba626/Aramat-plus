@@ -335,6 +335,10 @@ export async function getDashboardPayload(companyId: string) {
       storeToday.length === 0
         ? null
         : [...storeToday].sort((a, b) => b.revenue - a.revenue)[0]?.id ?? null,
+    worstStoreId:
+      storeToday.length === 0
+        ? null
+        : [...storeToday].sort((a, b) => a.revenue - b.revenue)[0]?.id ?? null,
   };
 }
 
