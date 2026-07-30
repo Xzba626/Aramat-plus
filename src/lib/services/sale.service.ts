@@ -10,6 +10,12 @@ export type SaleLineInput = {
   isGift?: boolean;
 };
 
+/**
+ * Fast path for POS checkout.
+ * Reads (store/seller/products) are outside the interactive transaction.
+ * TX only: FIFO batch deduct + stock balance + Sale/SaleItem writes.
+ * Audit log runs after commit (does not hold stock locks).
+ */
 export async function createSale(params: {
   companyId: string;
   storeId: string;
@@ -21,22 +27,53 @@ export async function createSale(params: {
 }) {
   if (!params.items.length) throw new Error("Добавьте хотя бы один товар");
 
-  const store = await prisma.store.findFirst({
-    where: {
-      id: params.storeId,
-      companyId: params.companyId,
-      isActive: true,
-      isArchived: false,
-    },
-  });
-  if (!store) throw new Error("Магазин не найден");
+  for (const line of params.items) {
+    if (!(line.quantity > 0)) {
+      throw new Error("Количество должно быть больше нуля");
+    }
+  }
 
-  const seller = await prisma.user.findFirst({
-    where: { id: params.sellerId, companyId: params.companyId, isActive: true },
-  });
+  const discount = new Prisma.Decimal(params.discountAmount ?? 0);
+  if (discount.lt(0)) throw new Error("Скидка не может быть отрицательной");
+
+  const productIds = [...new Set(params.items.map((i) => i.productId))];
+
+  const [store, seller, products] = await Promise.all([
+    prisma.store.findFirst({
+      where: {
+        id: params.storeId,
+        companyId: params.companyId,
+        isActive: true,
+        isArchived: false,
+      },
+      select: {
+        id: true,
+        name: true,
+        kind: true,
+        companyId: true,
+      },
+    }),
+    prisma.user.findFirst({
+      where: {
+        id: params.sellerId,
+        companyId: params.companyId,
+        isActive: true,
+      },
+      select: { id: true, name: true, role: true, storeId: true },
+    }),
+    prisma.product.findMany({
+      where: {
+        id: { in: productIds },
+        companyId: params.companyId,
+        isActive: true,
+      },
+      select: { id: true, name: true, salePrice: true },
+    }),
+  ]);
+
+  if (!store) throw new Error("Магазин не найден");
   if (!seller) throw new Error("Продавец не найден");
 
-  // Seller may only sell at their assigned BRANCH store
   if (seller.role === "SELLER") {
     if (!seller.storeId || seller.storeId !== store.id) {
       throw new Error("Продавец может продавать только в своём магазине");
@@ -52,6 +89,7 @@ export async function createSale(params: {
   if (store.kind === StoreKind.OWNER_DIRECT) {
     const warehouse = await prisma.warehouse.findFirst({
       where: { companyId: params.companyId, isActive: true },
+      select: { id: true },
     });
     if (!warehouse) throw new Error("Центральный склад не найден");
     locationType = LocationType.WAREHOUSE;
@@ -61,111 +99,134 @@ export async function createSale(params: {
     locationId = store.id;
   }
 
-  const discount = new Prisma.Decimal(params.discountAmount ?? 0);
-  if (discount.lt(0)) throw new Error("Скидка не может быть отрицательной");
+  if (products.length !== productIds.length) {
+    throw new Error("PRODUCT_NOT_FOUND");
+  }
+  const productById = new Map(products.map((p) => [p.id, p]));
 
-  return prisma.$transaction(
+  type LineRow = {
+    productId: string;
+    batchId: string | null;
+    quantity: Prisma.Decimal;
+    salePrice: Prisma.Decimal;
+    costPerUnit: Prisma.Decimal;
+    isGift: boolean;
+  };
+
+  const committed = await prisma.$transaction(
     async (tx) => {
-    let subtotal = new Prisma.Decimal(0);
-    const lineRows: Array<{
-      productId: string;
-      batchId: string | null;
-      quantity: Prisma.Decimal;
-      salePrice: Prisma.Decimal;
-      costPerUnit: Prisma.Decimal;
-      isGift: boolean;
-    }> = [];
+      let subtotal = new Prisma.Decimal(0);
+      const lineRows: LineRow[] = [];
 
-    for (const line of params.items) {
-      const qty = new Prisma.Decimal(line.quantity);
-      if (qty.lte(0)) throw new Error("Количество должно быть больше нуля");
+      for (const line of params.items) {
+        const product = productById.get(line.productId);
+        if (!product) throw new Error("PRODUCT_NOT_FOUND");
 
-      const product = await tx.product.findFirst({
-        where: {
-          id: line.productId,
-          companyId: params.companyId,
-          isActive: true,
-        },
-      });
-      if (!product) throw new Error(`Товар не найден: ${line.productId}`);
+        const qty = new Prisma.Decimal(line.quantity);
+        const isGift = Boolean(line.isGift);
+        const unitPrice = isGift ? new Prisma.Decimal(0) : product.salePrice;
 
-      const isGift = Boolean(line.isGift);
-      const unitPrice = isGift ? new Prisma.Decimal(0) : product.salePrice;
-
-      const consumed = await deductBatchesFifo(tx, {
-        productId: line.productId,
-        locationType,
-        locationId,
-        quantity: qty,
-      });
-
-      for (const slice of consumed) {
-        const sliceSub = unitPrice.mul(slice.quantity);
-        if (!isGift) subtotal = subtotal.add(sliceSub);
-        lineRows.push({
+        const consumed = await deductBatchesFifo(tx, {
           productId: line.productId,
-          batchId: slice.batchId,
-          quantity: slice.quantity,
-          salePrice: unitPrice,
-          costPerUnit: slice.costPerUnit,
-          isGift,
+          locationType,
+          locationId,
+          quantity: qty,
         });
+
+        for (const slice of consumed) {
+          if (!isGift) {
+            subtotal = subtotal.add(unitPrice.mul(slice.quantity));
+          }
+          lineRows.push({
+            productId: line.productId,
+            batchId: slice.batchId,
+            quantity: slice.quantity,
+            salePrice: unitPrice,
+            costPerUnit: slice.costPerUnit,
+            isGift,
+          });
+        }
       }
-    }
 
-    if (discount.gt(subtotal)) {
-      throw new Error("Скидка больше суммы продажи");
-    }
+      if (discount.gt(subtotal)) {
+        throw new Error("Скидка больше суммы продажи");
+      }
 
-    const total = subtotal.sub(discount);
+      const total = subtotal.sub(discount);
 
-    const sale = await tx.sale.create({
-      data: {
-        storeId: store.id,
-        sellerId: params.sellerId,
-        status: "COMPLETED",
-        subtotal,
-        discountAmount: discount,
-        total,
-        paymentMethod: params.paymentMethod ?? "CASH",
-        notes: params.notes,
-        items: {
-          create: lineRows.map((r) => ({
-            productId: r.productId,
-            batchId: r.batchId,
-            quantity: r.quantity,
-            salePrice: r.salePrice,
-            costPerUnit: r.costPerUnit,
-            isGift: r.isGift,
-          })),
+      const sale = await tx.sale.create({
+        data: {
+          storeId: store.id,
+          sellerId: params.sellerId,
+          status: "COMPLETED",
+          subtotal,
+          discountAmount: discount,
+          total,
+          paymentMethod: params.paymentMethod ?? "CASH",
+          notes: params.notes,
+          items: {
+            create: lineRows.map((r) => ({
+              productId: r.productId,
+              batchId: r.batchId,
+              quantity: r.quantity,
+              salePrice: r.salePrice,
+              costPerUnit: r.costPerUnit,
+              isGift: r.isGift,
+            })),
+          },
         },
-      },
-      include: {
-        items: { include: { product: { select: { id: true, name: true } } } },
-        seller: { select: { id: true, name: true } },
-        store: { select: { id: true, name: true, kind: true } },
-      },
-    });
+        include: {
+          items: {
+            select: {
+              id: true,
+              productId: true,
+              batchId: true,
+              quantity: true,
+              salePrice: true,
+              costPerUnit: true,
+              isGift: true,
+            },
+          },
+        },
+      });
 
-    await logActivity({
-      tx,
-      userId: params.sellerId,
-      companyId: params.companyId,
-      action: "SALE_CREATE",
-      entityType: "Sale",
-      entityId: sale.id,
-      comment: `${store.name} · ${decimalToNumber(total)} с.`,
-      metadata: {
-        storeId: store.id,
-        locationType,
-        locationId,
-        itemCount: params.items.length,
-        total: total.toString(),
-      },
-    });
-
-    return sale;
-  },
-  { timeout: 20000 }
+      return { sale, total };
+    },
+    {
+      maxWait: 5000,
+      timeout: 10000,
+    }
   );
+
+  // Do not hold the API on audit RTT — log after response path
+  void logActivity({
+    userId: params.sellerId,
+    companyId: params.companyId,
+    action: "SALE_CREATE",
+    entityType: "Sale",
+    entityId: committed.sale.id,
+    comment: `${store.name} · ${decimalToNumber(committed.total)} с.`,
+    metadata: {
+      storeId: store.id,
+      locationType,
+      locationId,
+      itemCount: params.items.length,
+      total: committed.total.toString(),
+    },
+  }).catch((err) => console.error("[createSale] audit log failed", err));
+
+  const { items, ...saleRest } = committed.sale;
+
+  return {
+    ...saleRest,
+    items: items.map((it) => ({
+      ...it,
+      product: {
+        id: it.productId,
+        name: productById.get(it.productId)?.name ?? "",
+      },
+    })),
+    seller: { id: seller.id, name: seller.name },
+    store: { id: store.id, name: store.name, kind: store.kind },
+  };
 }

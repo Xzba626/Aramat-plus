@@ -57,10 +57,13 @@ export async function deductBatchesFifo(
     locationId: string;
     quantity: Prisma.Decimal | number;
   }
-): Promise<Array<{ batchId: string; quantity: Prisma.Decimal; costPerUnit: Prisma.Decimal }>> {
-  let remaining = new Prisma.Decimal(params.quantity.toString());
-  if (remaining.lte(0)) throw new Error("Количество должно быть больше нуля");
+): Promise<
+  Array<{ batchId: string; quantity: Prisma.Decimal; costPerUnit: Prisma.Decimal }>
+> {
+  const need = new Prisma.Decimal(params.quantity.toString());
+  if (need.lte(0)) throw new Error("Количество должно быть больше нуля");
 
+  // Minimal columns — uses index (productId, locationType, locationId, receivedAt)
   const batches = await tx.batch.findMany({
     where: {
       productId: params.productId,
@@ -69,45 +72,69 @@ export async function deductBatchesFifo(
       quantity: { gt: 0 },
     },
     orderBy: { receivedAt: "asc" },
+    select: { id: true, quantity: true, costPerUnit: true },
   });
 
-  const totalAvailable = batches.reduce(
-    (sum, b) => sum.add(b.quantity),
-    new Prisma.Decimal(0)
-  );
-  if (totalAvailable.lt(remaining)) {
-    throw new Error("Недостаточно остатка по партиям");
-  }
-
+  let remaining = need;
   const consumed: Array<{
     batchId: string;
     quantity: Prisma.Decimal;
     costPerUnit: Prisma.Decimal;
+    nextQty: Prisma.Decimal;
   }> = [];
 
   for (const batch of batches) {
     if (remaining.lte(0)) break;
     const take = Prisma.Decimal.min(batch.quantity, remaining);
-    await tx.batch.update({
-      where: { id: batch.id },
-      data: { quantity: batch.quantity.sub(take) },
-    });
     consumed.push({
       batchId: batch.id,
       quantity: take,
       costPerUnit: batch.costPerUnit,
+      nextQty: batch.quantity.sub(take),
     });
     remaining = remaining.sub(take);
   }
 
-  await upsertStockBalance(tx, {
-    productId: params.productId,
-    locationType: params.locationType,
-    locationId: params.locationId,
-    delta: new Prisma.Decimal(params.quantity.toString()).neg(),
-  });
+  if (remaining.gt(0)) {
+    throw new Error("Недостаточно остатка по партиям");
+  }
 
-  return consumed;
+  // One round-trip: apply all batch qty changes + atomic balance decrement
+  {
+    const valueRows = consumed.map(
+      (c) => Prisma.sql`(${c.batchId}::text, ${c.nextQty}::numeric)`
+    );
+    const bal = await tx.$executeRaw`
+      WITH batch_upd AS (
+        UPDATE "Batch" AS b
+        SET
+          quantity = v.qty,
+          "updatedAt" = CURRENT_TIMESTAMP
+        FROM (VALUES ${Prisma.join(valueRows)}) AS v(id, qty)
+        WHERE b.id = v.id
+        RETURNING b.id
+      )
+      UPDATE "StockBalance"
+      SET
+        quantity = quantity - ${need},
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE
+        "productId" = ${params.productId}
+        AND "locationType" = CAST(${params.locationType} AS "LocationType")
+        AND "locationId" = ${params.locationId}
+        AND quantity >= ${need}
+        AND EXISTS (SELECT 1 FROM batch_upd)
+    `;
+    if (Number(bal) === 0) {
+      throw new Error("Недостаточно остатка на складе");
+    }
+  }
+
+  return consumed.map(({ batchId, quantity, costPerUnit }) => ({
+    batchId,
+    quantity,
+    costPerUnit,
+  }));
 }
 
 export async function addBatch(

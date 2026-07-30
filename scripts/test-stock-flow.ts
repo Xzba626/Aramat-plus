@@ -67,16 +67,19 @@ async function main() {
   });
 
   // 1) Receive 100 on central warehouse
-  await prisma.$transaction(async (tx) => {
-    await addBatch(tx, {
-      productId: product.id,
-      locationType: LocationType.WAREHOUSE,
-      locationId: warehouse.id,
-      quantity: 100,
-      costPerUnit: 40,
-      notes: "flow-test-batch",
-    });
-  });
+  await prisma.$transaction(
+    async (tx) => {
+      await addBatch(tx, {
+        productId: product.id,
+        locationType: LocationType.WAREHOUSE,
+        locationId: warehouse.id,
+        quantity: 100,
+        costPerUnit: 40,
+        notes: "flow-test-batch",
+      });
+    },
+    { timeout: 20000 }
+  );
 
   let whQty = await getQtyAtLocation({
     productId: product.id,
@@ -127,7 +130,8 @@ async function main() {
   assert(transferLog, "TRANSFER_CREATE in ActivityLog");
   console.log("✓ ActivityLog TRANSFER_CREATE");
 
-  // 3) Sale 5 from store (seller POS)
+  // 3) Sale 5 from store (seller POS) — time cold-ish then warm
+  const t0 = Date.now();
   const sale = await createSale({
     companyId: company.id,
     storeId: store.id,
@@ -135,6 +139,18 @@ async function main() {
     items: [{ productId: product.id, quantity: 5 }],
     paymentMethod: "CASH",
   });
+  const saleMs = Date.now() - t0;
+
+  // Warm second sale (1 unit) to separate logic cost from Neon cold RTT
+  const t1 = Date.now();
+  const sale2 = await createSale({
+    companyId: company.id,
+    storeId: store.id,
+    sellerId: seller.id,
+    items: [{ productId: product.id, quantity: 1 }],
+    paymentMethod: "CASH",
+  });
+  const sale2Ms = Date.now() - t1;
 
   whQty = await getQtyAtLocation({
     productId: product.id,
@@ -147,23 +163,33 @@ async function main() {
     locationId: store.id,
   });
   assert(whQty === 80, `warehouse after sale still 80, got ${whQty}`);
-  assert(storeQty === 15, `store after sale = 15, got ${storeQty}`);
+  assert(storeQty === 14, `store after sales = 14, got ${storeQty}`);
   assert(sale.items.length >= 1, "sale has items");
-  console.log("✓ Sale 5 (warehouse 80 / store 15)");
+  console.log(`✓ Sale 5 then 1 (warehouse 80 / store 14)`);
+  console.log(`  createSale #1 ${saleMs}ms · #2 (warm) ${sale2Ms}ms`);
 
-  const saleLog = await prisma.activityLog.findFirst({
-    where: {
-      companyId: company.id,
-      action: "SALE_CREATE",
-      entityId: sale.id,
-    },
-  });
+  const saleLog = await (async () => {
+    for (let i = 0; i < 20; i++) {
+      const row = await prisma.activityLog.findFirst({
+        where: {
+          companyId: company.id,
+          action: "SALE_CREATE",
+          entityId: sale.id,
+        },
+      });
+      if (row) return row;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return null;
+  })();
   assert(saleLog, "SALE_CREATE in ActivityLog");
   console.log("✓ ActivityLog SALE_CREATE");
 
   // Cleanup test product stock leftovers (keep audit trail)
-  await prisma.saleItem.deleteMany({ where: { saleId: sale.id } });
-  await prisma.sale.delete({ where: { id: sale.id } });
+  await prisma.saleItem.deleteMany({
+    where: { saleId: { in: [sale.id, sale2.id] } },
+  });
+  await prisma.sale.deleteMany({ where: { id: { in: [sale.id, sale2.id] } } });
   await prisma.batch.deleteMany({ where: { productId: product.id } });
   await prisma.stockBalance.deleteMany({ where: { productId: product.id } });
   await prisma.transferItem.deleteMany({ where: { productId: product.id } });
