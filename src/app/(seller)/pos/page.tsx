@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { cn, formatMoney } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { usePosCart } from "@/lib/stores/pos-cart";
+import { useI18n } from "@/components/i18n/i18n-provider";
+import { apiErrorMessage } from "@/lib/i18n/labels";
 
 type CatalogItem = {
   productId: string;
@@ -22,6 +24,7 @@ type Category = { id: string; name: string };
 
 export default function PosPage() {
   const router = useRouter();
+  const { t, formatMoney } = useI18n();
   const add = usePosCart((s) => s.add);
   const cartCount = usePosCart((s) => s.lines.reduce((n, l) => n + l.quantity, 0));
   const [q, setQ] = useState("");
@@ -42,18 +45,18 @@ export default function PosPage() {
     const data = await res.json();
     setLoading(false);
     if (!res.ok) {
-      setError(data.error || "Ошибка каталога");
+      setError(apiErrorMessage(data.error, t, "pos.catalogError"));
       return;
     }
     setError("");
     setItems(data.items ?? []);
     setCategories(data.categories ?? []);
     setStoreName(data.store?.name ?? "");
-  }, [q, categoryId]);
+  }, [q, categoryId, t]);
 
   useEffect(() => {
-    const t = setTimeout(load, 150);
-    return () => clearTimeout(t);
+    const timer = setTimeout(load, 150);
+    return () => clearTimeout(timer);
   }, [load]);
 
   function addItem(item: CatalogItem) {
@@ -66,7 +69,7 @@ export default function PosPage() {
       max: item.quantity,
       quantity: 1,
     });
-    setFlash(`${item.product.name} → корзина`);
+    setFlash(t("pos.addedToCart", { name: item.product.name }));
     setTimeout(() => setFlash(""), 1200);
   }
 
@@ -85,13 +88,13 @@ export default function PosPage() {
     <div className="space-y-4 pb-16">
       {storeName ? (
         <p className="text-center text-xs font-medium text-muted">
-          Остатки только: {storeName}
+          {t("pos.stockOnly", { store: storeName })}
         </p>
       ) : null}
 
       <div>
         <label className="sr-only" htmlFor="pos-search">
-          Поиск
+          {t("pos.search")}
         </label>
         <input
           id="pos-search"
@@ -99,7 +102,7 @@ export default function PosPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={onSearchKey}
-          placeholder="Название, бренд, артикул, штрих-код…"
+          placeholder={t("pos.searchPlaceholder")}
           className="w-full rounded-2xl border border-border bg-card px-4 py-3.5 text-base text-ink shadow-sm outline-none ring-brand focus:ring-2"
           autoComplete="off"
         />
@@ -114,7 +117,7 @@ export default function PosPage() {
             !categoryId ? "bg-brand text-white" : "bg-card text-muted ring-1 ring-border"
           )}
         >
-          Все
+          {t("pos.allCategories")}
         </button>
         {categories.map((c) => (
           <button
@@ -141,12 +144,12 @@ export default function PosPage() {
       {error ? <p className="text-center text-sm text-danger">{error}</p> : null}
 
       {loading ? (
-        <p className="py-8 text-center text-sm text-muted">Загрузка…</p>
+        <p className="py-8 text-center text-sm text-muted">{t("pos.loading")}</p>
       ) : items.length === 0 ? (
         <div className="py-10 text-center text-sm text-muted">
-          Нет товаров в вашем магазине.
+          {t("pos.emptyCatalog")}
           <br />
-          Владелец должен отправить товар со склада.
+          {t("pos.ownerMustTransfer")}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2.5">
@@ -198,7 +201,7 @@ export default function PosPage() {
           onClick={() => router.push("/pos/cart")}
           className="fixed bottom-20 left-1/2 z-10 -translate-x-1/2 rounded-full bg-brand px-5 py-2.5 text-sm font-bold text-white shadow-lg"
         >
-          Корзина · {cartCount}
+          {t("pos.cart")} · {cartCount}
         </button>
       ) : null}
     </div>

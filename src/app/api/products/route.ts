@@ -70,16 +70,24 @@ export async function GET(req: Request) {
         0
       );
       const min = decimalToNumber(p.minStock);
+      const statusKey = !p.isActive
+        ? ("archived" as const)
+        : qty <= 0
+          ? ("empty" as const)
+          : min > 0 && qty <= min
+            ? ("low" as const)
+            : ("active" as const);
+      const statusLabels: Record<typeof statusKey, string> = {
+        archived: "Архив",
+        empty: "Отсутствует",
+        low: "Заканчивается",
+        active: "Активен",
+      };
       return {
         ...p,
         warehouseQty: qty,
-        statusLabel: !p.isActive
-          ? "Архив"
-          : qty <= 0
-            ? "Отсутствует"
-            : min > 0 && qty <= min
-              ? "Заканчивается"
-              : "Активен",
+        statusKey,
+        statusLabel: statusLabels[statusKey],
       };
     });
 
@@ -172,7 +180,7 @@ export async function POST(req: Request) {
           locationId: warehouse.id,
           quantity: initialQty,
           costPerUnit,
-          notes: "Начальный остаток",
+          notes: "Initial stock",
         });
       }
 

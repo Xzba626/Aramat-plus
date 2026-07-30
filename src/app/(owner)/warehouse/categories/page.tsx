@@ -4,6 +4,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel } from "@/components/ui/card";
+import { useI18n } from "@/components/i18n/i18n-provider";
+import { apiErrorMessage } from "@/lib/i18n/labels";
 
 type Cat = {
   id: string;
@@ -13,6 +15,7 @@ type Cat = {
 };
 
 export default function WarehouseCategoriesPage() {
+  const { t } = useI18n();
   const [items, setItems] = useState<Cat[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState("");
@@ -41,7 +44,7 @@ export default function WarehouseCategoriesPage() {
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error || "Ошибка");
+      setError(apiErrorMessage(data.error, t));
       return;
     }
     setName("");
@@ -60,8 +63,8 @@ export default function WarehouseCategoriesPage() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Категории"
-        subtitle="Справочник внутри центрального склада · удаление запрещено"
+        title={t("wh.categoriesTitle")}
+        subtitle={t("wh.centralWarehouse")}
         actions={
           <Button
             type="button"
@@ -69,7 +72,7 @@ export default function WarehouseCategoriesPage() {
             fullWidth={false}
             onClick={() => setShowArchived((v) => !v)}
           >
-            {showArchived ? "Активные" : "Архив"}
+            {showArchived ? t("wh.filterActive") : t("wh.filterArchived")}
           </Button>
         }
       />
@@ -78,18 +81,18 @@ export default function WarehouseCategoriesPage() {
         <Card className="max-w-md p-4">
           <form onSubmit={onCreate} className="flex gap-2">
             <div className="flex-1">
-              <FieldLabel>Новая категория</FieldLabel>
+              <FieldLabel>{t("wh.categoryNew")}</FieldLabel>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
                 className="w-full"
-                placeholder="Парфюм"
+                placeholder={t("wh.name")}
               />
             </div>
             <div className="flex items-end">
               <Button type="submit" fullWidth={false}>
-                Создать
+                {t("wh.add")}
               </Button>
             </div>
           </form>
@@ -103,7 +106,7 @@ export default function WarehouseCategoriesPage() {
             <div>
               <div className="font-semibold text-ink">{c.name}</div>
               <div className="text-xs text-muted">
-                порог low-stock: {Number(c.lowStockThreshold)}
+                {t("wh.filterLow")}: {Number(c.lowStockThreshold)}
               </div>
             </div>
             <Button
@@ -113,12 +116,12 @@ export default function WarehouseCategoriesPage() {
               size="sm"
               onClick={() => archive(c.id, !c.isArchived)}
             >
-              {c.isArchived ? "Восстановить" : "В архив"}
+              {c.isArchived ? t("wh.restore") : t("wh.brandsArchive")}
             </Button>
           </Card>
         ))}
         {items.length === 0 ? (
-          <p className="py-8 text-center text-muted">Пусто</p>
+          <p className="py-8 text-center text-muted">{t("common.noData")}</p>
         ) : null}
       </div>
     </div>

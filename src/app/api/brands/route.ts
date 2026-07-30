@@ -62,12 +62,12 @@ export async function PATCH(req: Request) {
     if (denied) return denied;
     const data = await req.json();
     const id = data.id as string;
-    if (!id) return handleApiError(new Error("id обязателен"));
+    if (!id) return handleApiError(new Error("ID_REQUIRED"));
     const body = brandSchema.partial().parse(data);
     const existing = await prisma.brand.findFirst({
       where: { id, companyId: user!.companyId },
     });
-    if (!existing) return handleApiError(new Error("Бренд не найден"));
+    if (!existing) return handleApiError(new Error("BRAND_NOT_FOUND"));
     const item = await prisma.brand.update({
       where: { id },
       data: {
@@ -95,7 +95,5 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE() {
-  return handleApiError(
-    new Error("Удаление брендов запрещено. Используйте архивацию.")
-  );
+  return handleApiError(new Error("ARCHIVE_ONLY"));
 }

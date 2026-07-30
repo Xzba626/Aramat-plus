@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
+import { useI18n } from "@/components/i18n/i18n-provider";
 
 type RefItem = { id: string; name: string; symbol?: string; code?: string };
 
@@ -17,10 +18,12 @@ function RefSection({
   title,
   path,
   extraFields,
+  t,
 }: {
   title: string;
   path: string;
   extraFields?: "symbol" | "code";
+  t: (key: string) => string;
 }) {
   const [items, setItems] = useState<RefItem[]>([]);
   const [error, setError] = useState("");
@@ -49,7 +52,7 @@ function RefSection({
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error || "Ошибка");
+      setError(data.error || t("common.error"));
       return;
     }
     (e.target as HTMLFormElement).reset();
@@ -61,7 +64,7 @@ function RefSection({
       <SectionTitle>{title}</SectionTitle>
       <Card>
         {items.length === 0 ? (
-          <div className="py-3 text-center text-text-dim">Пусто</div>
+          <div className="py-3 text-center text-text-dim">{t("common.noData")}</div>
         ) : (
           items.map((i) => (
             <div key={i.id} className="border-b border-line py-2 last:border-0">
@@ -74,24 +77,24 @@ function RefSection({
       </Card>
       <form onSubmit={onSubmit} className="mt-2 space-y-2">
         <div>
-          <FieldLabel>Название</FieldLabel>
+          <FieldLabel>{t("settingsSub.name")}</FieldLabel>
           <input name="name" required />
         </div>
         {extraFields === "symbol" ? (
           <div>
-            <FieldLabel>Символ</FieldLabel>
+            <FieldLabel>{t("settingsSub.symbol")}</FieldLabel>
             <input name="symbol" required placeholder="мл" />
           </div>
         ) : null}
         {extraFields === "code" ? (
           <div>
-            <FieldLabel>Код</FieldLabel>
+            <FieldLabel>{t("settingsSub.code")}</FieldLabel>
             <input name="code" required placeholder="TRANSFER" />
           </div>
         ) : null}
         {error ? <p className="text-sm text-danger">{error}</p> : null}
         <Button type="submit" variant="secondary">
-          Добавить
+          {t("settingsSub.add")}
         </Button>
       </form>
     </div>
@@ -99,16 +102,18 @@ function RefSection({
 }
 
 export default function ReferencesPage() {
+  const { t } = useI18n();
+
   return (
     <>
-      <PageHeader title="Справочники" subtitle="Категории, бренды, единицы и типы" />
+      <PageHeader title={t("settingsSub.references")} subtitle={t("settingsSub.references")} />
       <div className="max-w-3xl">
-        <RefSection title="Категории" path="/api/categories" />
-        <RefSection title="Бренды" path="/api/brands" />
-        <RefSection title="Единицы измерения" path="/api/units" extraFields="symbol" />
-        <RefSection title="Типы товаров" path="/api/product-types" />
-        <RefSection title="Типы операций" path="/api/operation-types" extraFields="code" />
-        <RefSection title="Типы расходов" path="/api/expense-types" />
+        <RefSection title={t("wh.categoriesTitle")} path="/api/categories" t={t} />
+        <RefSection title={t("wh.brandsTitle")} path="/api/brands" t={t} />
+        <RefSection title={t("wh.stockTitle")} path="/api/units" extraFields="symbol" t={t} />
+        <RefSection title={t("wh.colType")} path="/api/product-types" t={t} />
+        <RefSection title={t("wh.historyTitle")} path="/api/operation-types" extraFields="code" t={t} />
+        <RefSection title={t("storeDetail.expenses")} path="/api/expense-types" t={t} />
       </div>
     </>
   );

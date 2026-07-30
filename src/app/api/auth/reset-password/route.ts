@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     const target = await prisma.user.findFirst({
       where: { id: body.userId, companyId: user!.companyId },
     });
-    if (!target) return handleApiError(new Error("Пользователь не найден"));
+    if (!target) return handleApiError(new Error("USER_NOT_FOUND"));
 
     const passwordHash = await bcrypt.hash(body.newPassword, 10);
     await prisma.user.update({

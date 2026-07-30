@@ -19,7 +19,7 @@ export async function POST(req: Request, ctx: Ctx) {
     const product = await prisma.product.findFirst({
       where: { id, companyId: user!.companyId },
     });
-    if (!product) return handleApiError(new Error("Товар не найден"));
+    if (!product) return handleApiError(new Error("PRODUCT_NOT_FOUND"));
 
     const newPrice = new Prisma.Decimal(body.salePrice);
     if (product.salePrice.equals(newPrice)) {

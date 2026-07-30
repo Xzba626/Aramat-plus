@@ -6,10 +6,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { FieldLabel, Card } from "@/components/ui/card";
+import { useI18n } from "@/components/i18n/i18n-provider";
 
 export default function LoginPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useI18n();
   const [email, setEmail] = useState("owner@aromat.plus");
   const [password, setPassword] = useState("owner1234");
   const [error, setError] = useState("");
@@ -26,7 +28,7 @@ export default function LoginPageClient() {
     });
     setLoading(false);
     if (res?.error) {
-      setError("Неверный логин или пароль");
+      setError(t("login.invalid"));
       return;
     }
     // Only relative paths — never follow absolute localhost from Auth/callback
@@ -49,12 +51,12 @@ export default function LoginPageClient() {
             className="mb-4 h-auto w-[200px] rounded-xl"
             priority
           />
-          <p className="text-sm text-muted">Управление складом и магазинами</p>
+          <p className="text-sm text-muted">{t("login.tagline")}</p>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-3">
           <div>
-            <FieldLabel>Email</FieldLabel>
+            <FieldLabel>{t("login.email")}</FieldLabel>
             <input
               type="email"
               value={email}
@@ -64,7 +66,7 @@ export default function LoginPageClient() {
             />
           </div>
           <div>
-            <FieldLabel>Пароль</FieldLabel>
+            <FieldLabel>{t("login.password")}</FieldLabel>
             <input
               type="password"
               value={password}
@@ -75,14 +77,14 @@ export default function LoginPageClient() {
           </div>
           {error ? <p className="text-sm text-danger">{error}</p> : null}
           <Button type="submit" size="lg" disabled={loading}>
-            {loading ? "Вход…" : "Войти"}
+            {loading ? t("login.submitting") : t("login.submit")}
           </Button>
         </form>
         <p className="mt-4 text-center text-xs text-muted">
-          Регистрации нет — доступ выдаёт только владелец
+          {t("login.noSelfRegister")}
         </p>
         <p className="mt-2 text-center text-[11px] text-muted">
-          Демо: owner@aromat.plus / owner1234
+          {t("login.demo")}
         </p>
       </Card>
     </div>

@@ -2,8 +2,11 @@
 
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/components/i18n/i18n-provider";
 
 export function SplashScreen({ visible }: { visible: boolean }) {
+  const { t } = useI18n();
+
   return (
     <div
       className={cn(
@@ -24,7 +27,9 @@ export function SplashScreen({ visible }: { visible: boolean }) {
           AROMAT <span className="text-brand">PLUS</span>
         </h1>
         <p className="mt-1 text-sm text-white/50">Commercial Management System</p>
-        <p className="mt-8 text-base font-medium text-white/80">Добро пожаловать</p>
+        <p className="mt-8 text-base font-medium text-white/80">
+          {t("splash.welcome")}
+        </p>
         <div className="mt-6 h-1 w-32 overflow-hidden rounded-full bg-white/10">
           <div className="h-full w-full origin-left animate-[splashBar_2.8s_ease-in-out] bg-brand" />
         </div>

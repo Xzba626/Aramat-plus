@@ -2,7 +2,6 @@ import {
   LocationType,
   Role,
   StoreKind,
-  StoreStatus,
   type DiscountRequestStatus,
   type ReturnStatus,
 } from "@prisma/client";
@@ -22,23 +21,10 @@ function startOfMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
-function statusLabel(status: StoreStatus, isArchived: boolean) {
-  if (isArchived) return "Архивный";
-  if (status === StoreStatus.CLOSED) return "Закрыт";
-  if (status === StoreStatus.INVENTORY) return "На ревизии";
-  return "Работает";
-}
-
 function stockStatus(qty: number, minStock: number): StockRowStatus {
   if (qty <= 0) return "OUT";
   if (minStock > 0 && qty < minStock) return "LOW";
   return "OK";
-}
-
-export function stockStatusLabel(s: StockRowStatus) {
-  if (s === "OUT") return "Закончился";
-  if (s === "LOW") return "Заканчивается";
-  return "Нормально";
 }
 
 async function resolveLocation(companyId: string, storeId: string) {
@@ -161,7 +147,6 @@ export async function getStoreDetail(companyId: string, storeId: string) {
     workingHours: store.workingHours,
     kind: store.kind,
     status: store.status,
-    statusLabel: statusLabel(store.status, store.isArchived),
     isArchived: store.isArchived,
     isActive: store.isActive,
     openedAt: store.openedAt,
@@ -250,7 +235,6 @@ export async function getStoreStockPaged(
       minStock,
       salePrice: decimalToNumber(b.product.salePrice),
       status: st,
-      statusLabel: stockStatusLabel(st),
       product: {
         name: b.product.name,
         imageUrl: b.product.brand?.imageUrl ?? null,
@@ -579,7 +563,6 @@ export async function getStoreRequests(
     ...discounts.map((d) => ({
       id: d.id,
       type: "DISCOUNT" as const,
-      typeLabel: "Скидка",
       status: d.status,
       createdAt: d.createdAt,
       requester: d.requester,
@@ -588,7 +571,6 @@ export async function getStoreRequests(
     ...returns.map((r) => ({
       id: r.id,
       type: "RETURN" as const,
-      typeLabel: "Возврат",
       status: r.status,
       createdAt: r.createdAt,
       requester: r.requester,

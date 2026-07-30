@@ -6,7 +6,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { MOCK_OWNER_POS_CATALOG } from "@/lib/ui-mocks";
-import { cn, formatMoney } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useI18n } from "@/components/i18n/i18n-provider";
 
 type Line = {
   productId: string;
@@ -24,8 +25,9 @@ export function OwnerDirectPosClient({
   storeId: string;
   storeName: string;
 }) {
+  const { t, formatMoney } = useI18n();
   const [q, setQ] = useState("");
-  const [category, setCategory] = useState("Все");
+  const [category, setCategory] = useState("");
   const [cart, setCart] = useState<Line[]>([]);
   const [payment, setPayment] = useState<"CASH" | "CARD" | "TRANSFER">("CASH");
   const [msg, setMsg] = useState("");
@@ -35,12 +37,12 @@ export function OwnerDirectPosClient({
 
   const categories = useMemo(() => {
     const set = new Set(MOCK_OWNER_POS_CATALOG.map((p) => p.category));
-    return ["Все", ...Array.from(set)];
+    return ["", ...Array.from(set)];
   }, []);
 
   const items = useMemo(() => {
     return MOCK_OWNER_POS_CATALOG.filter((p) => {
-      const matchCat = category === "Все" || p.category === category;
+      const matchCat = !category || p.category === category;
       const matchQ =
         !q.trim() ||
         `${p.name} ${p.brand}`.toLowerCase().includes(q.toLowerCase());
@@ -100,22 +102,20 @@ export function OwnerDirectPosClient({
       ...prev,
     ]);
     setCart([]);
-    setMsg(
-      "Продажа оформлена. Списание отразится на центральном складе после синхронизации."
-    );
+    setMsg(t("pos.saleDone"));
   }
 
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Личные продажи владельца"
-        subtitle={`${storeName} · источник: центральный склад · без перемещений`}
+        title={t("pos.ownerDirectTitle")}
+        subtitle={t("pos.ownerDirectSubtitle", { store: storeName })}
         actions={
           <Link
             href={`/stores/${storeId}`}
             className="text-sm font-semibold text-brand hover:underline"
           >
-            ← К каналу
+            {t("pos.backToChannel")}
           </Link>
         }
       />
@@ -132,13 +132,13 @@ export function OwnerDirectPosClient({
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Поиск: название, бренд…"
+            placeholder={t("pos.searchPlaceholder")}
             className="w-full rounded-2xl border border-border bg-card px-4 py-3 text-sm outline-none ring-brand focus:ring-2"
           />
           <div className="flex flex-wrap gap-1.5">
             {categories.map((c) => (
               <button
-                key={c}
+                key={c || "__all__"}
                 type="button"
                 onClick={() => setCategory(c)}
                 className={cn(
@@ -148,7 +148,7 @@ export function OwnerDirectPosClient({
                     : "bg-card text-muted ring-1 ring-border"
                 )}
               >
-                {c}
+                {c ? c : t("pos.allCategories")}
               </button>
             ))}
           </div>
@@ -166,7 +166,7 @@ export function OwnerDirectPosClient({
                 <div className="mt-1 font-semibold text-ink">{p.name}</div>
                 <div className="mt-2 flex items-end justify-between">
                   <span className="text-sm text-muted">
-                    Остаток склада: {p.quantity} {p.unit}
+                    {t("pos.warehouseStock", { qty: p.quantity, unit: p.unit })}
                   </span>
                   <span className="font-bold text-ink">
                     {formatMoney(p.salePrice)}/{p.unit}
@@ -180,10 +180,10 @@ export function OwnerDirectPosClient({
         <div className="space-y-3">
           <Card className="p-4">
             <div className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
-              Корзина
+              {t("pos.cart")}
             </div>
             {cart.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted">Корзина пуста</p>
+              <p className="py-6 text-center text-sm text-muted">{t("pos.cartEmpty")}</p>
             ) : (
               <div className="space-y-3">
                 {cart.map((l) => (
@@ -229,16 +229,20 @@ export function OwnerDirectPosClient({
                           : "bg-page text-muted ring-1 ring-border"
                       )}
                     >
-                      {m === "CASH" ? "Наличные" : m === "CARD" ? "Карта" : "Перевод"}
+                      {m === "CASH"
+                        ? t("pos.cash")
+                        : m === "CARD"
+                          ? t("pos.card")
+                          : t("pos.transfer")}
                     </button>
                   ))}
                 </div>
                 <div className="flex items-center justify-between pt-1">
-                  <span className="text-sm text-muted">Итого</span>
+                  <span className="text-sm text-muted">{t("pos.total")}</span>
                   <span className="text-xl font-bold text-ink">{formatMoney(total)}</span>
                 </div>
                 <Button type="button" onClick={checkout}>
-                  Оформить продажу
+                  {t("pos.checkout")}
                 </Button>
               </div>
             )}
@@ -246,10 +250,10 @@ export function OwnerDirectPosClient({
 
           <Card className="p-4">
             <div className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">
-              История сессии
+              {t("pos.sessionHistory")}
             </div>
             {history.length === 0 ? (
-              <p className="text-sm text-muted">Продаж в этой сессии ещё нет</p>
+              <p className="text-sm text-muted">{t("pos.sessionEmpty")}</p>
             ) : (
               <div className="space-y-2">
                 {history.map((h) => (

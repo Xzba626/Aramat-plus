@@ -62,23 +62,21 @@ export async function PATCH(req: Request) {
 
     const data = await req.json();
     const id = data.id as string;
-    if (!id) return handleApiError(new Error("id обязателен"));
+    if (!id) return handleApiError(new Error("ID_REQUIRED"));
     const body = storeSchema.partial().parse(data);
 
     const existing = await prisma.store.findFirst({
       where: { id, companyId: user!.companyId },
     });
-    if (!existing) return handleApiError(new Error("Торговая точка не найдена"));
+    if (!existing) return handleApiError(new Error("STORE_NOT_FOUND"));
 
     if (isOwnerDirect(existing) && data.isArchived === true) {
-      return handleApiError(
-        new Error("Канал «Личные продажи владельца» нельзя архивировать")
-      );
+      return handleApiError(new Error("VALIDATION_ERROR"));
     }
 
     // Удаление запрещено — только архив
     if (data.delete === true) {
-      return handleApiError(new Error("Удаление запрещено. Используйте архивацию."));
+      return handleApiError(new Error("ARCHIVE_ONLY"));
     }
 
     const oldSnapshot = {

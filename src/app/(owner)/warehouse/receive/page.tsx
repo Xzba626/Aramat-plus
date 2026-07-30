@@ -7,12 +7,15 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/components/i18n/i18n-provider";
+import { apiErrorMessage } from "@/lib/i18n/labels";
 
 type Product = { id: string; name: string };
 
 export default function ReceiveBatchPage() {
   const router = useRouter();
   const search = useSearchParams();
+  const { t } = useI18n();
   const initialTab = search.get("tab") === "product" ? "product" : "batch";
   const [tab, setTab] = useState<"product" | "batch">(initialTab);
   const [products, setProducts] = useState<Product[]>([]);
@@ -46,7 +49,7 @@ export default function ReceiveBatchPage() {
     const data = await res.json();
     setLoading(false);
     if (!res.ok) {
-      setError(data.error || "Ошибка");
+      setError(apiErrorMessage(data.error, t));
       return;
     }
     const salePrice = Number(fd.get("salePrice"));
@@ -64,8 +67,8 @@ export default function ReceiveBatchPage() {
   return (
     <div className="max-w-2xl">
       <PageHeader
-        title="Приход товара"
-        subtitle="Два сценария: новый товар или новая партия существующего"
+        title={t("wh.receiveTitle")}
+        subtitle={t("warehouse.productCreateSubtitle")}
       />
 
       <div className="mb-4 flex gap-2">
@@ -77,7 +80,7 @@ export default function ReceiveBatchPage() {
             tab === "product" ? "bg-brand text-white" : "bg-card ring-1 ring-border text-muted"
           )}
         >
-          1. Новый товар
+          1. {t("warehouse.productCreateTitle")}
         </button>
         <button
           type="button"
@@ -87,29 +90,27 @@ export default function ReceiveBatchPage() {
             tab === "batch" ? "bg-brand text-white" : "bg-card ring-1 ring-border text-muted"
           )}
         >
-          2. Новая партия
+          2. {t("warehouse.newBatch")}
         </button>
       </div>
 
       {tab === "product" ? (
         <Card className="p-6">
-          <SectionTitle>Создание нового товара</SectionTitle>
-          <p className="mb-4 text-sm text-muted">
-            Товар создаётся в каталоге склада. Остаток появится после первой партии (прихода).
-          </p>
+          <SectionTitle>{t("warehouse.productCreateTitle")}</SectionTitle>
+          <p className="mb-4 text-sm text-muted">{t("warehouse.productCreateSubtitle")}</p>
           <Link href="/warehouse/new">
-            <Button fullWidth={false}>Перейти к форме создания товара</Button>
+            <Button fullWidth={false}>{t("warehouse.productCreateBtn")}</Button>
           </Link>
         </Card>
       ) : (
         <Card className="p-4">
           <form onSubmit={onSubmitBatch} className="space-y-3">
-            <SectionTitle>Новая партия (никогда не объединяется со старой)</SectionTitle>
+            <SectionTitle>{t("warehouse.newBatch")}</SectionTitle>
             <div>
-              <FieldLabel>Существующий товар</FieldLabel>
+              <FieldLabel>{t("wh.colName")}</FieldLabel>
               <select name="productId" required className="w-full" defaultValue="">
                 <option value="" disabled>
-                  Выберите товар
+                  {t("wh.colName")}
                 </option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -119,19 +120,19 @@ export default function ReceiveBatchPage() {
               </select>
             </div>
             <div>
-              <FieldLabel>Количество</FieldLabel>
+              <FieldLabel>{t("warehouse.productBatchQty")}</FieldLabel>
               <input name="quantity" type="number" step="any" min="0.001" required className="w-full" />
             </div>
             <div>
-              <FieldLabel>Закупочная цена за ед.</FieldLabel>
+              <FieldLabel>{t("warehouse.productCost")}</FieldLabel>
               <input name="costPerUnit" type="number" step="any" min="0.01" required className="w-full" />
             </div>
             <div>
-              <FieldLabel>Цена продажи (опционально обновить)</FieldLabel>
+              <FieldLabel>{t("warehouse.productSalePrice")}</FieldLabel>
               <input name="salePrice" type="number" step="any" min="0" className="w-full" />
             </div>
             <div>
-              <FieldLabel>Дата поступления</FieldLabel>
+              <FieldLabel>{t("journalPage.colDate")}</FieldLabel>
               <input
                 name="receivedAt"
                 type="date"
@@ -140,12 +141,12 @@ export default function ReceiveBatchPage() {
               />
             </div>
             <div>
-              <FieldLabel>Поставщик / комментарий</FieldLabel>
-              <input name="notes" className="w-full" placeholder="Поставщик, накладная…" />
+              <FieldLabel>{t("warehouse.productBatchNotes")}</FieldLabel>
+              <input name="notes" className="w-full" placeholder={t("warehouse.productBatchNotes")} />
             </div>
             {error ? <p className="text-sm text-danger">{error}</p> : null}
             <Button type="submit" disabled={loading}>
-              {loading ? "Сохранение…" : "Подтвердить поступление"}
+              {loading ? t("warehouse.productSaving") : t("wh.receiveConfirm")}
             </Button>
           </form>
         </Card>

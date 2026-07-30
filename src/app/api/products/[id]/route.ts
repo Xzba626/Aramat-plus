@@ -27,7 +27,7 @@ export async function GET(_req: Request, ctx: Ctx) {
         priceHistory: { orderBy: { createdAt: "desc" }, take: 20 },
       },
     });
-    if (!item) return handleApiError(new Error("Товар не найден"));
+    if (!item) return handleApiError(new Error("PRODUCT_NOT_FOUND"));
     return jsonOk(item);
   } catch (err) {
     return handleApiError(err);
@@ -45,7 +45,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const existing = await prisma.product.findFirst({
       where: { id, companyId: user!.companyId },
     });
-    if (!existing) return handleApiError(new Error("Товар не найден"));
+    if (!existing) return handleApiError(new Error("PRODUCT_NOT_FOUND"));
 
     const item = await prisma.product.update({
       where: { id },
@@ -90,7 +90,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     const existing = await prisma.product.findFirst({
       where: { id, companyId: user!.companyId },
     });
-    if (!existing) return handleApiError(new Error("Товар не найден"));
+    if (!existing) return handleApiError(new Error("PRODUCT_NOT_FOUND"));
 
     await prisma.product.update({
       where: { id },

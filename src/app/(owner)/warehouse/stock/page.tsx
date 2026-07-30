@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
-import { formatMoney } from "@/lib/utils";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   DataTable,
   DataTableBody,
@@ -37,6 +37,7 @@ type StockRow = {
 };
 
 export default function WarehouseStockPage() {
+  const { t, formatMoney, formatDate } = useI18n();
   const [items, setItems] = useState<StockRow[]>([]);
   const [q, setQ] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -61,20 +62,17 @@ export default function WarehouseStockPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Остатки"
-        subtitle="Склад · партии · магазины — единая картина"
-      />
+      <PageHeader title={t("wh.stockTitle")} subtitle={t("wh.stockSubtitle")} />
 
       <DataTableToolbar search={q} onSearchChange={setQ} />
 
       <DataTable>
         <DataTableElement>
           <DataTableHead>
-            <DataTableTh>Товар</DataTableTh>
-            <DataTableTh>На складе</DataTableTh>
-            <DataTableTh>В магазинах</DataTableTh>
-            <DataTableTh>Всего</DataTableTh>
+            <DataTableTh>{t("wh.colName")}</DataTableTh>
+            <DataTableTh>{t("dashboard.stockOnHand")}</DataTableTh>
+            <DataTableTh>{t("nav.stores")}</DataTableTh>
+            <DataTableTh>{t("pos.total")}</DataTableTh>
             <DataTableTh> </DataTableTh>
           </DataTableHead>
           <DataTableBody>
@@ -96,7 +94,10 @@ export default function WarehouseStockPage() {
                     {row.warehouseQty}
                     {row.product.unit?.symbol ?? ""}
                   </DataTableTd>
-                  <DataTableTd>{row.storeQty}{row.product.unit?.symbol ?? ""}</DataTableTd>
+                  <DataTableTd>
+                    {row.storeQty}
+                    {row.product.unit?.symbol ?? ""}
+                  </DataTableTd>
                   <DataTableTd className="font-bold">{row.totalQty}</DataTableTd>
                   <DataTableTd>
                     <button
@@ -106,7 +107,7 @@ export default function WarehouseStockPage() {
                         setExpanded((id) => (id === row.product.id ? null : row.product.id))
                       }
                     >
-                      {expanded === row.product.id ? "Скрыть" : "Детали"}
+                      {expanded === row.product.id ? t("common.collapse") : t("common.details")}
                     </button>
                   </DataTableTd>
                 </DataTableRow>
@@ -116,16 +117,15 @@ export default function WarehouseStockPage() {
                       <div className="grid gap-4 md:grid-cols-2">
                         <div>
                           <div className="mb-2 text-xs font-bold uppercase text-muted">
-                            Партии на складе (FIFO)
+                            {t("warehouse.productBatchesTitle")}
                           </div>
                           {row.warehouseBatches.length === 0 ? (
-                            <p className="text-sm text-muted">Нет партий</p>
+                            <p className="text-sm text-muted">{t("wh.batchesEmpty")}</p>
                           ) : (
                             <ul className="space-y-1 text-sm">
                               {row.warehouseBatches.map((b) => (
                                 <li key={b.id} className="text-muted">
-                                  {new Date(b.receivedAt).toLocaleDateString("ru-RU")} ·{" "}
-                                  {b.qty}
+                                  {formatDate(b.receivedAt)} · {b.qty}
                                   {row.product.unit?.symbol ?? ""}
                                   {showFinance && b.costPerUnit != null
                                     ? ` · ${formatMoney(b.costPerUnit)}`
@@ -138,10 +138,10 @@ export default function WarehouseStockPage() {
                         </div>
                         <div>
                           <div className="mb-2 text-xs font-bold uppercase text-muted">
-                            По магазинам
+                            {t("nav.stores")}
                           </div>
                           {row.stores.length === 0 ? (
-                            <p className="text-sm text-muted">Только на складе</p>
+                            <p className="text-sm text-muted">{t("dashboard.stockOnHand")}</p>
                           ) : (
                             <ul className="space-y-1 text-sm">
                               {row.stores.map((s) => (
@@ -162,7 +162,7 @@ export default function WarehouseStockPage() {
           </DataTableBody>
         </DataTableElement>
         {filtered.length === 0 ? (
-          <div className="py-10 text-center text-muted">Нет остатков</div>
+          <div className="py-10 text-center text-muted">{t("common.noData")}</div>
         ) : null}
       </DataTable>
     </div>

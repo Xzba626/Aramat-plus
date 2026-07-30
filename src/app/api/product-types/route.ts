@@ -43,12 +43,12 @@ export async function PATCH(req: Request) {
     if (denied) return denied;
     const data = await req.json();
     const id = data.id as string;
-    if (!id) return handleApiError(new Error("id обязателен"));
+    if (!id) return handleApiError(new Error("ID_REQUIRED"));
     const body = productTypeSchema.partial().parse(data);
     const existing = await prisma.productType.findFirst({
       where: { id, companyId: user!.companyId },
     });
-    if (!existing) return handleApiError(new Error("Тип товара не найден"));
+    if (!existing) return handleApiError(new Error("NOT_FOUND"));
     const item = await prisma.productType.update({
       where: { id },
       data: { name: body.name },
@@ -65,11 +65,11 @@ export async function DELETE(req: Request) {
     const denied = requireOwner(user);
     if (denied) return denied;
     const id = new URL(req.url).searchParams.get("id");
-    if (!id) return handleApiError(new Error("id обязателен"));
+    if (!id) return handleApiError(new Error("ID_REQUIRED"));
     const existing = await prisma.productType.findFirst({
       where: { id, companyId: user!.companyId },
     });
-    if (!existing) return handleApiError(new Error("Тип товара не найден"));
+    if (!existing) return handleApiError(new Error("NOT_FOUND"));
     await prisma.productType.delete({ where: { id } });
     return jsonOk({ ok: true });
   } catch (err) {

@@ -10,7 +10,7 @@ export async function GET(req: Request) {
     if (denied) return denied;
 
     if (!user!.storeId) {
-      return handleApiError(new Error("Продавцу не назначен магазин"));
+      return handleApiError(new Error("SELLER_NO_STORE"));
     }
 
     const sp = new URL(req.url).searchParams;

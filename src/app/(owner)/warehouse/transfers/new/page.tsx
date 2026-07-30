@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
+import { useI18n } from "@/components/i18n/i18n-provider";
+import { apiErrorMessage } from "@/lib/i18n/labels";
 
 type StockItem = {
   productId: string;
@@ -24,6 +26,7 @@ type CartLine = { productId: string; name: string; quantity: number; max: number
 
 export default function NewTransferPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [stock, setStock] = useState<StockItem[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -117,7 +120,7 @@ export default function NewTransferPage() {
     const data = await res.json();
     setLoading(false);
     if (!res.ok) {
-      setError(data.error || "Ошибка");
+      setError(apiErrorMessage(data.error, t));
       return;
     }
     router.push("/warehouse/transfers");
@@ -126,12 +129,15 @@ export default function NewTransferPage() {
 
   return (
     <>
-      <PageHeader title="Отправить в магазин" subtitle="Склад → магазин" />
+      <PageHeader
+        title={t("wh.transferNew")}
+        subtitle={`${t("wh.centralWarehouse")} → ${t("common.store")}`}
+      />
       <form onSubmit={submit} className="max-w-2xl space-y-1">
-        <SectionTitle>Товары со склада</SectionTitle>
+        <SectionTitle>{t("dashboard.stockOnHand")}</SectionTitle>
         <Card>
           {stock.length === 0 ? (
-            <div className="py-4 text-center text-text-dim">Склад пуст</div>
+            <div className="py-4 text-center text-text-dim">{t("wh.warehouseEmpty")}</div>
           ) : (
             stock.map((s) => (
               <div
@@ -141,7 +147,7 @@ export default function NewTransferPage() {
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold">{s.product.name}</div>
                   <div className="text-xs text-text-dim">
-                    остаток {Number(s.quantity)}
+                    {t("wh.colQty")} {Number(s.quantity)}
                     {s.product.unit?.symbol ?? ""}
                   </div>
                 </div>
@@ -157,10 +163,10 @@ export default function NewTransferPage() {
           )}
         </Card>
 
-        <SectionTitle>Корзина отправки</SectionTitle>
+        <SectionTitle>{t("pos.cart")}</SectionTitle>
         <Card>
           {cart.length === 0 ? (
-            <div className="py-4 text-center text-text-dim">Пусто</div>
+            <div className="py-4 text-center text-text-dim">{t("pos.cartEmpty")}</div>
           ) : (
             cart.map((c) => (
               <div key={c.productId} className="mb-3 last:mb-0">
@@ -189,7 +195,9 @@ export default function NewTransferPage() {
                   >
                     +
                   </button>
-                  <span className="text-xs text-text-dim">макс {c.max}</span>
+                  <span className="text-xs text-text-dim">
+                    {t("wh.colQty")} {c.max}
+                  </span>
                 </div>
               </div>
             ))
@@ -197,7 +205,7 @@ export default function NewTransferPage() {
         </Card>
 
         <div className="mb-3">
-          <FieldLabel>Склад</FieldLabel>
+          <FieldLabel>{t("wh.centralWarehouse")}</FieldLabel>
           <select
             value={warehouseId}
             onChange={(e) => setWarehouseId(e.target.value)}
@@ -212,12 +220,8 @@ export default function NewTransferPage() {
         </div>
 
         <div className="mb-4">
-          <FieldLabel>Магазин назначения</FieldLabel>
-          <select
-            value={storeId}
-            onChange={(e) => setStoreId(e.target.value)}
-            required
-          >
+          <FieldLabel>{t("common.store")}</FieldLabel>
+          <select value={storeId} onChange={(e) => setStoreId(e.target.value)} required>
             {stores.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -228,7 +232,7 @@ export default function NewTransferPage() {
 
         {error ? <p className="mb-3 text-sm text-danger">{error}</p> : null}
         <Button type="submit" disabled={loading || cart.length === 0}>
-          {loading ? "Отправка…" : "Отправить в магазин"}
+          {loading ? t("common.loading") : t("wh.transferNew")}
         </Button>
       </form>
     </>

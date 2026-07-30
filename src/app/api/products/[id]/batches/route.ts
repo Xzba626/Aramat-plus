@@ -19,7 +19,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     const product = await prisma.product.findFirst({
       where: { id, companyId: user!.companyId },
     });
-    if (!product) return handleApiError(new Error("Товар не найден"));
+    if (!product) return handleApiError(new Error("PRODUCT_NOT_FOUND"));
 
     const batches = await prisma.batch.findMany({
       where: { productId: id },
@@ -42,12 +42,12 @@ export async function POST(req: Request, ctx: Ctx) {
     const product = await prisma.product.findFirst({
       where: { id, companyId: user!.companyId, isActive: true },
     });
-    if (!product) return handleApiError(new Error("Товар не найден"));
+    if (!product) return handleApiError(new Error("PRODUCT_NOT_FOUND"));
 
     const warehouse = await prisma.warehouse.findFirst({
       where: { companyId: user!.companyId, isActive: true },
     });
-    if (!warehouse) return handleApiError(new Error("Склад не найден"));
+    if (!warehouse) return handleApiError(new Error("WAREHOUSE_MISSING"));
 
     const batch = await prisma.$transaction(async (tx) => {
       const created = await addBatch(tx, {
@@ -57,7 +57,7 @@ export async function POST(req: Request, ctx: Ctx) {
         quantity: body.quantity,
         costPerUnit: body.costPerUnit,
         receivedAt: body.receivedAt,
-        notes: body.notes ?? "Новая партия",
+        notes: body.notes ?? "New batch",
       });
 
       await logActivity({

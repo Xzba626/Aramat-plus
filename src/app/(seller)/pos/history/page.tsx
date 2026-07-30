@@ -3,9 +3,10 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel } from "@/components/ui/card";
-import { formatMoney } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { EmptyState, LoadingBlock } from "@/components/ui/empty-state";
+import { useI18n } from "@/components/i18n/i18n-provider";
+import { apiErrorMessage } from "@/lib/i18n/labels";
 
 type Sale = {
   id: string;
@@ -17,6 +18,7 @@ type Sale = {
 
 export default function PosHistoryPage() {
   const { toast } = useToast();
+  const { t, formatMoney, formatDateTime } = useI18n();
   const [sales, setSales] = useState<Sale[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -28,19 +30,23 @@ export default function PosHistoryPage() {
       .then((r) => r.json())
       .then((d) => {
         if (Array.isArray(d)) setSales(d);
-        else setError(d.error || "Ошибка загрузки");
+        else setError(apiErrorMessage(d.error, t, "common.error"));
         setLoading(false);
       })
       .catch(() => {
-        setError("Ошибка загрузки");
+        setError(t("common.error"));
         setLoading(false);
       });
-  }, []);
+  }, [t]);
 
   function submitReturn(e: FormEvent) {
     e.preventDefault();
     if (!returnFor) return;
-    toast(`Запрос возврата по чеку №${returnFor.id.slice(-8).toUpperCase()} отправлен`);
+    toast(
+      t("pos.returnSent", {
+        id: returnFor.id.slice(-8).toUpperCase(),
+      })
+    );
     setReturnFor(null);
     setReason("");
   }
@@ -48,26 +54,24 @@ export default function PosHistoryPage() {
   return (
     <div className="space-y-3 pb-8">
       <h1 className="text-xl font-bold text-ink">
-        История
+        {t("pos.history")}
         {!loading ? (
           <span className="ml-2 text-base font-semibold text-muted">
             ({sales.length})
           </span>
         ) : null}
       </h1>
-      <p className="text-xs text-muted">
-        Только ваши продажи · из чека можно запросить возврат
-      </p>
+      <p className="text-xs text-muted">{t("pos.historyHint")}</p>
 
       {error ? <p className="text-sm text-danger">{error}</p> : null}
-      {loading ? <LoadingBlock rows={4} label="Загрузка продаж…" /> : null}
+      {loading ? <LoadingBlock rows={4} label={t("pos.loading")} /> : null}
 
       {!loading && sales.length === 0 && !error ? (
         <EmptyState
-          title="Продаж пока нет"
-          description="Оформите первую продажу в разделе «Продажа»."
+          title={t("pos.historyEmpty")}
+          description={t("pos.historyEmptyDesc")}
           actionHref="/pos"
-          actionLabel="К продаже"
+          actionLabel={t("pos.sell")}
         />
       ) : null}
 
@@ -85,7 +89,7 @@ export default function PosHistoryPage() {
               <div className="font-bold">{formatMoney(Number(s.total))}</div>
             </div>
             <div className="mt-1 text-xs text-muted">
-              {new Date(s.createdAt).toLocaleString("ru-RU")} · {qty} поз. ·{" "}
+              {formatDateTime(s.createdAt)} · {t("pos.positions", { n: qty })} ·{" "}
               {s.status}
             </div>
             <div className="mt-1 text-xs text-muted">
@@ -98,7 +102,7 @@ export default function PosHistoryPage() {
               fullWidth={false}
               onClick={() => setReturnFor(s)}
             >
-              Запросить возврат
+              {t("pos.requestReturn")}
             </Button>
           </div>
         );
@@ -108,35 +112,34 @@ export default function PosHistoryPage() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
           <Card className="w-full max-w-md p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-ink">Запрос возврата</h2>
+              <h2 className="text-lg font-bold text-ink">{t("pos.requestReturn")}</h2>
               <button
                 type="button"
                 data-dismiss-esc
                 className="text-sm text-muted"
                 onClick={() => setReturnFor(null)}
               >
-                Закрыть
+                {t("common.close")}
               </button>
             </div>
             <p className="mb-3 text-sm text-muted">
-              Чек №{returnFor.id.slice(-8).toUpperCase()} ·{" "}
-              {formatMoney(Number(returnFor.total))}
+              {t("pos.receiptNo", {
+                id: returnFor.id.slice(-8).toUpperCase(),
+              })}{" "}
+              · {formatMoney(Number(returnFor.total))}
             </p>
             <form onSubmit={submitReturn} className="space-y-3">
               <div>
-                <FieldLabel>Причина</FieldLabel>
+                <FieldLabel>{t("pos.reason")}</FieldLabel>
                 <textarea
                   rows={3}
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  placeholder="Клиент передумал, брак…"
                   required
                 />
               </div>
-              <p className="text-xs text-muted">
-                Остатки продавец не меняет сам. Решение принимает владелец.
-              </p>
-              <Button type="submit">Отправить владельцу</Button>
+              <p className="text-xs text-muted">{t("pos.returnHint")}</p>
+              <Button type="submit">{t("pos.sendToOwner")}</Button>
             </form>
           </Card>
         </div>

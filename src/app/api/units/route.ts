@@ -50,12 +50,12 @@ export async function PATCH(req: Request) {
     if (denied) return denied;
     const data = await req.json();
     const id = data.id as string;
-    if (!id) return handleApiError(new Error("id обязателен"));
+    if (!id) return handleApiError(new Error("ID_REQUIRED"));
     const body = unitSchema.partial().parse(data);
     const existing = await prisma.unit.findFirst({
       where: { id, companyId: user!.companyId },
     });
-    if (!existing) return handleApiError(new Error("Единица не найдена"));
+    if (!existing) return handleApiError(new Error("NOT_FOUND"));
     const item = await prisma.unit.update({
       where: { id },
       data: { name: body.name, symbol: body.symbol },
@@ -72,11 +72,11 @@ export async function DELETE(req: Request) {
     const denied = requireOwner(user);
     if (denied) return denied;
     const id = new URL(req.url).searchParams.get("id");
-    if (!id) return handleApiError(new Error("id обязателен"));
+    if (!id) return handleApiError(new Error("ID_REQUIRED"));
     const existing = await prisma.unit.findFirst({
       where: { id, companyId: user!.companyId },
     });
-    if (!existing) return handleApiError(new Error("Единица не найдена"));
+    if (!existing) return handleApiError(new Error("NOT_FOUND"));
     await prisma.unit.delete({ where: { id } });
     return jsonOk({ ok: true });
   } catch (err) {

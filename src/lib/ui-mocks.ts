@@ -39,7 +39,7 @@ export const MOCK_REVISIONS = [
     date: "28.07.2026",
     store: "Магазин №1 Душанбе",
     createdBy: "Менеджер Али",
-    status: "На утверждении",
+    status: "PENDING_APPROVAL",
     statusTone: "warning" as const,
     expected: "500 мл",
     actual: "450 мл",
@@ -50,7 +50,7 @@ export const MOCK_REVISIONS = [
     date: "20.07.2026",
     store: "Магазин №2 Худжанд",
     createdBy: "Менеджер Али",
-    status: "Утверждена",
+    status: "APPROVED",
     statusTone: "success" as const,
     expected: "320 мл",
     actual: "320 мл",
@@ -61,7 +61,7 @@ export const MOCK_REVISIONS = [
     date: "12.07.2026",
     store: "Магазин №1 Душанбе",
     createdBy: "Менеджер Али",
-    status: "В процессе",
+    status: "IN_PROGRESS",
     statusTone: "info" as const,
     expected: "—",
     actual: "180 мл",
@@ -73,7 +73,7 @@ export const MOCK_EXPENSES = [
   {
     id: "ex-1",
     date: "01.07.2026",
-    type: "Аренда",
+    type: "RENT",
     amount: 3500,
     description: "Июль 2026",
     actor: "Владелец",
@@ -81,7 +81,7 @@ export const MOCK_EXPENSES = [
   {
     id: "ex-2",
     date: "05.07.2026",
-    type: "Зарплата",
+    type: "SALARY",
     amount: 2800,
     description: "Продавец Саида",
     actor: "Владелец",
@@ -89,7 +89,7 @@ export const MOCK_EXPENSES = [
   {
     id: "ex-3",
     date: "10.07.2026",
-    type: "Коммунальные",
+    type: "UTILITIES",
     amount: 420,
     description: "Электричество",
     actor: "Менеджер Али",
@@ -118,7 +118,7 @@ export const MOCK_RETURNS_HISTORY = [
     product: "Dior Sauvage 30 мл",
     reason: "Клиент передумал",
     amount: 420,
-    status: "Ожидает",
+    status: "PENDING",
   },
   {
     id: "rt-2",
@@ -128,7 +128,7 @@ export const MOCK_RETURNS_HISTORY = [
     product: "Chanel Bleu 20 мл",
     reason: "Брак флакона",
     amount: 380,
-    status: "Одобрено",
+    status: "APPROVED",
   },
   {
     id: "rt-3",
@@ -138,7 +138,7 @@ export const MOCK_RETURNS_HISTORY = [
     product: "YSL Y 15 мл",
     reason: "Ошибка продавца",
     amount: 210,
-    status: "Отклонено",
+    status: "REJECTED",
   },
 ];
 

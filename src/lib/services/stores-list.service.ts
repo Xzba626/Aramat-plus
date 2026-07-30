@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { LocationType, StoreKind, StoreStatus } from "@prisma/client";
+import { LocationType, StoreKind } from "@prisma/client";
 import { decimalToNumber } from "@/lib/utils";
 import { ensureOwnerDirectStore } from "@/lib/services/owner-direct.service";
 
@@ -11,18 +11,6 @@ function startOfDay(d: Date) {
 
 function startOfMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-
-function statusLabel(status: StoreStatus, isArchived: boolean): string {
-  if (isArchived) return "Архивный";
-  switch (status) {
-    case StoreStatus.CLOSED:
-      return "Закрыт";
-    case StoreStatus.INVENTORY:
-      return "На ревизии";
-    default:
-      return "Работает";
-  }
 }
 
 export async function listStoresForCompany(companyId: string) {
@@ -172,7 +160,6 @@ export async function listStoresForCompany(companyId: string) {
         phone: store.phone,
         kind: store.kind,
         status: store.status,
-        statusLabel: statusLabel(store.status, store.isArchived),
         isArchived: store.isArchived,
         isActive: store.isActive,
         openedAt: store.openedAt,

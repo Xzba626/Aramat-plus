@@ -9,14 +9,14 @@ import { logActivity } from "@/lib/services/activity-log.service";
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
-    if (!user) return handleApiError(new Error("Unauthorized"));
+    if (!user) return handleApiError(new Error("UNAUTHORIZED"));
 
     const body = changePasswordSchema.parse(await req.json());
     const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
-    if (!dbUser) return handleApiError(new Error("Пользователь не найден"));
+    if (!dbUser) return handleApiError(new Error("USER_NOT_FOUND"));
 
     const ok = await bcrypt.compare(body.currentPassword, dbUser.passwordHash);
-    if (!ok) return handleApiError(new Error("Неверный текущий пароль"));
+    if (!ok) return handleApiError(new Error("WRONG_PASSWORD"));
 
     const passwordHash = await bcrypt.hash(body.newPassword, 10);
     await prisma.user.update({

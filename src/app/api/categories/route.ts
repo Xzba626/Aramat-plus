@@ -65,13 +65,13 @@ export async function PATCH(req: Request) {
 
     const data = await req.json();
     const id = data.id as string;
-    if (!id) return handleApiError(new Error("id обязателен"));
+    if (!id) return handleApiError(new Error("ID_REQUIRED"));
     const body = categorySchema.partial().parse(data);
 
     const existing = await prisma.category.findFirst({
       where: { id, companyId: user!.companyId },
     });
-    if (!existing) return handleApiError(new Error("Категория не найдена"));
+    if (!existing) return handleApiError(new Error("NOT_FOUND"));
 
     const item = await prisma.category.update({
       where: { id },
@@ -103,7 +103,5 @@ export async function PATCH(req: Request) {
 
 /** Hard delete запрещён спецификацией — только архив */
 export async function DELETE() {
-  return handleApiError(
-    new Error("Удаление категорий запрещено. Используйте архивацию.")
-  );
+  return handleApiError(new Error("ARCHIVE_ONLY"));
 }

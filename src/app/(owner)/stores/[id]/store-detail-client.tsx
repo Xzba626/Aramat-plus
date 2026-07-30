@@ -1,13 +1,14 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
-import { formatMoney, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { MOCK_EXPENSES } from "@/lib/ui-mocks";
+import { useI18n } from "@/components/i18n/i18n-provider";
 
 type StoreDetail = {
   id: string;
@@ -17,7 +18,6 @@ type StoreDetail = {
   workingHours?: string | null;
   kind: "BRANCH" | "OWNER_DIRECT";
   status: "ACTIVE" | "CLOSED" | "INVENTORY";
-  statusLabel: string;
   isArchived: boolean;
   openedAt?: string | null;
   notifyLowStock: boolean;
@@ -47,7 +47,6 @@ type StockItem = {
   minStock: number;
   salePrice: number;
   status: "OK" | "LOW" | "OUT";
-  statusLabel: string;
   product: {
     name: string;
     imageUrl: string | null;
@@ -72,44 +71,49 @@ type StaffRow = {
   returnRequests: number;
 };
 
-const BRANCH_TABS = [
-  { id: "overview", label: "Обзор" },
-  { id: "stock", label: "Остатки" },
-  { id: "staff", label: "Продавцы" },
-  { id: "sales", label: "История продаж" },
-  { id: "discounts", label: "История скидок" },
-  { id: "returns", label: "История возвратов" },
-  { id: "revisions", label: "История ревизий" },
-  { id: "expenses", label: "Расходы" },
-  { id: "requests", label: "Запросы" },
-  { id: "settings", label: "Настройки" },
+const BRANCH_TAB_KEYS = [
+  { id: "overview", labelKey: "storeDetail.overview" },
+  { id: "stock", labelKey: "storeDetail.stock" },
+  { id: "staff", labelKey: "storeDetail.sellers" },
+  { id: "sales", labelKey: "storeDetail.salesHistory" },
+  { id: "discounts", labelKey: "storeDetail.discountsHistory" },
+  { id: "returns", labelKey: "storeDetail.returnsHistory" },
+  { id: "revisions", labelKey: "storeDetail.revisionsHistory" },
+  { id: "expenses", labelKey: "storeDetail.expenses" },
+  { id: "requests", labelKey: "storeDetail.requests" },
+  { id: "settings", labelKey: "storeDetail.settings" },
 ] as const;
 
-const OWNER_TABS = [
-  { id: "overview", label: "Обзор" },
-  { id: "stock", label: "Остатки склада" },
-  { id: "sales", label: "История продаж" },
-  { id: "discounts", label: "История скидок" },
-  { id: "returns", label: "История возвратов" },
-  { id: "requests", label: "Запросы" },
-  { id: "settings", label: "Настройки канала" },
+const OWNER_TAB_KEYS = [
+  { id: "overview", labelKey: "storeDetail.overview" },
+  { id: "stock", labelKey: "storeDetail.warehouseStock" },
+  { id: "sales", labelKey: "storeDetail.salesHistory" },
+  { id: "discounts", labelKey: "storeDetail.discountsHistory" },
+  { id: "returns", labelKey: "storeDetail.returnsHistory" },
+  { id: "requests", labelKey: "storeDetail.requests" },
+  { id: "settings", labelKey: "storeDetail.channelSettings" },
 ] as const;
 
-function fmtDate(v: string | null | undefined) {
-  if (!v) return "—";
-  return new Date(v).toLocaleString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function storeStatusLabel(
+  status: string,
+  isArchived: boolean,
+  t: (key: string) => string
+) {
+  if (isArchived) return t("storeDetail.archived");
+  if (status === "CLOSED") return t("storeDetail.closed");
+  if (status === "INVENTORY") return t("storeDetail.inventory");
+  return t("storeDetail.working");
 }
 
-function paymentLabel(m: string) {
-  if (m === "CARD") return "Карта";
-  if (m === "TRANSFER") return "Перевод";
-  return "Наличные";
+function stockStatusLabel(status: StockItem["status"], t: (key: string) => string) {
+  if (status === "OUT") return t("storeDetail.stockOut");
+  if (status === "LOW") return t("storeDetail.stockLow");
+  return t("storeDetail.stockOk");
+}
+
+export function StoreDetailLoading() {
+  const { t } = useI18n();
+  return <div className="p-6 text-muted">{t("storeDetail.loading")}</div>;
 }
 
 export default function StoreDetailClient() {
@@ -117,6 +121,7 @@ export default function StoreDetailClient() {
   const search = useSearchParams();
   const router = useRouter();
   const tab = search.get("tab") || "overview";
+  const { t, formatMoney, formatDateTime } = useI18n();
 
   const [store, setStore] = useState<StoreDetail | null>(null);
   const [error, setError] = useState("");
@@ -126,21 +131,21 @@ export default function StoreDetailClient() {
     const res = await fetch(`/api/stores/${id}`);
     const data = await res.json();
     if (res.ok) setStore(data);
-    else setError(data.error || "Ошибка");
-  }, [id]);
+    else setError(data.error || t("common.error"));
+  }, [id, t]);
 
   useEffect(() => {
     load();
   }, [load]);
 
   const isOwnerDirect = store?.kind === "OWNER_DIRECT";
-  const tabs = isOwnerDirect ? OWNER_TABS : BRANCH_TABS;
+  const tabs = isOwnerDirect ? OWNER_TAB_KEYS : BRANCH_TAB_KEYS;
 
   if (!store) {
     return (
       <>
-        <PageHeader title="Торговая точка" />
-        <div className="p-6 text-muted">{error || "Загрузка…"}</div>
+        <PageHeader title={t("storeDetail.storeTitle")} />
+        <div className="p-6 text-muted">{error || t("storeDetail.loading")}</div>
       </>
     );
   }
@@ -151,47 +156,51 @@ export default function StoreDetailClient() {
         title={store.name}
         subtitle={
           isOwnerDirect
-            ? `Источник: ${store.warehouseName ?? "центральный склад"} · без перемещений`
+            ? t("storeDetail.ownerDirectSubtitle", {
+                warehouse: store.warehouseName ?? t("storeDetail.centralWarehouse"),
+              })
             : store.address ?? undefined
         }
         actions={
           isOwnerDirect ? (
             <Link href={`/stores/${id}/pos`}>
-              <Button fullWidth={false}>Открыть продажи</Button>
+              <Button fullWidth={false}>{t("storeDetail.openSales")}</Button>
             </Link>
           ) : undefined
         }
       />
 
       <div className="mb-6 -mx-1 flex gap-1 overflow-x-auto pb-1">
-        {tabs.map((t) => (
+        {tabs.map((tabItem) => (
           <button
-            key={t.id}
+            key={tabItem.id}
             type="button"
-            onClick={() => router.replace(`/stores/${id}?tab=${t.id}`)}
+            onClick={() => router.replace(`/stores/${id}?tab=${tabItem.id}`)}
             className={cn(
               "shrink-0 rounded-full px-3.5 py-2 text-sm font-medium transition",
-              tab === t.id
+              tab === tabItem.id
                 ? "bg-brand text-white"
                 : "bg-card text-muted ring-1 ring-border hover:text-ink"
             )}
           >
-            {t.label}
+            {t(tabItem.labelKey)}
           </button>
         ))}
       </div>
 
-      {tab === "overview" ? <OverviewTab store={store} isOwnerDirect={!!isOwnerDirect} /> : null}
-      {tab === "stock" ? <StockTab storeId={id} /> : null}
-      {tab === "staff" && !isOwnerDirect ? (
-        <StaffTab storeId={id} onChanged={load} setError={setError} setMsg={setMsg} />
+      {tab === "overview" ? (
+        <OverviewTab store={store} isOwnerDirect={!!isOwnerDirect} t={t} formatMoney={formatMoney} formatDateTime={formatDateTime} />
       ) : null}
-      {tab === "sales" ? <SalesTab storeId={id} /> : null}
-      {tab === "discounts" ? <DiscountsTab storeId={id} /> : null}
-      {tab === "returns" ? <ReturnsTab storeId={id} /> : null}
-      {tab === "revisions" && !isOwnerDirect ? <RevisionsTab storeId={id} /> : null}
-      {tab === "expenses" && !isOwnerDirect ? <ExpensesTab /> : null}
-      {tab === "requests" ? <RequestsTab storeId={id} /> : null}
+      {tab === "stock" ? <StockTab storeId={id} t={t} formatMoney={formatMoney} /> : null}
+      {tab === "staff" && !isOwnerDirect ? (
+        <StaffTab storeId={id} onChanged={load} setError={setError} setMsg={setMsg} t={t} formatMoney={formatMoney} formatDateTime={formatDateTime} />
+      ) : null}
+      {tab === "sales" ? <SalesTab storeId={id} t={t} formatMoney={formatMoney} formatDateTime={formatDateTime} /> : null}
+      {tab === "discounts" ? <DiscountsTab storeId={id} t={t} formatMoney={formatMoney} formatDateTime={formatDateTime} /> : null}
+      {tab === "returns" ? <ReturnsTab storeId={id} t={t} formatDateTime={formatDateTime} /> : null}
+      {tab === "revisions" && !isOwnerDirect ? <RevisionsTab storeId={id} t={t} formatDateTime={formatDateTime} /> : null}
+      {tab === "expenses" && !isOwnerDirect ? <ExpensesTab t={t} formatMoney={formatMoney} /> : null}
+      {tab === "requests" ? <RequestsTab storeId={id} t={t} formatDateTime={formatDateTime} /> : null}
       {tab === "settings" ? (
         <SettingsTab
           store={store}
@@ -199,6 +208,7 @@ export default function StoreDetailClient() {
           onSaved={load}
           setError={setError}
           setMsg={setMsg}
+          t={t}
         />
       ) : null}
 
@@ -211,40 +221,44 @@ export default function StoreDetailClient() {
 function OverviewTab({
   store,
   isOwnerDirect,
+  t,
+  formatMoney,
+  formatDateTime,
 }: {
   store: StoreDetail;
   isOwnerDirect: boolean;
+  t: (key: string, params?: Record<string, string | number>) => string;
+  formatMoney: (value: number | string, opts?: { short?: boolean }) => string;
+  formatDateTime: (date: Date | string | number) => string;
 }) {
   const o = store.overview;
+  const fmtDate = (v: string | null | undefined) => (v ? formatDateTime(v) : "—");
+
   return (
     <div className="space-y-4">
       {isOwnerDirect ? (
         <Card className="border-brand/20 bg-brand-soft/40 p-4">
-          <div className="text-sm font-semibold text-ink">
-            Центральный склад → продажа владельцем
-          </div>
-          <p className="mt-1 text-sm text-muted">
-            Без перемещений. Скидки — сразу. Возвраты — на склад.
-          </p>
+          <div className="text-sm font-semibold text-ink">{t("storeDetail.ownerDirectBanner")}</div>
+          <p className="mt-1 text-sm text-muted">{t("storeDetail.ownerDirectHint")}</p>
         </Card>
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <Stat label="Статус" value={store.statusLabel} />
-        <Stat label="Адрес" value={store.address || "—"} />
-        <Stat label="Дата открытия" value={fmtDate(store.openedAt)} />
+        <Stat label={t("storeDetail.statStatus")} value={storeStatusLabel(store.status, store.isArchived, t)} />
+        <Stat label={t("storeDetail.statAddress")} value={store.address || "—"} />
+        <Stat label={t("storeDetail.statOpenedAt")} value={fmtDate(store.openedAt)} />
         {!isOwnerDirect ? (
-          <Stat label="Менеджер" value={store.manager?.name || "Не назначен"} />
+          <Stat label={t("storeDetail.statManager")} value={store.manager?.name || t("storeDetail.statManagerNone")} />
         ) : null}
-        {!isOwnerDirect ? <Stat label="Продавцы" value={String(o.sellersCount)} /> : null}
-        <Stat label="Товаров (SKU)" value={String(o.skuCount)} />
-        <Stat label="Продажи сегодня" value={formatMoney(o.todayRevenue)} />
-        <Stat label="Прибыль сегодня" value={formatMoney(o.todayProfit)} accent />
-        <Stat label="Прибыль месяца" value={formatMoney(o.monthProfit)} accent />
-        <Stat label="Средний чек" value={formatMoney(o.avgCheck)} />
+        {!isOwnerDirect ? <Stat label={t("storeDetail.statSellers")} value={String(o.sellersCount)} /> : null}
+        <Stat label={t("storeDetail.statSku")} value={String(o.skuCount)} />
+        <Stat label={t("storeDetail.statSalesToday")} value={formatMoney(o.todayRevenue)} />
+        <Stat label={t("storeDetail.statProfitToday")} value={formatMoney(o.todayProfit)} accent />
+        <Stat label={t("storeDetail.statProfitMonth")} value={formatMoney(o.monthProfit)} accent />
+        <Stat label={t("storeDetail.statAvgCheck")} value={formatMoney(o.avgCheck)} />
         {!isOwnerDirect ? (
           <Stat
-            label="Последний вход"
+            label={t("storeDetail.statLastLogin")}
             value={
               o.lastStaffLoginAt
                 ? `${fmtDate(o.lastStaffLoginAt)}${o.lastStaffLoginName ? ` · ${o.lastStaffLoginName}` : ""}`
@@ -253,7 +267,7 @@ function OverviewTab({
           />
         ) : null}
         {!isOwnerDirect ? (
-          <Stat label="Последняя ревизия" value={fmtDate(o.lastRevisionAt)} />
+          <Stat label={t("storeDetail.statLastRevision")} value={fmtDate(o.lastRevisionAt)} />
         ) : null}
       </div>
     </div>
@@ -279,7 +293,15 @@ function Stat({
   );
 }
 
-function StockTab({ storeId }: { storeId: string }) {
+function StockTab({
+  storeId,
+  t,
+  formatMoney,
+}: {
+  storeId: string;
+  t: (key: string, params?: Record<string, string | number>) => string;
+  formatMoney: (value: number | string, opts?: { short?: boolean }) => string;
+}) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("ALL");
   const [sort, setSort] = useState("name");
@@ -312,7 +334,7 @@ function StockTab({ storeId }: { storeId: string }) {
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <input
           className="min-w-[200px] flex-1"
-          placeholder="Поиск…"
+          placeholder={t("common.search")}
           value={q}
           onChange={(e) => {
             setPage(1);
@@ -327,28 +349,28 @@ function StockTab({ storeId }: { storeId: string }) {
             setStatus(e.target.value);
           }}
         >
-          <option value="ALL">Все статусы</option>
-          <option value="OK">Нормально</option>
-          <option value="LOW">Заканчивается</option>
-          <option value="OUT">Закончился</option>
+          <option value="ALL">{t("storeDetail.allStatuses")}</option>
+          <option value="OK">{t("storeDetail.stockOk")}</option>
+          <option value="LOW">{t("storeDetail.stockLow")}</option>
+          <option value="OUT">{t("storeDetail.stockOut")}</option>
         </select>
         <select
           className="rounded-lg border border-border bg-card px-3 py-2 text-sm"
           value={sort}
           onChange={(e) => setSort(e.target.value)}
         >
-          <option value="name">По названию</option>
-          <option value="qty">По остатку</option>
-          <option value="price">По цене</option>
-          <option value="status">По статусу</option>
+          <option value="name">{t("storeDetail.sortByName")}</option>
+          <option value="qty">{t("storeDetail.sortByQty")}</option>
+          <option value="price">{t("storeDetail.sortByPrice")}</option>
+          <option value="status">{t("storeDetail.sortByStatus")}</option>
         </select>
       </div>
 
       <Card className="overflow-hidden p-0">
         {!data ? (
-          <div className="py-8 text-center text-muted">Загрузка…</div>
+          <div className="py-8 text-center text-muted">{t("storeDetail.loading")}</div>
         ) : data.items.length === 0 ? (
-          <div className="py-8 text-center text-muted">Нет позиций</div>
+          <div className="py-8 text-center text-muted">{t("storeDetail.noStockItems")}</div>
         ) : (
           <ul>
             {data.items.map((s) => (
@@ -371,8 +393,8 @@ function StockTab({ storeId }: { storeId: string }) {
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-semibold text-ink">{s.product.name}</div>
                   <div className="text-xs text-muted">
-                    {s.product.brand?.name ?? "—"} · {s.product.category?.name ?? "—"} · мин.{" "}
-                    {s.minStock}
+                    {s.product.brand?.name ?? "—"} · {s.product.category?.name ?? "—"} ·{" "}
+                    {t("storeDetail.minStock")} {s.minStock}
                   </div>
                 </div>
                 <div className="text-right text-sm">
@@ -389,7 +411,7 @@ function StockTab({ storeId }: { storeId: string }) {
                       s.status === "OUT" && "text-danger"
                     )}
                   >
-                    {s.statusLabel}
+                    {stockStatusLabel(s.status, t)}
                   </div>
                 </div>
               </li>
@@ -401,7 +423,11 @@ function StockTab({ storeId }: { storeId: string }) {
       {data && data.pages > 1 ? (
         <div className="mt-3 flex items-center justify-between text-sm">
           <span className="text-muted">
-            {data.total} поз. · стр. {data.page}/{data.pages}
+            {t("common.recordsPage", {
+              total: data.total,
+              page: data.page,
+              pages: data.pages,
+            })}
           </span>
           <div className="flex gap-2">
             <Button
@@ -411,7 +437,7 @@ function StockTab({ storeId }: { storeId: string }) {
               disabled={page <= 1}
               onClick={() => setPage((p) => p - 1)}
             >
-              Назад
+              {t("common.back")}
             </Button>
             <Button
               type="button"
@@ -420,7 +446,7 @@ function StockTab({ storeId }: { storeId: string }) {
               disabled={page >= data.pages}
               onClick={() => setPage((p) => p + 1)}
             >
-              Далее
+              {t("common.next")}
             </Button>
           </div>
         </div>
@@ -434,12 +460,19 @@ function StaffTab({
   onChanged,
   setError,
   setMsg,
+  t,
+  formatMoney,
+  formatDateTime,
 }: {
   storeId: string;
   onChanged: () => void;
   setError: (v: string) => void;
   setMsg: (v: string) => void;
+  t: (key: string, params?: Record<string, string | number>) => string;
+  formatMoney: (value: number | string, opts?: { short?: boolean }) => string;
+  formatDateTime: (date: Date | string | number) => string;
 }) {
+  const fmtDate = (v: string | null | undefined) => (v ? formatDateTime(v) : "—");
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [resetFor, setResetFor] = useState<string | null>(null);
@@ -474,10 +507,10 @@ function StaffTab({
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error || "Ошибка");
+      setError(data.error || t("common.error"));
       return;
     }
-    setMsg("Продавец создан (пароль сохранён как hash)");
+    setMsg(t("storeDetail.sellerCreated"));
     setShowForm(false);
     load();
     onChanged();
@@ -493,16 +526,16 @@ function StaffTab({
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error || "Ошибка");
+      setError(data.error || t("common.error"));
       return;
     }
-    setMsg("Сохранено");
+    setMsg(t("storeDetail.saved"));
     load();
   }
 
   async function resetPassword(userId: string) {
     if (newPass.length < 4) {
-      setError("Пароль минимум 4 символа");
+      setError(t("storeDetail.passwordMin"));
       return;
     }
     const res = await fetch("/api/auth/reset-password", {
@@ -512,20 +545,20 @@ function StaffTab({
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error || "Ошибка");
+      setError(data.error || t("common.error"));
       return;
     }
-    setMsg("Пароль сброшен (hash). Старый/новый пароль не отображается.");
+    setMsg(t("storeDetail.passwordResetOk"));
     setResetFor(null);
     setNewPass("");
   }
 
   return (
     <div>
-      <SectionTitle>Продавцы филиала</SectionTitle>
+      <SectionTitle>{t("storeDetail.branchSellers")}</SectionTitle>
       <Card className="mb-4 overflow-hidden p-0">
         {staff.length === 0 ? (
-          <div className="py-6 text-center text-muted">Нет сотрудников</div>
+          <div className="py-6 text-center text-muted">{t("storeDetail.noStaff")}</div>
         ) : (
           staff.map((u) => (
             <div key={u.id} className="border-b border-border px-4 py-3 last:border-0">
@@ -539,16 +572,17 @@ function StaffTab({
                         u.isActive ? "text-success" : "text-danger"
                       )}
                     >
-                      {u.isActive ? "Активен" : "Заблокирован"}
+                      {u.isActive ? t("storeDetail.active") : t("storeDetail.blocked")}
                     </span>
                   </div>
                   <div className="text-xs text-muted">
-                    {u.email} · {u.role} · созд. {fmtDate(u.createdAt)}
+                    {u.email} · {u.role} · {t("storeDetail.createdAt")} {fmtDate(u.createdAt)}
                   </div>
                   <div className="mt-1 text-xs text-muted">
-                    Вход: {fmtDate(u.lastLoginAt)} · продаж {u.salesCount} ·{" "}
-                    {formatMoney(u.salesSum)} · ср. чек {formatMoney(u.avgCheck)} · скидок{" "}
-                    {u.discountRequests} · возвратов {u.returnRequests}
+                    {t("storeDetail.staffLogin")}: {fmtDate(u.lastLoginAt)} · {t("storeDetail.staffSales")}{" "}
+                    {u.salesCount} · {formatMoney(u.salesSum)} · {t("storeDetail.staffAvgCheck")}{" "}
+                    {formatMoney(u.avgCheck)} · {t("storeDetail.staffDiscounts")} {u.discountRequests} ·{" "}
+                    {t("storeDetail.staffReturns")} {u.returnRequests}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1">
@@ -558,7 +592,7 @@ function StaffTab({
                     fullWidth={false}
                     onClick={() => patchUser(u.id, { isActive: !u.isActive })}
                   >
-                    {u.isActive ? "Блок" : "Разблок"}
+                    {u.isActive ? t("storeDetail.block") : t("storeDetail.unblock")}
                   </Button>
                   <Button
                     type="button"
@@ -568,7 +602,7 @@ function StaffTab({
                       patchUser(u.id, { role: u.role === "SELLER" ? "MANAGER" : "SELLER" })
                     }
                   >
-                    Роль
+                    {t("storeDetail.roleBtn")}
                   </Button>
                   <Button
                     type="button"
@@ -576,14 +610,14 @@ function StaffTab({
                     fullWidth={false}
                     onClick={() => setResetFor(u.id)}
                   >
-                    Сброс пароля
+                    {t("storeDetail.resetPassword")}
                   </Button>
                 </div>
               </div>
               {resetFor === u.id ? (
                 <div className="mt-2 flex flex-wrap items-end gap-2">
                   <div className="flex-1">
-                    <FieldLabel>Новый пароль (не отображается после сохранения)</FieldLabel>
+                    <FieldLabel>{t("storeDetail.newPasswordHint")}</FieldLabel>
                     <input
                       type="password"
                       className="w-full"
@@ -593,7 +627,7 @@ function StaffTab({
                     />
                   </div>
                   <Button type="button" fullWidth={false} onClick={() => resetPassword(u.id)}>
-                    Сохранить hash
+                    {t("storeDetail.saveHash")}
                   </Button>
                 </div>
               ) : null}
@@ -603,30 +637,46 @@ function StaffTab({
       </Card>
 
       <Button type="button" variant="secondary" onClick={() => setShowForm((v) => !v)}>
-        {showForm ? "Отмена" : "+ Добавить продавца"}
+        {showForm ? t("common.cancel") : t("storeDetail.addSeller")}
       </Button>
       {showForm ? (
         <form onSubmit={createSeller} className="mt-3 max-w-md space-y-3">
           <div>
-            <FieldLabel>Имя</FieldLabel>
+            <FieldLabel>{t("storeDetail.name")}</FieldLabel>
             <input name="name" required className="w-full" />
           </div>
           <div>
-            <FieldLabel>Email</FieldLabel>
+            <FieldLabel>{t("storeDetail.email")}</FieldLabel>
             <input name="email" type="email" required className="w-full" />
           </div>
           <div>
-            <FieldLabel>Пароль (только при создании, потом только hash)</FieldLabel>
+            <FieldLabel>{t("storeDetail.passwordCreateHint")}</FieldLabel>
             <input name="password" type="password" required minLength={4} className="w-full" />
           </div>
-          <Button type="submit">Создать</Button>
+          <Button type="submit">{t("storeDetail.create")}</Button>
         </form>
       ) : null}
     </div>
   );
 }
 
-function SalesTab({ storeId }: { storeId: string }) {
+function SalesTab({
+  storeId,
+  t,
+  formatMoney,
+  formatDateTime,
+}: {
+  storeId: string;
+  t: (key: string, params?: Record<string, string | number>) => string;
+  formatMoney: (value: number | string, opts?: { short?: boolean }) => string;
+  formatDateTime: (date: Date | string | number) => string;
+}) {
+  const paymentLabel = (m: string) => {
+    if (m === "CARD") return t("storeDetail.paymentCard");
+    if (m === "TRANSFER") return t("storeDetail.paymentTransfer");
+    return t("storeDetail.paymentCash");
+  };
+
   const [items, setItems] = useState<
     Array<{
       id: string;
@@ -656,10 +706,10 @@ function SalesTab({ storeId }: { storeId: string }) {
 
   return (
     <div>
-      <p className="mb-3 text-xs text-muted">Продажи неизменяемы после завершения.</p>
+      <p className="mb-3 text-xs text-muted">{t("storeDetail.salesImmutable")}</p>
       <Card className="overflow-hidden p-0">
         {items.length === 0 ? (
-          <div className="py-8 text-center text-muted">Нет продаж</div>
+          <div className="py-8 text-center text-muted">{t("storeDetail.noSales")}</div>
         ) : (
           items.map((s) => (
             <div key={s.id} className="border-b border-border px-4 py-3 last:border-0">
@@ -667,14 +717,14 @@ function SalesTab({ storeId }: { storeId: string }) {
                 <div>
                   <div className="font-semibold text-ink">№ {s.number}</div>
                   <div className="text-xs text-muted">
-                    {fmtDate(s.createdAt)} · {s.seller.name} · {paymentLabel(s.paymentMethod)} ·{" "}
+                    {formatDateTime(s.createdAt)} · {s.seller.name} · {paymentLabel(s.paymentMethod)} ·{" "}
                     {s.status}
                   </div>
                   <div className="mt-1 text-xs text-muted">
                     {s.items
                       .map(
                         (it) =>
-                          `${it.productName} ×${it.quantity}${it.isGift ? " (подарок)" : ""}`
+                          `${it.productName} ×${it.quantity}${it.isGift ? ` (${t("storeDetail.gift")})` : ""}`
                       )
                       .join(", ")}
                   </div>
@@ -683,7 +733,7 @@ function SalesTab({ storeId }: { storeId: string }) {
                   <div className="font-bold">{formatMoney(s.total)}</div>
                   {s.discountAmount > 0 ? (
                     <div className="text-xs text-warning">
-                      скидка {formatMoney(s.discountAmount)}
+                      {t("storeDetail.discountAmount")} {formatMoney(s.discountAmount)}
                     </div>
                   ) : null}
                 </div>
@@ -701,7 +751,7 @@ function SalesTab({ storeId }: { storeId: string }) {
             disabled={page <= 1}
             onClick={() => setPage((p) => p - 1)}
           >
-            Назад
+            {t("common.back")}
           </Button>
           <Button
             type="button"
@@ -710,7 +760,7 @@ function SalesTab({ storeId }: { storeId: string }) {
             disabled={page >= pages}
             onClick={() => setPage((p) => p + 1)}
           >
-            Далее
+            {t("common.next")}
           </Button>
         </div>
       ) : null}
@@ -718,7 +768,17 @@ function SalesTab({ storeId }: { storeId: string }) {
   );
 }
 
-function DiscountsTab({ storeId }: { storeId: string }) {
+function DiscountsTab({
+  storeId,
+  t,
+  formatMoney,
+  formatDateTime,
+}: {
+  storeId: string;
+  t: (key: string, params?: Record<string, string | number>) => string;
+  formatMoney: (value: number | string, opts?: { short?: boolean }) => string;
+  formatDateTime: (date: Date | string | number) => string;
+}) {
   const [items, setItems] = useState<
     Array<{
       id: string;
@@ -743,7 +803,7 @@ function DiscountsTab({ storeId }: { storeId: string }) {
   return (
     <Card className="overflow-hidden p-0">
       {items.length === 0 ? (
-        <div className="py-8 text-center text-muted">Нет запросов скидок</div>
+        <div className="py-8 text-center text-muted">{t("storeDetail.noDiscounts")}</div>
       ) : (
         items.map((r) => (
           <div key={r.id} className="border-b border-border px-4 py-3 last:border-0">
@@ -751,11 +811,11 @@ function DiscountsTab({ storeId }: { storeId: string }) {
               {formatMoney(r.amount)} · {r.status}
             </div>
             <div className="text-xs text-muted">
-              {fmtDate(r.createdAt)} · {r.requester.name} · {r.reason ?? "—"}
+              {formatDateTime(r.createdAt)} · {r.requester.name} · {r.reason ?? "—"}
             </div>
             {r.reviewedAt ? (
               <div className="mt-1 text-xs text-muted">
-                Решение: {fmtDate(r.reviewedAt)} · {r.reviewNote ?? "—"}
+                {t("storeDetail.decision")}: {formatDateTime(r.reviewedAt)} · {r.reviewNote ?? "—"}
               </div>
             ) : null}
           </div>
@@ -765,7 +825,15 @@ function DiscountsTab({ storeId }: { storeId: string }) {
   );
 }
 
-function ReturnsTab({ storeId }: { storeId: string }) {
+function ReturnsTab({
+  storeId,
+  t,
+  formatDateTime,
+}: {
+  storeId: string;
+  t: (key: string, params?: Record<string, string | number>) => string;
+  formatDateTime: (date: Date | string | number) => string;
+}) {
   const [items, setItems] = useState<
     Array<{
       id: string;
@@ -789,14 +857,14 @@ function ReturnsTab({ storeId }: { storeId: string }) {
   return (
     <Card className="overflow-hidden p-0">
       {items.length === 0 ? (
-        <div className="py-8 text-center text-muted">Нет возвратов</div>
+        <div className="py-8 text-center text-muted">{t("storeDetail.noReturns")}</div>
       ) : (
         items.map((r) => (
           <div key={r.id} className="border-b border-border px-4 py-3 last:border-0">
             <div className="font-semibold text-ink">{r.status}</div>
             <div className="text-xs text-muted">
-              {fmtDate(r.createdAt)} · {r.requester.name}
-              {r.reviewer ? ` · подтвердил: ${r.reviewer.name}` : ""}
+              {formatDateTime(r.createdAt)} · {r.requester.name}
+              {r.reviewer ? ` · ${t("storeDetail.confirmedBy")}: ${r.reviewer.name}` : ""}
             </div>
             <div className="mt-1 text-xs text-muted">
               {r.reason ?? "—"} ·{" "}
@@ -809,7 +877,15 @@ function ReturnsTab({ storeId }: { storeId: string }) {
   );
 }
 
-function RevisionsTab({ storeId }: { storeId: string }) {
+function RevisionsTab({
+  storeId,
+  t,
+  formatDateTime,
+}: {
+  storeId: string;
+  t: (key: string, params?: Record<string, string | number>) => string;
+  formatDateTime: (date: Date | string | number) => string;
+}) {
   const [items, setItems] = useState<
     Array<{
       id: string;
@@ -833,27 +909,30 @@ function RevisionsTab({ storeId }: { storeId: string }) {
 
   return (
     <div>
-      <p className="mb-3 text-xs text-muted">
-        Manager видит только введённый факт (blind). Owner — ожидание, расхождения, суммы.
-      </p>
+      <p className="mb-3 text-xs text-muted">{t("storeDetail.revisionsHint")}</p>
       <Card className="overflow-hidden p-0">
         {items.length === 0 ? (
-          <div className="py-8 text-center text-muted">Нет ревизий</div>
+          <div className="py-8 text-center text-muted">{t("storeDetail.noRevisions")}</div>
         ) : (
           items.map((s) => (
             <div key={s.id} className="border-b border-border px-4 py-3 last:border-0">
               <div className="font-semibold text-ink">
-                {fmtDate(s.createdAt)} · {s.status}
+                {formatDateTime(s.createdAt)} · {s.status}
               </div>
-              <div className="text-xs text-muted">Проводил: {s.createdBy.name}</div>
+              <div className="text-xs text-muted">
+                {t("storeDetail.conductedBy")}: {s.createdBy.name}
+              </div>
               {s.blind ? (
                 <div className="mt-1 text-xs text-muted">
-                  Blind: только факт · позиций {s.items.length}
+                  {t("storeDetail.blindOnly", { n: s.items.length })}
                 </div>
               ) : (
                 <div className="mt-1 text-xs text-muted">
-                  Недостача: {s.shortageQty ?? 0} · Излишки: {s.surplusQty ?? 0} · позиций{" "}
-                  {s.items.length}
+                  {t("storeDetail.shortageSurplus", {
+                    shortage: s.shortageQty ?? 0,
+                    surplus: s.surplusQty ?? 0,
+                    n: s.items.length,
+                  })}
                 </div>
               )}
             </div>
@@ -864,11 +943,23 @@ function RevisionsTab({ storeId }: { storeId: string }) {
   );
 }
 
-function ExpensesTab() {
-  return <StoreExpensesPanel />;
+function ExpensesTab({
+  t,
+  formatMoney,
+}: {
+  t: (key: string, params?: Record<string, string | number>) => string;
+  formatMoney: (value: number | string, opts?: { short?: boolean }) => string;
+}) {
+  return <StoreExpensesPanel t={t} formatMoney={formatMoney} />;
 }
 
-function StoreExpensesPanel() {
+function StoreExpensesPanel({
+  t,
+  formatMoney,
+}: {
+  t: (key: string, params?: Record<string, string | number>) => string;
+  formatMoney: (value: number | string, opts?: { short?: boolean }) => string;
+}) {
   const [rows, setRows] = useState(
     () =>
       MOCK_EXPENSES.map((e) => ({ ...e })) as Array<{
@@ -885,11 +976,23 @@ function StoreExpensesPanel() {
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [msg, setMsg] = useState("");
 
-  const types = ["Аренда", "Зарплата", "Коммунальные", "Прочее"];
+  const types = useMemo(
+    () => [
+      { key: "RENT", label: t("storeDetail.expenseRent") },
+      { key: "SALARY", label: t("storeDetail.expenseSalary") },
+      { key: "UTILITIES", label: t("storeDetail.expenseUtilities") },
+      { key: "OTHER", label: t("storeDetail.expenseOther") },
+    ],
+    [t]
+  );
+  const expenseTypeLabel = (typeKey: string) =>
+    types.find((item) => item.key === typeKey)?.label ?? typeKey;
   const filtered = rows.filter((r) => {
     const matchQ =
       !q.trim() ||
-      `${r.type} ${r.description} ${r.actor}`.toLowerCase().includes(q.toLowerCase());
+      `${expenseTypeLabel(r.type)} ${r.description} ${r.actor}`
+        .toLowerCase()
+        .includes(q.toLowerCase());
     const matchT = typeFilter === "ALL" || r.type === typeFilter;
     return matchQ && matchT;
   });
@@ -908,7 +1011,7 @@ function StoreExpensesPanel() {
     };
     setRows((prev) => [row, ...prev]);
     setShowForm(false);
-    setMsg("Расход добавлен");
+    setMsg(t("storeDetail.expenseAdded"));
     e.currentTarget.reset();
   }
 
@@ -916,14 +1019,12 @@ function StoreExpensesPanel() {
     <div className="space-y-4">
       <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
         <div>
-          <div className="text-xs font-semibold uppercase text-muted">Итого по фильтру</div>
+          <div className="text-xs font-semibold uppercase text-muted">{t("storeDetail.filterTotal")}</div>
           <div className="mt-1 text-xl font-bold text-ink">{formatMoney(total)}</div>
-          <p className="mt-1 text-xs text-muted">
-            Расходы принадлежат этому магазину. Общего раздела «Расходы» нет.
-          </p>
+          <p className="mt-1 text-xs text-muted">{t("storeDetail.expensesHint")}</p>
         </div>
         <Button type="button" fullWidth={false} onClick={() => setShowForm((v) => !v)}>
-          {showForm ? "Отмена" : "+ Расход"}
+          {showForm ? t("common.cancel") : t("storeDetail.addExpense")}
         </Button>
       </Card>
 
@@ -933,22 +1034,24 @@ function StoreExpensesPanel() {
         <Card className="max-w-lg p-4">
           <form onSubmit={onAdd} className="space-y-3">
             <div>
-              <FieldLabel>Тип</FieldLabel>
-              <select name="type" required className="w-full" defaultValue="Аренда">
-                {types.map((t) => (
-                  <option key={t}>{t}</option>
+              <FieldLabel>{t("storeDetail.type")}</FieldLabel>
+              <select name="type" required className="w-full" defaultValue={types[0]?.key}>
+                {types.map((typeItem) => (
+                  <option key={typeItem.key} value={typeItem.key}>
+                    {typeItem.label}
+                  </option>
                 ))}
               </select>
             </div>
             <div>
-              <FieldLabel>Сумма (сомони)</FieldLabel>
+              <FieldLabel>{t("storeDetail.amount")}</FieldLabel>
               <input name="amount" type="number" min="1" step="0.01" required className="w-full" />
             </div>
             <div>
-              <FieldLabel>Описание</FieldLabel>
-              <input name="description" className="w-full" placeholder="За что" />
+              <FieldLabel>{t("storeDetail.description")}</FieldLabel>
+              <input name="description" className="w-full" placeholder={t("storeDetail.forWhat")} />
             </div>
-            <Button type="submit">Сохранить</Button>
+            <Button type="submit">{t("storeDetail.save")}</Button>
           </form>
         </Card>
       ) : null}
@@ -957,7 +1060,7 @@ function StoreExpensesPanel() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Поиск…"
+          placeholder={t("common.search")}
           className="min-w-[180px] flex-1 rounded-xl border border-border bg-card px-3 py-2 text-sm"
         />
         <select
@@ -965,9 +1068,11 @@ function StoreExpensesPanel() {
           onChange={(e) => setTypeFilter(e.target.value)}
           className="rounded-xl border border-border bg-card px-3 py-2 text-sm"
         >
-          <option value="ALL">Все типы</option>
-          {types.map((t) => (
-            <option key={t}>{t}</option>
+          <option value="ALL">{t("storeDetail.allTypes")}</option>
+          {types.map((typeItem) => (
+            <option key={typeItem.key} value={typeItem.key}>
+              {typeItem.label}
+            </option>
           ))}
         </select>
       </div>
@@ -977,18 +1082,18 @@ function StoreExpensesPanel() {
           <table className="min-w-full text-left text-sm">
             <thead className="border-b border-border bg-page/80 text-xs uppercase tracking-wide text-muted">
               <tr>
-                <th className="px-4 py-3 font-semibold">Дата</th>
-                <th className="px-4 py-3 font-semibold">Тип</th>
-                <th className="px-4 py-3 font-semibold">Сумма</th>
-                <th className="px-4 py-3 font-semibold">Описание</th>
-                <th className="px-4 py-3 font-semibold">Кто</th>
+                <th className="px-4 py-3 font-semibold">{t("storeDetail.date")}</th>
+                <th className="px-4 py-3 font-semibold">{t("storeDetail.type")}</th>
+                <th className="px-4 py-3 font-semibold">{t("storeDetail.amount")}</th>
+                <th className="px-4 py-3 font-semibold">{t("storeDetail.description")}</th>
+                <th className="px-4 py-3 font-semibold">{t("storeDetail.who")}</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((r) => (
                 <tr key={r.id} className="border-b border-border last:border-0">
                   <td className="px-4 py-3 text-muted">{r.date}</td>
-                  <td className="px-4 py-3 font-semibold text-ink">{r.type}</td>
+                  <td className="px-4 py-3 font-semibold text-ink">{expenseTypeLabel(r.type)}</td>
                   <td className="px-4 py-3 tabular-nums text-ink">
                     {formatMoney(r.amount)}
                   </td>
@@ -1000,19 +1105,27 @@ function StoreExpensesPanel() {
           </table>
         </div>
         {filtered.length === 0 ? (
-          <div className="px-4 py-10 text-center text-sm text-muted">Нет расходов</div>
+          <div className="px-4 py-10 text-center text-sm text-muted">{t("storeDetail.noExpenses")}</div>
         ) : null}
       </Card>
     </div>
   );
 }
 
-function RequestsTab({ storeId }: { storeId: string }) {
+function RequestsTab({
+  storeId,
+  t,
+  formatDateTime,
+}: {
+  storeId: string;
+  t: (key: string, params?: Record<string, string | number>) => string;
+  formatDateTime: (date: Date | string | number) => string;
+}) {
   const [status, setStatus] = useState("ALL");
   const [items, setItems] = useState<
     Array<{
       id: string;
-      typeLabel: string;
+      type: "DISCOUNT" | "RETURN";
       status: string;
       createdAt: string;
       requester: { name: string };
@@ -1020,6 +1133,9 @@ function RequestsTab({ storeId }: { storeId: string }) {
     }>
   >([]);
   const [note, setNote] = useState("");
+
+  const requestTypeLabel = (type: "DISCOUNT" | "RETURN") =>
+    type === "DISCOUNT" ? t("storeDetail.discount") : t("storeDetail.return");
 
   useEffect(() => {
     (async () => {
@@ -1035,12 +1151,14 @@ function RequestsTab({ storeId }: { storeId: string }) {
   return (
     <div>
       <div className="mb-3 flex flex-wrap gap-2">
-        {[
-          ["ALL", "Все"],
-          ["PENDING", "Новые"],
-          ["APPROVED", "Подтверждённые"],
-          ["REJECTED", "Отклонённые"],
-        ].map(([v, label]) => (
+        {(
+          [
+            ["ALL", "storeDetail.filterAll"],
+            ["PENDING", "storeDetail.filterNew"],
+            ["APPROVED", "storeDetail.filterApproved"],
+            ["REJECTED", "storeDetail.filterRejected"],
+          ] as const
+        ).map(([v, labelKey]) => (
           <button
             key={v}
             type="button"
@@ -1050,21 +1168,21 @@ function RequestsTab({ storeId }: { storeId: string }) {
               status === v ? "bg-brand text-white" : "bg-card ring-1 ring-border text-muted"
             )}
           >
-            {label}
+            {t(labelKey)}
           </button>
         ))}
       </div>
       <Card className="overflow-hidden p-0">
         {items.length === 0 ? (
-          <div className="py-8 text-center text-muted">Нет запросов</div>
+          <div className="py-8 text-center text-muted">{t("storeDetail.noRequests")}</div>
         ) : (
           items.map((r) => (
-            <div key={`${r.typeLabel}-${r.id}`} className="border-b border-border px-4 py-3 last:border-0">
+            <div key={`${r.type}-${r.id}`} className="border-b border-border px-4 py-3 last:border-0">
               <div className="font-semibold text-ink">
-                {r.typeLabel} · {r.status}
+                {requestTypeLabel(r.type)} · {r.status}
               </div>
               <div className="text-xs text-muted">
-                {fmtDate(r.createdAt)} · {r.requester.name} · {r.summary}
+                {formatDateTime(r.createdAt)} · {r.requester.name} · {r.summary}
               </div>
             </div>
           ))
@@ -1081,12 +1199,14 @@ function SettingsTab({
   onSaved,
   setError,
   setMsg,
+  t,
 }: {
   store: StoreDetail;
   isOwnerDirect: boolean;
   onSaved: () => void;
   setError: (v: string) => void;
   setMsg: (v: string) => void;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }) {
   const [name, setName] = useState(store.name);
   const [address, setAddress] = useState(store.address ?? "");
@@ -1129,17 +1249,17 @@ function SettingsTab({
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error || "Ошибка");
+      setError(data.error || t("common.error"));
       return;
     }
-    setMsg("Настройки сохранены");
+    setMsg(t("storeDetail.settingsSaved"));
     onSaved();
   }
 
   return (
     <form onSubmit={save} className="max-w-lg space-y-3">
       <div>
-        <FieldLabel>Название</FieldLabel>
+        <FieldLabel>{t("storeDetail.name")}</FieldLabel>
         <input
           className="w-full"
           value={name}
@@ -1149,15 +1269,15 @@ function SettingsTab({
         />
       </div>
       <div>
-        <FieldLabel>Адрес</FieldLabel>
+        <FieldLabel>{t("storeDetail.address")}</FieldLabel>
         <input className="w-full" value={address} onChange={(e) => setAddress(e.target.value)} />
       </div>
       <div>
-        <FieldLabel>Телефон</FieldLabel>
+        <FieldLabel>{t("storeDetail.phone")}</FieldLabel>
         <input className="w-full" value={phone} onChange={(e) => setPhone(e.target.value)} />
       </div>
       <div>
-        <FieldLabel>Рабочее время</FieldLabel>
+        <FieldLabel>{t("storeDetail.workingHours")}</FieldLabel>
         <input
           className="w-full"
           value={hours}
@@ -1166,24 +1286,24 @@ function SettingsTab({
         />
       </div>
       <div>
-        <FieldLabel>Статус</FieldLabel>
+        <FieldLabel>{t("storeDetail.statStatus")}</FieldLabel>
         <select
           className="w-full rounded-lg border border-border bg-card px-3 py-2"
           value={status}
           onChange={(e) => setStatus(e.target.value as StoreDetail["status"])}
         >
-          <option value="ACTIVE">Работает</option>
-          <option value="CLOSED">Закрыт</option>
-          <option value="INVENTORY">На ревизии</option>
+          <option value="ACTIVE">{t("storeDetail.working")}</option>
+          <option value="CLOSED">{t("storeDetail.closed")}</option>
+          <option value="INVENTORY">{t("storeDetail.inventory")}</option>
         </select>
       </div>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={notifyLow} onChange={(e) => setNotifyLow(e.target.checked)} />
-        Уведомления о низком остатке
+        {t("storeDetail.notifyLowStock")}
       </label>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={notifyReq} onChange={(e) => setNotifyReq(e.target.checked)} />
-        Уведомления о запросах
+        {t("storeDetail.notifyRequests")}
       </label>
       {!isOwnerDirect ? (
         <label className="flex items-center gap-2 text-sm">
@@ -1192,12 +1312,12 @@ function SettingsTab({
             checked={archived}
             onChange={(e) => setArchived(e.target.checked)}
           />
-          Архивный (удаление запрещено)
+          {t("storeDetail.archivedLabel")}
         </label>
       ) : (
-        <p className="text-xs text-muted">Канал владельца нельзя архивировать.</p>
+        <p className="text-xs text-muted">{t("storeDetail.ownerChannelNoArchive")}</p>
       )}
-      <Button type="submit">Сохранить</Button>
+      <Button type="submit">{t("storeDetail.save")}</Button>
     </form>
   );
 }

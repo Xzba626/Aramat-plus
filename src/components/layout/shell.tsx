@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { ReactNode } from "react";
+import { useI18n } from "@/components/i18n/i18n-provider";
 
 export function TopBar({
   title,
@@ -12,12 +15,14 @@ export function TopBar({
   backHref?: string;
   right?: ReactNode;
 }) {
+  const { t } = useI18n();
+
   return (
     <header className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-bg px-[18px] pb-3.5 pt-[18px]">
       <div className="flex min-w-0 items-center gap-3">
         {backHref ? (
           <Link href={backHref} className="shrink-0 text-sm font-semibold text-gold">
-            ‹ Назад
+            ‹ {t("common.back")}
           </Link>
         ) : null}
         <div className="min-w-0">

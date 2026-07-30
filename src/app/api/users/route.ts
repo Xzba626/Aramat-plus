@@ -42,14 +42,14 @@ export async function POST(req: Request) {
 
     const body = userCreateSchema.parse(await req.json());
     if (body.role === Role.SELLER && !body.storeId) {
-      return handleApiError(new Error("Продавцу нужно назначить магазин"));
+      return handleApiError(new Error("SELLER_NO_STORE"));
     }
 
     if (body.storeId) {
       const store = await prisma.store.findFirst({
         where: { id: body.storeId, companyId: user!.companyId },
       });
-      if (!store) return handleApiError(new Error("Магазин не найден"));
+      if (!store) return handleApiError(new Error("STORE_NOT_FOUND"));
     }
 
     const passwordHash = await bcrypt.hash(body.password, 10);
@@ -95,13 +95,13 @@ export async function PATCH(req: Request) {
 
     const data = await req.json();
     const id = data.id as string;
-    if (!id) return handleApiError(new Error("id обязателен"));
+    if (!id) return handleApiError(new Error("ID_REQUIRED"));
     const body = userUpdateSchema.parse(data);
 
     const existing = await prisma.user.findFirst({
       where: { id, companyId: user!.companyId },
     });
-    if (!existing) return handleApiError(new Error("Пользователь не найден"));
+    if (!existing) return handleApiError(new Error("USER_NOT_FOUND"));
 
     const passwordHash = body.password
       ? await bcrypt.hash(body.password, 10)

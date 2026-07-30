@@ -4,6 +4,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel } from "@/components/ui/card";
+import { useI18n } from "@/components/i18n/i18n-provider";
+import { apiErrorMessage } from "@/lib/i18n/labels";
 
 type Brand = {
   id: string;
@@ -13,6 +15,7 @@ type Brand = {
 };
 
 export default function WarehouseBrandsPage() {
+  const { t } = useI18n();
   const [items, setItems] = useState<Brand[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState("");
@@ -39,7 +42,7 @@ export default function WarehouseBrandsPage() {
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error || "Ошибка");
+      setError(apiErrorMessage(data.error, t));
       return;
     }
     setName("");
@@ -58,8 +61,8 @@ export default function WarehouseBrandsPage() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Бренды"
-        subtitle="Фото бренда наследуется карточками товаров · удаление запрещено"
+        title={t("wh.brandsTitle")}
+        subtitle={t("warehouse.productBrand")}
         actions={
           <Button
             type="button"
@@ -67,7 +70,7 @@ export default function WarehouseBrandsPage() {
             fullWidth={false}
             onClick={() => setShowArchived((v) => !v)}
           >
-            {showArchived ? "Активные" : "Архив"}
+            {showArchived ? t("wh.filterActive") : t("wh.filterArchived")}
           </Button>
         }
       />
@@ -76,18 +79,18 @@ export default function WarehouseBrandsPage() {
         <Card className="max-w-md p-4">
           <form onSubmit={onCreate} className="flex gap-2">
             <div className="flex-1">
-              <FieldLabel>Новый бренд</FieldLabel>
+              <FieldLabel>{t("warehouse.productBrandNew")}</FieldLabel>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
                 className="w-full"
-                placeholder="Dior"
+                placeholder={t("wh.name")}
               />
             </div>
             <div className="flex items-end">
               <Button type="submit" fullWidth={false}>
-                Создать
+                {t("wh.add")}
               </Button>
             </div>
           </form>
@@ -111,12 +114,12 @@ export default function WarehouseBrandsPage() {
               size="sm"
               onClick={() => archive(b.id, !b.isArchived)}
             >
-              {b.isArchived ? "Восстановить" : "В архив"}
+              {b.isArchived ? t("wh.restore") : t("wh.brandsArchive")}
             </Button>
           </Card>
         ))}
         {items.length === 0 ? (
-          <p className="py-8 text-center text-muted">Пусто</p>
+          <p className="py-8 text-center text-muted">{t("common.noData")}</p>
         ) : null}
       </div>
     </div>

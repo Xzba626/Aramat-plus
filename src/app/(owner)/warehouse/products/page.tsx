@@ -7,8 +7,12 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, LoadingBlock } from "@/components/ui/empty-state";
-import { formatMoney, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { usePersistedState } from "@/lib/hooks/use-persisted-state";
+import { useI18n } from "@/components/i18n/i18n-provider";
+import { labelProductType } from "@/lib/i18n/labels";
+
+type StatusKey = "active" | "empty" | "low" | "archived";
 
 type Row = {
   id: string;
@@ -17,7 +21,8 @@ type Row = {
   barcode?: string | null;
   salePrice: string | number;
   warehouseQty: number;
-  statusLabel: string;
+  statusKey: StatusKey;
+  statusLabel?: string;
   isActive: boolean;
   accountingType: string;
   brand?: { name: string; imageUrl?: string | null } | null;
@@ -35,9 +40,24 @@ type Filters = {
   status: string;
 };
 
+const STATUS_LABEL_KEYS: Record<StatusKey, string> = {
+  active: "wh.statusActive",
+  empty: "wh.statusEmpty",
+  low: "wh.statusLow",
+  archived: "wh.statusArchive",
+};
+
+const STATUS_TONE: Record<StatusKey, string> = {
+  active: "bg-success/10 text-success",
+  low: "bg-warning/10 text-warning",
+  empty: "bg-danger/10 text-danger",
+  archived: "bg-muted/20 text-muted",
+};
+
 export default function WarehouseCatalogPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t, formatMoney } = useI18n();
   const [filters, setFilters] = usePersistedState<Filters>("warehouse-catalog", {
     q: "",
     categoryId: "",
@@ -81,23 +101,28 @@ export default function WarehouseCatalogPage() {
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(load, 200);
-    return () => clearTimeout(t);
+    const timer = setTimeout(load, 200);
+    return () => clearTimeout(timer);
   }, [load]);
 
   function openProduct(id: string) {
     router.push(`/warehouse/${id}`);
   }
 
+  function statusLabel(row: Row): string {
+    const key = row.statusKey ?? "active";
+    return t(STATUS_LABEL_KEYS[key] ?? STATUS_LABEL_KEYS.active);
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Каталог товаров"
+        title={t("wh.catalogTitle")}
         count={loading ? null : rows.length}
-        subtitle="Двойной клик по строке открывает карточку · фильтры сохраняются"
+        subtitle={t("wh.catalogSubtitle")}
         actions={
           <Link href="/warehouse/new">
-            <Button fullWidth={false}>+ Создать товар</Button>
+            <Button fullWidth={false}>{t("wh.createProduct")}</Button>
           </Link>
         }
       />
@@ -106,7 +131,7 @@ export default function WarehouseCatalogPage() {
         <input
           value={q}
           onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
-          placeholder="Поиск: название, SKU, штрихкод…"
+          placeholder={t("wh.searchSku")}
           className="w-full flex-1 rounded-xl border border-border bg-card px-4 py-2.5 text-ink"
         />
         <select
@@ -116,7 +141,7 @@ export default function WarehouseCatalogPage() {
           }
           className="rounded-xl border border-border bg-card px-3 py-2.5"
         >
-          <option value="">Все категории</option>
+          <option value="">{t("wh.filterAll")} · {t("wh.categoriesTitle")}</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -128,7 +153,7 @@ export default function WarehouseCatalogPage() {
           onChange={(e) => setFilters((f) => ({ ...f, brandId: e.target.value }))}
           className="rounded-xl border border-border bg-card px-3 py-2.5"
         >
-          <option value="">Все бренды</option>
+          <option value="">{t("wh.filterAll")} · {t("wh.colBrand")}</option>
           {brands.map((b) => (
             <option key={b.id} value={b.id}>
               {b.name}
@@ -140,93 +165,93 @@ export default function WarehouseCatalogPage() {
           onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
           className="rounded-xl border border-border bg-card px-3 py-2.5"
         >
-          <option value="active">Активные</option>
-          <option value="archived">Архив</option>
-          <option value="low">Заканчивается</option>
-          <option value="empty">Отсутствует</option>
-          <option value="all">Все</option>
+          <option value="active">{t("wh.filterActive")}</option>
+          <option value="archived">{t("wh.filterArchived")}</option>
+          <option value="low">{t("wh.filterLow")}</option>
+          <option value="empty">{t("wh.filterEmpty")}</option>
+          <option value="all">{t("wh.filterAll")}</option>
         </select>
       </div>
 
       <Card className="hidden overflow-hidden p-0 lg:block">
         {loading ? (
           <div className="p-4">
-            <LoadingBlock label="Загрузка каталога…" rows={6} />
+            <LoadingBlock label={t("wh.loadingCatalog")} rows={6} />
           </div>
         ) : (
           <div className="max-h-[640px] overflow-auto">
             <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="sticky top-0 z-10 border-b border-border bg-page text-xs uppercase tracking-wide text-muted">
                 <tr>
-                  <th className="px-4 py-3">Фото</th>
-                  <th className="px-4 py-3">Название</th>
-                  <th className="px-4 py-3">SKU</th>
-                  <th className="px-4 py-3">Категория</th>
-                  <th className="px-4 py-3">Бренд</th>
-                  <th className="px-4 py-3">Тип</th>
-                  <th className="px-4 py-3">Ед.</th>
-                  <th className="px-4 py-3">Цена</th>
-                  <th className="px-4 py-3">Остаток</th>
-                  <th className="px-4 py-3">Статус</th>
+                  <th className="px-4 py-3">{t("warehouse.productPhoto")}</th>
+                  <th className="px-4 py-3">{t("wh.colName")}</th>
+                  <th className="px-4 py-3">{t("wh.colSku")}</th>
+                  <th className="px-4 py-3">{t("wh.categoriesTitle")}</th>
+                  <th className="px-4 py-3">{t("wh.colBrand")}</th>
+                  <th className="px-4 py-3">{t("wh.colType")}</th>
+                  <th className="px-4 py-3">{t("warehouse.unitPcs")}</th>
+                  <th className="px-4 py-3">{t("wh.colPrice")}</th>
+                  <th className="px-4 py-3">{t("wh.colQty")}</th>
+                  <th className="px-4 py-3">{t("wh.colStatus")}</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((p) => (
-                  <tr
-                    key={p.id}
-                    className="cursor-pointer border-b border-border last:border-0 hover:bg-page"
-                    onDoubleClick={() => openProduct(p.id)}
-                    title="Двойной клик — открыть"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-soft text-lg">
-                        {p.accountingType === "WEIGHT" ? "🧴" : "📦"}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/warehouse/${p.id}`}
-                        className="font-semibold text-ink hover:text-brand"
-                      >
-                        {p.name}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-muted">{p.sku || "—"}</td>
-                    <td className="px-4 py-3 text-muted">
-                      {p.category?.name || "—"}
-                    </td>
-                    <td className="px-4 py-3 text-muted">
-                      {p.brand?.name || "—"}
-                    </td>
-                    <td className="px-4 py-3 text-muted">
-                      {p.productType?.name ||
-                        (p.accountingType === "WEIGHT" ? "Разлив" : "Штучный")}
-                    </td>
-                    <td className="px-4 py-3 text-muted">
-                      {p.unit?.symbol || "—"}
-                    </td>
-                    <td className="px-4 py-3 font-medium">
-                      {formatMoney(Number(p.salePrice))}
-                    </td>
-                    <td className="px-4 py-3 font-semibold">{p.warehouseQty}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={cn(
-                          "rounded-full px-2 py-0.5 text-xs font-semibold",
-                          p.statusLabel === "Активен" &&
-                            "bg-success/10 text-success",
-                          p.statusLabel === "Заканчивается" &&
-                            "bg-warning/10 text-warning",
-                          p.statusLabel === "Отсутствует" &&
-                            "bg-danger/10 text-danger",
-                          p.statusLabel === "Архив" && "bg-muted/20 text-muted"
-                        )}
-                      >
-                        {p.statusLabel}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {rows.map((p) => {
+                  const key = p.statusKey ?? "active";
+                  return (
+                    <tr
+                      key={p.id}
+                      className="cursor-pointer border-b border-border last:border-0 hover:bg-page"
+                      onDoubleClick={() => openProduct(p.id)}
+                      title={t("wh.open")}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-soft text-lg">
+                          {p.accountingType === "WEIGHT" ? "🧴" : "📦"}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/warehouse/${p.id}`}
+                          className="font-semibold text-ink hover:text-brand"
+                        >
+                          {p.name}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-muted">{p.sku || "—"}</td>
+                      <td className="px-4 py-3 text-muted">
+                        {p.category?.name || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-muted">
+                        {p.brand?.name || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-muted">
+                        {p.productType?.name
+                          ? labelProductType(p.productType.name, t)
+                          : p.accountingType === "WEIGHT"
+                            ? t("warehouse.unitMl")
+                            : t("warehouse.unitPcs")}
+                      </td>
+                      <td className="px-4 py-3 text-muted">
+                        {p.unit?.symbol || "—"}
+                      </td>
+                      <td className="px-4 py-3 font-medium">
+                        {formatMoney(Number(p.salePrice))}
+                      </td>
+                      <td className="px-4 py-3 font-semibold">{p.warehouseQty}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-xs font-semibold",
+                            STATUS_TONE[key]
+                          )}
+                        >
+                          {statusLabel(p)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -234,10 +259,10 @@ export default function WarehouseCatalogPage() {
         {!loading && rows.length === 0 ? (
           <div className="p-4">
             <EmptyState
-              title="В каталоге пока нет товаров"
-              description="Добавьте первый товар — он появится на центральном складе."
+              title={t("wh.emptyCatalog")}
+              description={t("warehouse.productNoBatches")}
               actionHref="/warehouse/new"
-              actionLabel="Добавить товар"
+              actionLabel={t("warehouse.productCreateBtn")}
             />
           </div>
         ) : null}
@@ -250,22 +275,22 @@ export default function WarehouseCatalogPage() {
             <Card className="mb-2 p-4">
               <div className="font-semibold text-ink">{p.name}</div>
               <div className="mt-1 text-xs text-muted">
-                {p.brand?.name || "—"} · {p.category?.name || "—"} · остаток{" "}
+                {p.brand?.name || "—"} · {p.category?.name || "—"} · {t("wh.colQty")}{" "}
                 {p.warehouseQty}
                 {p.unit?.symbol || ""}
               </div>
               <div className="mt-1 text-sm font-medium">
-                {formatMoney(Number(p.salePrice))} · {p.statusLabel}
+                {formatMoney(Number(p.salePrice))} · {statusLabel(p)}
               </div>
             </Card>
           </Link>
         ))}
         {!loading && rows.length === 0 ? (
           <EmptyState
-            title="В каталоге пока нет товаров"
-            description="Добавьте первый товар — он появится на центральном складе."
+            title={t("wh.emptyCatalog")}
+            description={t("warehouse.productNoBatches")}
             actionHref="/warehouse/new"
-            actionLabel="Добавить товар"
+            actionLabel={t("warehouse.productCreateBtn")}
           />
         ) : null}
       </div>

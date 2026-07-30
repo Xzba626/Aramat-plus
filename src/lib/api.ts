@@ -37,11 +37,21 @@ export function handleApiError(err: unknown) {
 
   if (err instanceof Error) {
     console.error("[api]", err.message, err.stack);
-    // Known safe app messages (Russian from services) — map to codes when possible
     const safeCodes = new Set([
-      "WAREHOUSE_MISSING",
-      "PRODUCT_NOT_FOUND",
+      "ARCHIVE_ONLY",
+      "BRAND_NAME_REQUIRED",
       "BRAND_NOT_FOUND",
+      "COST_REQUIRED_FOR_STOCK",
+      "ID_REQUIRED",
+      "NOT_FOUND",
+      "PRODUCT_NOT_FOUND",
+      "SELLER_NO_STORE",
+      "STORE_NOT_FOUND",
+      "UNAUTHORIZED",
+      "USER_NOT_FOUND",
+      "VALIDATION_ERROR",
+      "WAREHOUSE_MISSING",
+      "WRONG_PASSWORD",
     ]);
     if (safeCodes.has(err.message)) {
       return jsonError(err.message, 400);

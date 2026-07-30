@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET(req: Request) {
   try {
     const user = await getSessionUser();
-    if (!user) return handleApiError(new Error("Unauthorized"));
+    if (!user) return handleApiError(new Error("UNAUTHORIZED"));
 
     const sp = new URL(req.url).searchParams;
     const limit = Math.min(Number(sp.get("limit") || 50), 100);
@@ -55,7 +55,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
-    if (!user) return handleApiError(new Error("Unauthorized"));
+    if (!user) return handleApiError(new Error("UNAUTHORIZED"));
 
     const body = saleSchema.parse(await req.json());
 
@@ -64,14 +64,14 @@ export async function POST(req: Request) {
       const denied = requireSeller(user);
       if (denied) return denied;
       if (!user.storeId) {
-        return handleApiError(new Error("Продавцу не назначен магазин"));
+        return handleApiError(new Error("SELLER_NO_STORE"));
       }
       storeId = user.storeId;
     } else {
       const denied = requireOwnerOrManager(user);
       if (denied) return denied;
       if (!storeId) {
-        return handleApiError(new Error("storeId обязателен"));
+        return handleApiError(new Error("ID_REQUIRED"));
       }
     }
 

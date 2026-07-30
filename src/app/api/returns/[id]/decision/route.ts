@@ -17,7 +17,7 @@ export async function POST(
     const body = await req.json();
     const decision = body.decision as "APPROVE" | "REJECT";
     if (decision !== "APPROVE" && decision !== "REJECT") {
-      return handleApiError(new Error("decision: APPROVE | REJECT"));
+      return handleApiError(new Error("VALIDATION_ERROR"));
     }
 
     const existing = await prisma.saleReturn.findFirst({
@@ -27,7 +27,7 @@ export async function POST(
         sale: { store: { companyId: user!.companyId } },
       },
     });
-    if (!existing) return handleApiError(new Error("Возврат не найден"));
+    if (!existing) return handleApiError(new Error("NOT_FOUND"));
 
     const status = decision === "APPROVE" ? "APPROVED" : "REJECTED";
     const updated = await prisma.saleReturn.update({

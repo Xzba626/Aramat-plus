@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
+import { useI18n } from "@/components/i18n/i18n-provider";
+import { apiErrorMessage } from "@/lib/i18n/labels";
 
 type Store = { id: string; name: string };
 type Product = { id: string; name: string };
 
 export default function WarehouseReturnInPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [stores, setStores] = useState<Store[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [error, setError] = useState("");
@@ -53,10 +56,10 @@ export default function WarehouseReturnInPage() {
     const data = await res.json();
     setLoading(false);
     if (!res.ok) {
-      setError(data.error || "Ошибка");
+      setError(apiErrorMessage(data.error, t));
       return;
     }
-    setMsg("Возврат принят на центральный склад");
+    setMsg(t("wh.returnInOk"));
     router.refresh();
     (e.target as HTMLFormElement).reset();
   }
@@ -64,17 +67,17 @@ export default function WarehouseReturnInPage() {
   return (
     <div className="max-w-xl">
       <PageHeader
-        title="Возврат из магазина"
-        subtitle="Магазин → Центральный склад · FIFO · запись в историю"
+        title={t("wh.returnInTitle")}
+        subtitle={`${t("common.store")} → ${t("wh.centralWarehouse")}`}
       />
       <Card className="p-4">
         <form onSubmit={onSubmit} className="space-y-3">
-          <SectionTitle>Возврат товара</SectionTitle>
+          <SectionTitle>{t("wh.actionReturn")}</SectionTitle>
           <div>
-            <FieldLabel>Магазин-отправитель</FieldLabel>
+            <FieldLabel>{t("common.store")}</FieldLabel>
             <select name="storeId" required className="w-full" defaultValue="">
               <option value="" disabled>
-                Выберите филиал
+                {t("common.store")}
               </option>
               {stores.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -84,10 +87,10 @@ export default function WarehouseReturnInPage() {
             </select>
           </div>
           <div>
-            <FieldLabel>Товар</FieldLabel>
+            <FieldLabel>{t("wh.colName")}</FieldLabel>
             <select name="productId" required className="w-full" defaultValue="">
               <option value="" disabled>
-                Выберите товар
+                {t("wh.colName")}
               </option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -97,17 +100,17 @@ export default function WarehouseReturnInPage() {
             </select>
           </div>
           <div>
-            <FieldLabel>Количество</FieldLabel>
+            <FieldLabel>{t("warehouse.productBatchQty")}</FieldLabel>
             <input name="quantity" type="number" step="any" min="0.001" required className="w-full" />
           </div>
           <div>
-            <FieldLabel>Причина возврата</FieldLabel>
-            <input name="reason" className="w-full" placeholder="Брак, пересорт, закрытие…" />
+            <FieldLabel>{t("warehouse.productBatchNotes")}</FieldLabel>
+            <input name="reason" className="w-full" placeholder={t("warehouse.productBatchNotes")} />
           </div>
           {error ? <p className="text-sm text-danger">{error}</p> : null}
           {msg ? <p className="text-sm text-success">{msg}</p> : null}
           <Button type="submit" disabled={loading}>
-            {loading ? "Обработка…" : "Подтвердить возврат"}
+            {loading ? t("common.loading") : t("wh.actionReturn")}
           </Button>
         </form>
       </Card>

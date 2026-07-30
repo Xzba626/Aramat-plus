@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Aromat Plus ERP",
-  description: "Управление складом и магазинами",
+  title: "AROMAT PLUS",
+  description: "AROMAT PLUS ERP",
 };
 
 export default function RootLayout({

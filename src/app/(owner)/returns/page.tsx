@@ -9,15 +9,17 @@ import {
   ModuleWorkspace,
 } from "@/components/ui/module-workspace";
 import { MOCK_RETURNS_HISTORY } from "@/lib/ui-mocks";
-import { cn, formatMoney } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { DashboardPayload } from "@/lib/services/dashboard.service";
 import { useI18n } from "@/components/i18n/i18n-provider";
 
 type Decision = DashboardPayload["decisions"][number];
 type Tab = "pending" | "history" | "warehouse";
 
+type ReturnStatus = "PENDING" | "APPROVED" | "REJECTED";
+
 export default function ReturnsPage() {
-  const { t } = useI18n();
+  const { t, formatMoney, formatDateTime } = useI18n();
   const [tab, setTab] = useState<Tab>("pending");
   const [pending, setPending] = useState<Decision[]>([]);
   const [history, setHistory] = useState(MOCK_RETURNS_HISTORY);
@@ -68,13 +70,19 @@ export default function ReturnsPage() {
     setBusyId(null);
     if (res.ok) {
       setPending((prev) => prev.filter((d) => d.id !== id));
-      setMsg(decision === "APPROVE" ? "Возврат одобрен" : "Возврат отклонён");
+      setMsg(decision === "APPROVE" ? t("returnsPage.approved") : t("returnsPage.rejected"));
     } else {
-      // UI fallback when API fails — still update local history feel
       setPending((prev) => prev.filter((d) => d.id !== id));
-      setMsg(decision === "APPROVE" ? "Возврат одобрен" : "Возврат отклонён");
+      setMsg(decision === "APPROVE" ? t("returnsPage.approved") : t("returnsPage.rejected"));
     }
   }
+
+  const returnStatusLabel = (value: string) => {
+    if (value === "PENDING") return t("returnsPage.statusPending");
+    if (value === "APPROVED") return t("returnsPage.statusApproved");
+    if (value === "REJECTED") return t("returnsPage.statusRejected");
+    return value;
+  };
 
   function decideMock(id: string, decision: "APPROVE" | "REJECT") {
     setHistory((prev) =>
@@ -82,37 +90,39 @@ export default function ReturnsPage() {
         r.id === id
           ? {
               ...r,
-              status: decision === "APPROVE" ? "Одобрено" : "Отклонено",
+              status: (decision === "APPROVE" ? "APPROVED" : "REJECTED") as ReturnStatus,
             }
           : r
       )
     );
-    setMsg(decision === "APPROVE" ? "Возврат одобрен" : "Возврат отклонён");
+    setMsg(decision === "APPROVE" ? t("returnsPage.approved") : t("returnsPage.rejected"));
   }
+
+  const decisionTitle = (d: Decision) =>
+    d.titleKey ? t(d.titleKey) : t("dashboard.decisionReturn");
 
   return (
     <ModuleWorkspace
-      title="Возвраты"
-      subtitle="Запросы продавцов, история решений и возврат товара на центральный склад"
+      title={t("returnsPage.title")}
+      subtitle={t("returnsPage.subtitle")}
       kpis={[
         {
-          label: "Ожидают решения",
+          label: t("returnsPage.pending"),
           value: loading ? "…" : String(pending.length),
         },
         {
-          label: "В истории",
+          label: t("returnsPage.history"),
           value: String(history.length),
         },
         {
-          label: "На склад",
-          value: "Открыть",
-          hint: "Отдельный процесс внутри склада",
+          label: t("returnsPage.warehouseReturn"),
+          value: t("wh.open"),
         },
       ]}
       actions={
         <Link href="/warehouse/return-in">
           <Button type="button" fullWidth={false}>
-            Возврат на склад
+            {t("returnsPage.warehouseReturn")}
           </Button>
         </Link>
       }
@@ -120,11 +130,11 @@ export default function ReturnsPage() {
       <div className="mb-5 flex flex-wrap gap-1.5 border-b border-border pb-3">
         {(
           [
-            ["pending", "Ожидают решения"],
-            ["history", "История"],
-            ["warehouse", "На склад"],
+            ["pending", "returnsPage.pending"],
+            ["history", "returnsPage.history"],
+            ["warehouse", "returnsPage.warehouseReturn"],
           ] as const
-        ).map(([id, label]) => (
+        ).map(([id, labelKey]) => (
           <button
             key={id}
             type="button"
@@ -136,7 +146,7 @@ export default function ReturnsPage() {
                 : "bg-card text-muted ring-1 ring-border hover:text-ink"
             )}
           >
-            {label}
+            {t(labelKey)}
           </button>
         ))}
       </div>
@@ -144,12 +154,12 @@ export default function ReturnsPage() {
       {msg ? <p className="mb-4 text-sm text-success">{msg}</p> : null}
 
       {tab === "pending" ? (
-        <ModuleSection title="Запросы продавцов">
+        <ModuleSection title={t("returnsPage.sellersRequests")}>
           {loading ? (
-            <Card className="p-5 text-sm text-muted">Загрузка…</Card>
+            <Card className="p-5 text-sm text-muted">{t("returnsPage.loading")}</Card>
           ) : pending.length === 0 ? (
             <Card className="border-success/20 bg-success/5 p-5 text-sm text-success">
-              Нет активных запросов. Новые появятся здесь и на главной.
+              {t("returnsPage.noPending")}
             </Card>
           ) : (
             <div className="space-y-3">
@@ -157,16 +167,15 @@ export default function ReturnsPage() {
                 <Card key={d.id} className="border-l-4 border-l-warning p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <div className="text-sm font-bold text-ink">{t(d.titleKey)}</div>
+                      <div className="text-sm font-bold text-ink">{decisionTitle(d)}</div>
                       <div className="mt-1 text-xs text-muted">
-                        {new Date(d.createdAt).toLocaleString("ru-RU")} ·{" "}
-                        {d.storeName} · {d.actorName}
+                        {formatDateTime(d.createdAt)} · {d.storeName} · {d.actorName}
                       </div>
                       <div className="mt-2 text-sm text-ink">{d.products}</div>
                       <div className="mt-1 text-sm text-muted">
-                        {d.reason || "Причина не указана"}
+                        {d.reason || "—"}
                         {d.originalTotal != null
-                          ? ` · чек ${formatMoney(d.originalTotal)}`
+                          ? ` · ${t("storeDetail.receipt")} ${formatMoney(d.originalTotal)}`
                           : ""}
                       </div>
                     </div>
@@ -177,7 +186,7 @@ export default function ReturnsPage() {
                         disabled={busyId === d.id}
                         onClick={() => decide(d.id, "APPROVE")}
                       >
-                        Одобрить
+                        {t("common.approve")}
                       </Button>
                       <Button
                         type="button"
@@ -186,7 +195,7 @@ export default function ReturnsPage() {
                         disabled={busyId === d.id}
                         onClick={() => decide(d.id, "REJECT")}
                       >
-                        Отклонить
+                        {t("common.reject")}
                       </Button>
                     </div>
                   </div>
@@ -198,12 +207,12 @@ export default function ReturnsPage() {
       ) : null}
 
       {tab === "history" ? (
-        <ModuleSection title="История возвратов">
+        <ModuleSection title={t("returnsPage.history")}>
           <div className="mb-3 flex flex-wrap gap-2">
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Поиск…"
+              placeholder={t("common.search")}
               className="min-w-[180px] flex-1 rounded-xl border border-border bg-card px-3 py-2 text-sm"
             />
             <select
@@ -211,10 +220,10 @@ export default function ReturnsPage() {
               onChange={(e) => setStatus(e.target.value)}
               className="rounded-xl border border-border bg-card px-3 py-2 text-sm"
             >
-              <option value="ALL">Все статусы</option>
-              <option>Ожидает</option>
-              <option>Одобрено</option>
-              <option>Отклонено</option>
+              <option value="ALL">{t("storeDetail.allStatuses")}</option>
+              <option value="PENDING">{t("returnsPage.statusPending")}</option>
+              <option value="APPROVED">{t("returnsPage.statusApproved")}</option>
+              <option value="REJECTED">{t("returnsPage.statusRejected")}</option>
             </select>
           </div>
           <Card className="overflow-hidden p-0">
@@ -222,13 +231,13 @@ export default function ReturnsPage() {
               <table className="min-w-full text-left text-sm">
                 <thead className="border-b border-border bg-page/80 text-xs uppercase tracking-wide text-muted">
                   <tr>
-                    <th className="px-4 py-3 font-semibold">Дата</th>
-                    <th className="px-4 py-3 font-semibold">Магазин</th>
-                    <th className="px-4 py-3 font-semibold">Продавец</th>
-                    <th className="px-4 py-3 font-semibold">Товар</th>
-                    <th className="px-4 py-3 font-semibold">Сумма</th>
-                    <th className="px-4 py-3 font-semibold">Статус</th>
-                    <th className="px-4 py-3 font-semibold">Действие</th>
+                    <th className="px-4 py-3 font-semibold">{t("storeDetail.date")}</th>
+                    <th className="px-4 py-3 font-semibold">{t("common.store")}</th>
+                    <th className="px-4 py-3 font-semibold">{t("common.seller")}</th>
+                    <th className="px-4 py-3 font-semibold">{t("wh.colName")}</th>
+                    <th className="px-4 py-3 font-semibold">{t("storeDetail.amount")}</th>
+                    <th className="px-4 py-3 font-semibold">{t("wh.colStatus")}</th>
+                    <th className="px-4 py-3 font-semibold">{t("wh.open")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -248,30 +257,30 @@ export default function ReturnsPage() {
                         <span
                           className={cn(
                             "rounded-full px-2 py-0.5 text-xs font-semibold",
-                            r.status === "Одобрено" && "bg-success/10 text-success",
-                            r.status === "Отклонено" && "bg-danger/10 text-danger",
-                            r.status === "Ожидает" && "bg-warning/15 text-warning"
+                            r.status === "APPROVED" && "bg-success/10 text-success",
+                            r.status === "REJECTED" && "bg-danger/10 text-danger",
+                            r.status === "PENDING" && "bg-warning/15 text-warning"
                           )}
                         >
-                          {r.status}
+                          {returnStatusLabel(r.status)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {r.status === "Ожидает" ? (
+                        {r.status === "PENDING" ? (
                           <div className="flex gap-2">
                             <button
                               type="button"
                               className="text-xs font-semibold text-brand"
                               onClick={() => decideMock(r.id, "APPROVE")}
                             >
-                              Одобрить
+                              {t("common.approve")}
                             </button>
                             <button
                               type="button"
                               className="text-xs font-semibold text-muted"
                               onClick={() => decideMock(r.id, "REJECT")}
                             >
-                              Отклонить
+                              {t("common.reject")}
                             </button>
                           </div>
                         ) : (
@@ -288,17 +297,14 @@ export default function ReturnsPage() {
       ) : null}
 
       {tab === "warehouse" ? (
-        <ModuleSection title="Возврат товара на центральный склад">
+        <ModuleSection title={t("returnsPage.warehouseReturn")}>
           <Card className="p-5">
-            <p className="text-sm text-muted">
-              Отдельный процесс: магазин → проверка → склад. Причины: брак,
-              повреждение, не продаётся, ошибка отправки.
-            </p>
+            <p className="text-sm text-muted">{t("returnsPage.subtitle")}</p>
             <Link
               href="/warehouse/return-in"
               className="mt-4 inline-flex rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-hover"
             >
-              Открыть форму возврата на склад
+              {t("wh.open")} — {t("returnsPage.warehouseReturn")}
             </Link>
           </Card>
         </ModuleSection>

@@ -4,8 +4,10 @@ import { FormEvent, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { FieldLabel } from "@/components/ui/card";
+import { useI18n } from "@/components/i18n/i18n-provider";
 
 export default function ChangePasswordPage() {
+  const { t } = useI18n();
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
 
@@ -24,28 +26,28 @@ export default function ChangePasswordPage() {
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error || "Ошибка");
+      setError(data.error || t("common.error"));
       return;
     }
-    setMsg("Пароль изменён");
+    setMsg(t("settingsSub.passwordOk"));
     (e.target as HTMLFormElement).reset();
   }
 
   return (
     <>
-      <PageHeader title="Смена пароля" />
+      <PageHeader title={t("settingsSub.password")} />
       <form onSubmit={onSubmit} className="space-y-3">
         <div>
-          <FieldLabel>Текущий пароль</FieldLabel>
+          <FieldLabel>{t("settingsSub.currentPassword")}</FieldLabel>
           <input name="currentPassword" type="password" required />
         </div>
         <div>
-          <FieldLabel>Новый пароль</FieldLabel>
+          <FieldLabel>{t("settingsSub.newPassword")}</FieldLabel>
           <input name="newPassword" type="password" required minLength={4} />
         </div>
         {error ? <p className="text-sm text-danger">{error}</p> : null}
         {msg ? <p className="text-sm text-success">{msg}</p> : null}
-        <Button type="submit">Сохранить</Button>
+        <Button type="submit">{t("settingsSub.save")}</Button>
       </form>
     </>
   );

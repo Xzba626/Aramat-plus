@@ -9,33 +9,35 @@ import {
   ModuleWorkspace,
 } from "@/components/ui/module-workspace";
 import { MOCK_COMPANY } from "@/lib/ui-mocks";
+import { useI18n } from "@/components/i18n/i18n-provider";
 
 export default function CompanySettingsPage() {
+  const { t } = useI18n();
   const [form, setForm] = useState(MOCK_COMPANY);
   const [msg, setMsg] = useState("");
 
   function onSave(e: FormEvent) {
     e.preventDefault();
-    setMsg("Настройки компании сохранены");
+    setMsg(t("settingsSub.save"));
   }
 
   return (
     <ModuleWorkspace
-      title="Компания"
-      subtitle="Профиль сети AROMAT PLUS"
+      title={t("settingsSub.company")}
+      subtitle={t("settingsSub.companySubtitle")}
       tabs={[
-        { id: "company", label: "Компания", href: "/settings/company" },
-        { id: "hub", label: "Все настройки", href: "/settings" },
-        { id: "refs", label: "Справочники", href: "/settings/references" },
-        { id: "password", label: "Пароль", href: "/settings/password" },
+        { id: "company", label: t("settingsSub.company"), href: "/settings/company" },
+        { id: "hub", label: t("common.settings"), href: "/settings" },
+        { id: "refs", label: t("settingsSub.references"), href: "/settings/references" },
+        { id: "password", label: t("settingsSub.password"), href: "/settings/password" },
       ]}
       activeTab="company"
     >
       <ModuleSection
-        title="Основные данные"
+        title={t("settingsSub.company")}
         action={
           <Link href="/settings" className="text-sm font-semibold text-brand">
-            ← Настройки
+            ← {t("common.settings")}
           </Link>
         }
       >
@@ -43,17 +45,17 @@ export default function CompanySettingsPage() {
           <form onSubmit={onSave} className="space-y-3">
             {(
               [
-                ["name", "Название"],
-                ["legalName", "Юридическое название"],
-                ["phone", "Телефон"],
-                ["email", "Email"],
-                ["address", "Адрес"],
-                ["currency", "Валюта"],
-                ["timezone", "Часовой пояс"],
+                ["name", "settingsSub.name"],
+                ["legalName", "settingsSub.name"],
+                ["phone", "settingsSub.phone"],
+                ["email", "storeDetail.email"],
+                ["address", "settingsSub.address"],
+                ["currency", "settingsSub.name"],
+                ["timezone", "settingsSub.name"],
               ] as const
-            ).map(([key, label]) => (
+            ).map(([key, labelKey]) => (
               <div key={key}>
-                <FieldLabel>{label}</FieldLabel>
+                <FieldLabel>{t(labelKey)}</FieldLabel>
                 <input
                   className="w-full rounded-xl border border-border bg-page px-3 py-2.5 text-sm"
                   value={form[key]}
@@ -65,7 +67,7 @@ export default function CompanySettingsPage() {
             ))}
             {msg ? <p className="text-sm text-success">{msg}</p> : null}
             <Button type="submit" fullWidth={false}>
-              Сохранить
+              {t("settingsSub.save")}
             </Button>
           </form>
         </Card>
