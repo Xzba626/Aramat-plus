@@ -51,6 +51,7 @@
     "BRAND_NAME_REQUIRED": "Номи брендро ворид кунед",
     "UNAUTHORIZED": "Дастрасӣ нест",
     "PRODUCT_NOT_FOUND": "Мол ёфт нашуд",
+    "PRODUCT_TYPE_NOT_FOUND": "Намуди мол ёфт нашуд",
     "BRAND_NOT_FOUND": "Бренд ёфт нашуд",
     "STORE_NOT_FOUND": "Мағоза ёфт нашуд",
     "USER_NOT_FOUND": "Корбар ёфт нашуд",
@@ -79,6 +80,7 @@
     "airFreshener": "Хушбӯйкунандаи ҳаво",
     "watches": "Соат",
     "accessories": "Лавозимот",
+    "gifts": "Тӯҳфаҳо",
     "other": "Дигар"
   },
   "nav": {
@@ -344,8 +346,10 @@
     "productBrand": "Бренд",
     "productBrandNew": "+ Бренди нав",
     "productType": "Намуди мол",
-    "productTypeHint": "Барои таҳлил: фурӯш аз рӯи намуд",
+    "productTypeHint": "Намуд тарзи ҳисобро муайян мекунад (адад / мл). Барои «Дигар» дастӣ интихоб кунед.",
     "productSellHow": "Молро чӣ гуна мефурӯшем?",
+    "productSellAuto": "Ҳисоб: {{mode}} (аз рӯи намуди мол)",
+    "productSellManualHint": "Намуди «Дигар» — адад ё мл-ро дастӣ интихоб кунед.",
     "productSellPiece": "Ададӣ (соат, дезодорант, флакон)",
     "productSellVolume": "Аз рӯи ҳаҷм (равғанӣ, рехташаванда) — мл",
     "productCost": "Арзиши аслӣ",
@@ -453,7 +457,19 @@
     "branchName": "Номи филиал",
     "address": "Суроға",
     "phone": "Телефон",
-    "error": "Хатогӣ"
+    "error": "Хатогӣ",
+    "showArchive": "Бойгонӣ",
+    "showActive": "Фаъол",
+    "archiveTitle": "Бойгонии филиалҳо",
+    "archive": "Ба бойгонӣ",
+    "restore": "Барқарор",
+    "deleteSafe": "Нест кардан",
+    "noArchived": "Дар бойгонӣ филиал нест",
+    "assignManager": "Менеҷер (ихтиёрӣ)",
+    "assignSellers": "Фурӯшандагон (ихтиёрӣ)",
+    "assignHint": "Бе кормандон гузоштан ва баъдтар дар корт пайваст кардан мумкин.",
+    "noStaffYet": "Бе менеҷер",
+    "noCandidates": "Корманди озод нест — дар қисми «Корбарон» эҷод кунед"
   },
   "analyticsPage": {
     "title": "Таҳлил",
@@ -521,7 +537,15 @@
     "passwordShort": "Рамз на камтар аз 4 аломат",
     "resetFail": "Рамзро иваз карда нашуд",
     "storeOptional": "Бе мағоза (баъдтар пайваст)",
-    "storeAssignHint": "Фурӯшандаро бе мағоза эҷод кардан ва дар корти филиал пайваст кардан мумкин."
+    "storeAssignHint": "Фурӯшандаро бе мағоза эҷод кардан ва дар корти филиал пайваст кардан мумкин.",
+    "showArchive": "Бойгонӣ",
+    "showActive": "Фаъол",
+    "archive": "Ба бойгонӣ",
+    "restore": "Барқарор",
+    "deleteSafe": "Нест кардан",
+    "archivedOk": "Корбар ба бойгонӣ гузашт",
+    "restored": "Корбар барқарор шуд",
+    "deleted": "Корбар нест карда шуд"
   },
   "notificationsPage": {
     "title": "Огоҳиномаҳо",
@@ -740,6 +764,7 @@
     "statManager": "Менеджер",
     "statManagerNone": "Таъин нашуда",
     "statSellers": "Фурӯшандагон",
+    "statManagers": "Менеҷерон дар штат",
     "statSku": "Молҳо (SKU)",
     "statSalesToday": "Фурӯши имрӯз",
     "statProfitToday": "Фоидаи имрӯз",

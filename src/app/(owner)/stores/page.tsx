@@ -5,9 +5,10 @@ import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
+import { LoadingBlock } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { labelStoreStatus, apiErrorMessage } from "@/lib/i18n/labels";
+import { labelStoreStatus, apiErrorMessage, labelRole } from "@/lib/i18n/labels";
 
 type StoreCard = {
   id: string;
@@ -15,6 +16,7 @@ type StoreCard = {
   address?: string | null;
   kind: "BRANCH" | "OWNER_DIRECT";
   status: string;
+  isArchived?: boolean;
   staffCount: number;
   skuCount: number;
   unitsTotal: number;
@@ -29,32 +31,68 @@ type StoreCard = {
   lastRevisionAt: string | null;
 };
 
+type StaffCandidate = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  storeId?: string | null;
+};
+
 export default function StoresPage() {
   const { t, formatMoney, formatDateTime } = useI18n();
   const [stores, setStores] = useState<StoreCard[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [candidates, setCandidates] = useState<StaffCandidate[]>([]);
+  const [sellerIds, setSellerIds] = useState<string[]>([]);
+  const [managerId, setManagerId] = useState("");
 
   async function load() {
-    const res = await fetch("/api/stores");
+    setLoading(true);
+    const res = await fetch(
+      `/api/stores${showArchived ? "?archived=1" : ""}`
+    );
     const data = await res.json();
-    if (res.ok) setStores(data);
+    if (res.ok) setStores(Array.isArray(data) ? data : []);
     else setError(apiErrorMessage(data.error, t, "storesPage.error"));
+    setLoading(false);
+  }
+
+  async function loadCandidates() {
+    const res = await fetch("/api/users");
+    const data = await res.json();
+    if (res.ok && Array.isArray(data)) {
+      setCandidates(
+        data.filter(
+          (u: StaffCandidate) =>
+            u.role === "SELLER" || u.role === "MANAGER"
+        )
+      );
+    }
   }
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [showArchived]);
+
+  useEffect(() => {
+    if (showForm) loadCandidates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showForm]);
 
   const ownerDirect = useMemo(
     () => stores.find((s) => s.kind === "OWNER_DIRECT"),
     [stores]
   );
-  const branches = useMemo(
-    () => stores.filter((s) => s.kind !== "OWNER_DIRECT"),
-    [stores]
-  );
+  const branches = useMemo(() => {
+    const list = stores.filter((s) => s.kind !== "OWNER_DIRECT");
+    if (showArchived) return list.filter((s) => s.isArchived);
+    return list.filter((s) => !s.isArchived);
+  }, [stores, showArchived]);
 
   const network = useMemo(() => {
     const list = branches;
@@ -83,6 +121,8 @@ export default function StoresPage() {
         name: String(fd.get("name")),
         address: String(fd.get("address") || "") || null,
         phone: String(fd.get("phone") || "") || null,
+        managerId: managerId || null,
+        sellerIds,
       }),
     });
     const data = await res.json();
@@ -91,6 +131,36 @@ export default function StoresPage() {
       return;
     }
     setShowForm(false);
+    setSellerIds([]);
+    setManagerId("");
+    load();
+  }
+
+  async function archiveStore(id: string, archive: boolean) {
+    setError("");
+    const res = await fetch("/api/stores", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, isArchived: archive }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t, "storesPage.error"));
+      return;
+    }
+    load();
+  }
+
+  async function deleteStore(id: string) {
+    setError("");
+    const res = await fetch(`/api/stores?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t, "storesPage.error"));
+      return;
+    }
     load();
   }
 
@@ -99,38 +169,54 @@ export default function StoresPage() {
     return formatDateTime(v);
   }
 
+  function toggleSeller(id: string) {
+    setSellerIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
   return (
     <div>
       <PageHeader
         title={t("storesPage.title")}
-        count={stores.length || null}
+        count={loading ? null : stores.length || null}
         subtitle={t("storesPage.subtitle")}
         actions={
-          <Button
-            type="button"
-            fullWidth={false}
-            onClick={() => setShowForm((v) => !v)}
-          >
-            {showForm ? t("common.cancel") : t("storesPage.addBranch")}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              fullWidth={false}
+              onClick={() => setShowArchived((v) => !v)}
+            >
+              {showArchived ? t("storesPage.showActive") : t("storesPage.showArchive")}
+            </Button>
+            <Button
+              type="button"
+              fullWidth={false}
+              onClick={() => setShowForm((v) => !v)}
+            >
+              {showForm ? t("common.cancel") : t("storesPage.addBranch")}
+            </Button>
+          </div>
         }
       />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <NetStat label={t("storesPage.branches")} value={String(network.branchCount)} />
+        <NetStat label={t("storesPage.branches")} value={loading ? "…" : String(network.branchCount)} />
         <NetStat
           label={t("storesPage.salesToday")}
-          value={formatMoney(network.todayRevenue, { short: true })}
+          value={loading ? "…" : formatMoney(network.todayRevenue, { short: true })}
         />
         <NetStat
           label={t("storesPage.profitToday")}
-          value={formatMoney(network.todayProfit, { short: true })}
+          value={loading ? "…" : formatMoney(network.todayProfit, { short: true })}
           accent
         />
         <NetStat
           label={t("storesPage.pendingDecisions")}
-          value={String(network.pending)}
-          warn={network.pending > 0}
+          value={loading ? "…" : String(network.pending)}
+          warn={!loading && network.pending > 0}
         />
       </div>
 
@@ -149,6 +235,50 @@ export default function StoresPage() {
               <FieldLabel>{t("storesPage.phone")}</FieldLabel>
               <input name="phone" className="w-full" />
             </div>
+            <div>
+              <FieldLabel>{t("storesPage.assignManager")}</FieldLabel>
+              <select
+                className="w-full"
+                value={managerId}
+                onChange={(e) => setManagerId(e.target.value)}
+              >
+                <option value="">{t("storesPage.noStaffYet")}</option>
+                {candidates
+                  .filter((c) => c.role === "MANAGER" || c.role === "SELLER")
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} · {labelRole(c.role, t)}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div>
+              <FieldLabel>{t("storesPage.assignSellers")}</FieldLabel>
+              <p className="mb-2 text-xs text-muted">{t("storesPage.assignHint")}</p>
+              <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-border p-2">
+                {candidates.filter((c) => c.role === "SELLER").length === 0 ? (
+                  <p className="text-xs text-muted">{t("storesPage.noCandidates")}</p>
+                ) : (
+                  candidates
+                    .filter((c) => c.role === "SELLER")
+                    .map((c) => (
+                      <label
+                        key={c.id}
+                        className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-page"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={sellerIds.includes(c.id)}
+                          onChange={() => toggleSeller(c.id)}
+                        />
+                        <span>
+                          {c.name} ({c.email})
+                        </span>
+                      </label>
+                    ))
+                )}
+              </div>
+            </div>
             <Button type="submit">{t("common.save")}</Button>
           </form>
         </Card>
@@ -156,7 +286,9 @@ export default function StoresPage() {
 
       {error ? <p className="mb-3 text-sm text-danger">{error}</p> : null}
 
-      {ownerDirect ? (
+      {loading ? <LoadingBlock rows={4} label={t("common.loading")} /> : null}
+
+      {!loading && ownerDirect && !showArchived ? (
         <Link
           href={`/stores/${ownerDirect.id}`}
           id="owner-direct"
@@ -204,73 +336,116 @@ export default function StoresPage() {
         </Link>
       ) : null}
 
-      <SectionTitle>
-        {t("storesPage.branches")} ({branches.length})
-      </SectionTitle>
-      <div className="grid gap-3 lg:grid-cols-2">
-        {branches.map((s) => (
-          <Link key={s.id} href={`/stores/${s.id}`}>
-            <Card tap className="h-full p-5">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <div className="font-bold text-ink">{s.name}</div>
-                  <div className="mt-0.5 text-xs text-muted">
-                    {s.address || t("storesPage.noAddress")}
+      {!loading ? (
+        <>
+          <SectionTitle>
+            {showArchived
+              ? t("storesPage.archiveTitle")
+              : t("storesPage.branches")}{" "}
+            ({branches.length})
+          </SectionTitle>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {branches.map((s) => (
+              <Card key={s.id} className="h-full p-5">
+                <Link href={`/stores/${s.id}`} className="block">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <div className="font-bold text-ink">{s.name}</div>
+                      <div className="mt-0.5 text-xs text-muted">
+                        {s.address || t("storesPage.noAddress")}
+                      </div>
+                    </div>
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-xs font-semibold",
+                        s.status === "ACTIVE" && "bg-success/10 text-success",
+                        s.status === "CLOSED" && "bg-muted/30 text-muted",
+                        s.status === "INVENTORY" && "bg-warning/15 text-warning",
+                        s.isArchived && "bg-muted/30 text-muted"
+                      )}
+                    >
+                      {s.isArchived
+                        ? t("storeDetail.archived")
+                        : labelStoreStatus(s.status, t)}
+                    </span>
                   </div>
-                </div>
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 text-xs font-semibold",
-                    s.status === "ACTIVE" && "bg-success/10 text-success",
-                    s.status === "CLOSED" && "bg-muted/30 text-muted",
-                    s.status === "INVENTORY" && "bg-warning/15 text-warning"
-                  )}
-                >
-                  {labelStoreStatus(s.status, t)}
-                </span>
-              </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
-                <Metric label={t("storesPage.staff")} value={String(s.staffCount)} />
-                <Metric label={t("storesPage.kinds")} value={String(s.skuCount)} />
-                <Metric label={t("storesPage.units")} value={String(s.unitsTotal)} />
-                <Metric
-                  label={t("storesPage.stockCost")}
-                  value={formatMoney(s.stockCost, { short: true })}
-                />
-                <Metric
-                  label={t("storesPage.salesToday")}
-                  value={formatMoney(s.todayRevenue, { short: true })}
-                />
-                <Metric
-                  label={t("storesPage.month")}
-                  value={formatMoney(s.monthRevenue, { short: true })}
-                />
-                <Metric
-                  label={t("storesPage.profitToday")}
-                  value={formatMoney(s.todayProfit, { short: true })}
-                  accent
-                />
-                <Metric
-                  label={t("storesPage.requests")}
-                  value={String(s.pendingRequests)}
-                  warn={s.pendingRequests > 0}
-                />
-                <Metric
-                  label={t("storesPage.lastSale")}
-                  value={fmtOptionalDate(s.lastSaleAt, "common.noData")}
-                />
-                <Metric
-                  label={t("storesPage.lastRevision")}
-                  value={fmtOptionalDate(s.lastRevisionAt, "storesPage.noRevision")}
-                />
-              </div>
-            </Card>
-          </Link>
-        ))}
-      </div>
-      {branches.length === 0 ? (
-        <div className="py-8 text-center text-muted">{t("storesPage.noBranches")}</div>
+                  <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
+                    <Metric label={t("storesPage.staff")} value={String(s.staffCount)} />
+                    <Metric label={t("storesPage.kinds")} value={String(s.skuCount)} />
+                    <Metric label={t("storesPage.units")} value={String(s.unitsTotal)} />
+                    <Metric
+                      label={t("storesPage.stockCost")}
+                      value={formatMoney(s.stockCost, { short: true })}
+                    />
+                    <Metric
+                      label={t("storesPage.salesToday")}
+                      value={formatMoney(s.todayRevenue, { short: true })}
+                    />
+                    <Metric
+                      label={t("storesPage.month")}
+                      value={formatMoney(s.monthRevenue, { short: true })}
+                    />
+                    <Metric
+                      label={t("storesPage.profitToday")}
+                      value={formatMoney(s.todayProfit, { short: true })}
+                      accent
+                    />
+                    <Metric
+                      label={t("storesPage.requests")}
+                      value={String(s.pendingRequests)}
+                      warn={s.pendingRequests > 0}
+                    />
+                    <Metric
+                      label={t("storesPage.lastSale")}
+                      value={fmtOptionalDate(s.lastSaleAt, "common.noData")}
+                    />
+                    <Metric
+                      label={t("storesPage.lastRevision")}
+                      value={fmtOptionalDate(s.lastRevisionAt, "storesPage.noRevision")}
+                    />
+                  </div>
+                </Link>
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
+                  {s.isArchived ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      fullWidth={false}
+                      onClick={() => archiveStore(s.id, false)}
+                    >
+                      {t("storesPage.restore")}
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      fullWidth={false}
+                      onClick={() => archiveStore(s.id, true)}
+                    >
+                      {t("storesPage.archive")}
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    fullWidth={false}
+                    onClick={() => deleteStore(s.id)}
+                  >
+                    {t("storesPage.deleteSafe")}
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+          {branches.length === 0 ? (
+            <div className="py-8 text-center text-muted">
+              {showArchived
+                ? t("storesPage.noArchived")
+                : t("storesPage.noBranches")}
+            </div>
+          ) : null}
+        </>
       ) : null}
     </div>
   );

@@ -9,6 +9,7 @@ import { decimalToNumber } from "@/lib/utils";
 import { addBatch } from "@/lib/services/stock.service";
 import {
   nextProductSku,
+  resolveProductAccountingType,
   resolveUnitId,
 } from "@/lib/services/product-nomenclature.service";
 
@@ -133,10 +134,17 @@ export async function POST(req: Request) {
       (body.sku && body.sku.trim()) ||
       (await nextProductSku(prisma, user!.companyId, brand?.name));
 
+    const accountingType = await resolveProductAccountingType(
+      prisma,
+      user!.companyId,
+      body.productTypeId,
+      body.accountingType
+    );
+
     const unitId = await resolveUnitId(
       prisma,
       user!.companyId,
-      body.accountingType,
+      accountingType,
       body.unitId
     );
 
@@ -156,7 +164,7 @@ export async function POST(req: Request) {
           brandId: body.brandId ?? null,
           unitId,
           productTypeId: body.productTypeId ?? null,
-          accountingType: body.accountingType,
+          accountingType,
           salePrice: new Prisma.Decimal(body.salePrice),
           defaultCostPerUnit:
             costPerUnit != null && costPerUnit > 0

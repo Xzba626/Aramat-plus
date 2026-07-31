@@ -123,6 +123,7 @@ export const PRODUCT_TYPE_KEYS: Record<string, string> = {
   "Освежитель воздуха": "productTypes.airFreshener",
   Часы: "productTypes.watches",
   Аксессуары: "productTypes.accessories",
+  Подарки: "productTypes.gifts",
   Другое: "productTypes.other",
 };
 

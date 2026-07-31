@@ -6,6 +6,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
+import { LoadingBlock } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import {
@@ -33,6 +34,7 @@ type StoreDetail = {
   warehouseName?: string | null;
   overview: {
     sellersCount: number;
+    managersCount: number;
     skuCount: number;
     todaySalesCount: number;
     todayRevenue: number;
@@ -118,8 +120,11 @@ function stockStatusLabel(status: StockItem["status"], t: (key: string) => strin
 }
 
 export function StoreDetailLoading() {
-  const { t } = useI18n();
-  return <div className="p-6 text-muted">{t("storeDetail.loading")}</div>;
+  return (
+    <div className="p-6">
+      <LoadingBlock rows={5} />
+    </div>
+  );
 }
 
 export default function StoreDetailClient() {
@@ -127,7 +132,7 @@ export default function StoreDetailClient() {
   const search = useSearchParams();
   const router = useRouter();
   const tab = search.get("tab") || "overview";
-  const { t, formatMoney, formatDateTime } = useI18n();
+  const { t, formatMoney, formatDate, formatDateTime } = useI18n();
 
   const [store, setStore] = useState<StoreDetail | null>(null);
   const [error, setError] = useState("");
@@ -151,7 +156,13 @@ export default function StoreDetailClient() {
     return (
       <>
         <PageHeader title={t("storeDetail.storeTitle")} />
-        <div className="p-6 text-muted">{error || t("storeDetail.loading")}</div>
+        <div className="p-6">
+          {error ? (
+            <p className="text-danger">{error}</p>
+          ) : (
+            <LoadingBlock rows={5} />
+          )}
+        </div>
       </>
     );
   }
@@ -197,7 +208,7 @@ export default function StoreDetailClient() {
       </div>
 
       {tab === "overview" ? (
-        <OverviewTab store={store} isOwnerDirect={!!isOwnerDirect} t={t} formatMoney={formatMoney} formatDateTime={formatDateTime} />
+        <OverviewTab store={store} isOwnerDirect={!!isOwnerDirect} t={t} formatMoney={formatMoney} formatDate={formatDate} formatDateTime={formatDateTime} />
       ) : null}
       {tab === "stock" ? <StockTab storeId={id} t={t} formatMoney={formatMoney} /> : null}
       {tab === "staff" && !isOwnerDirect ? (
@@ -238,16 +249,17 @@ function OverviewTab({
   isOwnerDirect,
   t,
   formatMoney,
+  formatDate,
   formatDateTime,
 }: {
   store: StoreDetail;
   isOwnerDirect: boolean;
   t: (key: string, params?: Record<string, string | number>) => string;
   formatMoney: (value: number | string, opts?: { short?: boolean }) => string;
+  formatDate: (date: Date | string | number) => string;
   formatDateTime: (date: Date | string | number) => string;
 }) {
   const o = store.overview;
-  const fmtDate = (v: string | null | undefined) => (v ? formatDateTime(v) : "—");
 
   return (
     <div className="space-y-4">
@@ -261,11 +273,19 @@ function OverviewTab({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Stat label={t("storeDetail.statStatus")} value={storeStatusLabel(store.status, store.isArchived, t)} />
         <Stat label={t("storeDetail.statAddress")} value={store.address || "—"} />
-        <Stat label={t("storeDetail.statOpenedAt")} value={fmtDate(store.openedAt)} />
+        <Stat
+          label={t("storeDetail.statOpenedAt")}
+          value={store.openedAt ? formatDate(store.openedAt) : "—"}
+        />
         {!isOwnerDirect ? (
           <Stat label={t("storeDetail.statManager")} value={store.manager?.name || t("storeDetail.statManagerNone")} />
         ) : null}
-        {!isOwnerDirect ? <Stat label={t("storeDetail.statSellers")} value={String(o.sellersCount)} /> : null}
+        {!isOwnerDirect ? (
+          <Stat label={t("storeDetail.statSellers")} value={String(o.sellersCount)} />
+        ) : null}
+        {!isOwnerDirect ? (
+          <Stat label={t("storeDetail.statManagers")} value={String(o.managersCount)} />
+        ) : null}
         <Stat label={t("storeDetail.statSku")} value={String(o.skuCount)} />
         <Stat label={t("storeDetail.statSalesToday")} value={formatMoney(o.todayRevenue)} />
         <Stat label={t("storeDetail.statProfitToday")} value={formatMoney(o.todayProfit)} accent />
@@ -276,13 +296,16 @@ function OverviewTab({
             label={t("storeDetail.statLastLogin")}
             value={
               o.lastStaffLoginAt
-                ? `${fmtDate(o.lastStaffLoginAt)}${o.lastStaffLoginName ? ` · ${o.lastStaffLoginName}` : ""}`
+                ? `${formatDateTime(o.lastStaffLoginAt)}${o.lastStaffLoginName ? ` · ${o.lastStaffLoginName}` : ""}`
                 : "—"
             }
           />
         ) : null}
         {!isOwnerDirect ? (
-          <Stat label={t("storeDetail.statLastRevision")} value={fmtDate(o.lastRevisionAt)} />
+          <Stat
+            label={t("storeDetail.statLastRevision")}
+            value={o.lastRevisionAt ? formatDateTime(o.lastRevisionAt) : "—"}
+          />
         ) : null}
       </div>
     </div>
@@ -500,8 +523,10 @@ function StaffTab({
   >([]);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [busy, setBusy] = useState(false);
+  const [staffLoading, setStaffLoading] = useState(true);
 
   async function load() {
+    setStaffLoading(true);
     const [staffRes, candRes] = await Promise.all([
       fetch(`/api/stores/${storeId}/staff`),
       fetch(`/api/stores/${storeId}/staff?candidates=1`),
@@ -512,6 +537,7 @@ function StaffTab({
     else setError(apiErrorMessage(staffData.error, t, "common.error"));
     if (candRes.ok) setCandidates(Array.isArray(candData) ? candData : []);
     else setCandidates([]);
+    setStaffLoading(false);
   }
 
   useEffect(() => {
@@ -566,7 +592,11 @@ function StaffTab({
       <SectionTitle>{t("storeDetail.branchSellers")}</SectionTitle>
       <p className="mb-3 text-xs text-muted">{t("storeDetail.staffAssignHint")}</p>
       <Card className="mb-4 overflow-hidden p-0">
-        {staff.length === 0 ? (
+        {staffLoading ? (
+          <div className="p-4">
+            <LoadingBlock rows={3} />
+          </div>
+        ) : staff.length === 0 ? (
           <div className="py-6 text-center text-muted">{t("storeDetail.noStaff")}</div>
         ) : (
           staff.map((u) => (

@@ -133,11 +133,10 @@ export async function getStoreDetail(companyId: string, storeId: string) {
   }
 
   const sellersCount = await prisma.user.count({
-    where: {
-      storeId,
-      role: { in: [Role.SELLER, Role.MANAGER] },
-      isActive: true,
-    },
+    where: { storeId, role: Role.SELLER, isActive: true },
+  });
+  const managersCount = await prisma.user.count({
+    where: { storeId, role: Role.MANAGER, isActive: true },
   });
 
   return {
@@ -158,6 +157,7 @@ export async function getStoreDetail(companyId: string, storeId: string) {
     warehouseName,
     overview: {
       sellersCount,
+      managersCount,
       skuCount,
       todaySalesCount: today.count,
       todayRevenue: today.revenue,

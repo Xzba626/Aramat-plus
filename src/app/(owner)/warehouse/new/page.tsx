@@ -10,6 +10,7 @@ import {
   apiErrorMessage,
   labelProductType,
 } from "@/lib/i18n/labels";
+import { resolveAccountingTypeFromProductTypeName } from "@/lib/product-accounting";
 import { ImagePlus } from "lucide-react";
 
 type RefItem = { id: string; name: string };
@@ -20,11 +21,12 @@ export default function NewProductPage() {
   const [brands, setBrands] = useState<RefItem[]>([]);
   const [types, setTypes] = useState<RefItem[]>([]);
   const [brandId, setBrandId] = useState("");
+  const [productTypeId, setProductTypeId] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [brandBusy, setBrandBusy] = useState(false);
   const [accountingType, setAccountingType] = useState<"PIECE" | "WEIGHT">(
-    "WEIGHT"
+    "PIECE"
   );
   const [salePrice, setSalePrice] = useState("");
   const [cost, setCost] = useState("");
@@ -47,6 +49,22 @@ export default function NewProductPage() {
       setTypes(Array.isArray(pt) ? pt : []);
     });
   }, []);
+
+  const selectedType = useMemo(
+    () => types.find((pt) => pt.id === productTypeId) ?? null,
+    [types, productTypeId]
+  );
+
+  const mappedAccounting = useMemo(
+    () => resolveAccountingTypeFromProductTypeName(selectedType?.name),
+    [selectedType]
+  );
+
+  const isManualAccounting = mappedAccounting == null && !!productTypeId;
+
+  useEffect(() => {
+    if (mappedAccounting) setAccountingType(mappedAccounting);
+  }, [mappedAccounting]);
 
   const unitLabel =
     accountingType === "WEIGHT" ? t("warehouse.unitMl") : t("warehouse.unitPcs");
@@ -126,12 +144,13 @@ export default function NewProductPage() {
     }
 
     const qty = Number(initialQty);
+    const finalAccounting = mappedAccounting ?? accountingType;
     const payload = {
       name: String(fd.get("name") || ""),
       description: String(fd.get("description") || "") || null,
       brandId: resolvedBrandId,
-      productTypeId: String(fd.get("productTypeId") || "") || null,
-      accountingType,
+      productTypeId: productTypeId || null,
+      accountingType: finalAccounting,
       salePrice: Number(salePrice),
       defaultCostPerUnit: cost ? Number(cost) : null,
       ...(qty > 0 ? { initialQuantity: qty } : {}),
@@ -262,7 +281,13 @@ export default function NewProductPage() {
 
           <div>
             <FieldLabel>{t("warehouse.productType")}</FieldLabel>
-            <select name="productTypeId" defaultValue="" className="w-full" required>
+            <select
+              name="productTypeId"
+              value={productTypeId}
+              onChange={(e) => setProductTypeId(e.target.value)}
+              className="w-full"
+              required
+            >
               <option value="">—</option>
               {types.map((pt) => (
                 <option key={pt.id} value={pt.id}>
@@ -275,38 +300,56 @@ export default function NewProductPage() {
 
           <div>
             <FieldLabel>{t("warehouse.productSellHow")}</FieldLabel>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <label
-                className={`cursor-pointer rounded-xl border px-3 py-3 text-sm ${
-                  accountingType === "PIECE"
-                    ? "border-brand bg-brand-soft font-semibold text-brand"
-                    : "border-border bg-card"
-                }`}
-              >
-                <input
-                  type="radio"
-                  className="sr-only"
-                  checked={accountingType === "PIECE"}
-                  onChange={() => setAccountingType("PIECE")}
-                />
-                {t("warehouse.productSellPiece")}
-              </label>
-              <label
-                className={`cursor-pointer rounded-xl border px-3 py-3 text-sm ${
-                  accountingType === "WEIGHT"
-                    ? "border-brand bg-brand-soft font-semibold text-brand"
-                    : "border-border bg-card"
-                }`}
-              >
-                <input
-                  type="radio"
-                  className="sr-only"
-                  checked={accountingType === "WEIGHT"}
-                  onChange={() => setAccountingType("WEIGHT")}
-                />
-                {t("warehouse.productSellVolume")}
-              </label>
-            </div>
+            {mappedAccounting ? (
+              <p className="rounded-xl border border-border bg-page px-3 py-3 text-sm text-ink">
+                {t("warehouse.productSellAuto", {
+                  mode:
+                    mappedAccounting === "WEIGHT"
+                      ? t("warehouse.productSellVolume")
+                      : t("warehouse.productSellPiece"),
+                })}
+              </p>
+            ) : isManualAccounting ? (
+              <>
+                <p className="mb-2 text-xs text-muted">
+                  {t("warehouse.productSellManualHint")}
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label
+                    className={`cursor-pointer rounded-xl border px-3 py-3 text-sm ${
+                      accountingType === "PIECE"
+                        ? "border-brand bg-brand-soft font-semibold text-brand"
+                        : "border-border bg-card"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      className="sr-only"
+                      checked={accountingType === "PIECE"}
+                      onChange={() => setAccountingType("PIECE")}
+                    />
+                    {t("warehouse.productSellPiece")}
+                  </label>
+                  <label
+                    className={`cursor-pointer rounded-xl border px-3 py-3 text-sm ${
+                      accountingType === "WEIGHT"
+                        ? "border-brand bg-brand-soft font-semibold text-brand"
+                        : "border-border bg-card"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      className="sr-only"
+                      checked={accountingType === "WEIGHT"}
+                      onChange={() => setAccountingType("WEIGHT")}
+                    />
+                    {t("warehouse.productSellVolume")}
+                  </label>
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-muted">{t("warehouse.productTypeHint")}</p>
+            )}
           </div>
 
           <div>

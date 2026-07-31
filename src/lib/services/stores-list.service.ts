@@ -13,7 +13,10 @@ function startOfMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
-export async function listStoresForCompany(companyId: string) {
+export async function listStoresForCompany(
+  companyId: string,
+  opts?: { includeArchived?: boolean }
+) {
   await ensureOwnerDirectStore(companyId);
 
   const now = new Date();
@@ -25,7 +28,10 @@ export async function listStoresForCompany(companyId: string) {
   });
 
   const stores = await prisma.store.findMany({
-    where: { companyId },
+    where: {
+      companyId,
+      ...(opts?.includeArchived ? {} : { isArchived: false }),
+    },
     include: {
       manager: { select: { id: true, name: true } },
       users: {

@@ -53,6 +53,7 @@ export function handleApiError(err: unknown) {
       "NEGATIVE_DISCOUNT",
       "NOT_FOUND",
       "PRODUCT_NOT_FOUND",
+      "PRODUCT_TYPE_NOT_FOUND",
       "QTY_MUST_BE_POSITIVE",
       "RETURN_ALREADY_PENDING",
       "SELLER_NO_STORE",

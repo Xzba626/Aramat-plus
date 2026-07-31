@@ -51,6 +51,7 @@
     "BRAND_NAME_REQUIRED": "Введите название бренда",
     "UNAUTHORIZED": "Нет доступа",
     "PRODUCT_NOT_FOUND": "Товар не найден",
+    "PRODUCT_TYPE_NOT_FOUND": "Тип товара не найден",
     "BRAND_NOT_FOUND": "Бренд не найден",
     "STORE_NOT_FOUND": "Магазин не найден",
     "USER_NOT_FOUND": "Пользователь не найден",
@@ -79,6 +80,7 @@
     "airFreshener": "Освежитель воздуха",
     "watches": "Часы",
     "accessories": "Аксессуары",
+    "gifts": "Подарки",
     "other": "Другое"
   },
   "nav": {
@@ -344,8 +346,10 @@
     "productBrand": "Бренд",
     "productBrandNew": "+ Новый бренд",
     "productType": "Тип товара",
-    "productTypeHint": "Для аналитики: продажи по типам",
+    "productTypeHint": "Тип задаёт способ учёта (шт / мл). Для «Другое» выберите вручную.",
     "productSellHow": "Как продаём товар?",
+    "productSellAuto": "Учёт: {{mode}} (по типу товара)",
+    "productSellManualHint": "Тип «Другое» — выберите шт или мл вручную.",
     "productSellPiece": "Штучный (часы, дезодорант, готовый флакон)",
     "productSellVolume": "По объёму (масляные духи, разлив) — мл",
     "productCost": "Себестоимость",
@@ -453,7 +457,19 @@
     "branchName": "Название филиала",
     "address": "Адрес",
     "phone": "Телефон",
-    "error": "Ошибка"
+    "error": "Ошибка",
+    "showArchive": "Архив",
+    "showActive": "Активные",
+    "archiveTitle": "Архив филиалов",
+    "archive": "В архив",
+    "restore": "Восстановить",
+    "deleteSafe": "Удалить",
+    "noArchived": "В архиве нет филиалов",
+    "assignManager": "Менеджер (необязательно)",
+    "assignSellers": "Продавцы (необязательно)",
+    "assignHint": "Можно оставить без сотрудников и привязать позже в карточке.",
+    "noStaffYet": "Без менеджера",
+    "noCandidates": "Нет свободных сотрудников — создайте в разделе «Пользователи»"
   },
   "analyticsPage": {
     "title": "Аналитика",
@@ -521,7 +537,15 @@
     "passwordShort": "Пароль не короче 4 символов",
     "resetFail": "Не удалось сбросить пароль",
     "storeOptional": "Без магазина (привязать позже)",
-    "storeAssignHint": "Продавца можно создать без магазина и привязать в карточке филиала."
+    "storeAssignHint": "Продавца можно создать без магазина и привязать в карточке филиала.",
+    "showArchive": "Архив",
+    "showActive": "Активные",
+    "archive": "В архив",
+    "restore": "Восстановить",
+    "deleteSafe": "Удалить",
+    "archivedOk": "Пользователь в архиве",
+    "restored": "Пользователь восстановлен",
+    "deleted": "Пользователь удалён"
   },
   "notificationsPage": {
     "title": "Уведомления",
@@ -740,6 +764,7 @@
     "statManager": "Менеджер",
     "statManagerNone": "Не назначен",
     "statSellers": "Продавцы",
+    "statManagers": "Менеджеры в штате",
     "statSku": "Товаров (SKU)",
     "statSalesToday": "Продажи сегодня",
     "statProfitToday": "Прибыль сегодня",

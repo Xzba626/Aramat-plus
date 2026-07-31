@@ -66,6 +66,8 @@ export const storeSchema = z.object({
   notifyLowStock: z.boolean().optional(),
   notifyRequests: z.boolean().optional(),
   isArchived: z.boolean().optional(),
+  /** Existing users to bind on create (Stage 3.1) */
+  sellerIds: z.array(z.string().min(1)).optional(),
 });
 
 export const userCreateSchema = z.object({

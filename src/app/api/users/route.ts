@@ -6,15 +6,22 @@ import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity } from "@/lib/services/activity-log.service";
 import bcrypt from "bcryptjs";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const user = await getSessionUser();
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
 
-    // Manager can list, Owner can manage
+    const archived = new URL(req.url).searchParams.get("archived");
     const users = await prisma.user.findMany({
-      where: { companyId: user!.companyId },
+      where: {
+        companyId: user!.companyId,
+        ...(archived === "1"
+          ? { isActive: false }
+          : archived === "all"
+            ? {}
+            : { isActive: true }),
+      },
       select: {
         id: true,
         email: true,
@@ -158,6 +165,28 @@ export async function PATCH(req: Request) {
     });
 
     return jsonOk(updated);
+  } catch (err) {
+    return handleApiError(err);
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const user = await getSessionUser();
+    const denied = requireOwner(user);
+    if (denied) return denied;
+    const id = new URL(req.url).searchParams.get("id");
+    if (!id) return handleApiError(new Error("ID_REQUIRED"));
+    const { hardDeleteUser } = await import(
+      "@/lib/services/store-lifecycle.service"
+    );
+    return jsonOk(
+      await hardDeleteUser({
+        companyId: user!.companyId,
+        userId: id,
+        actorId: user!.id,
+      })
+    );
   } catch (err) {
     return handleApiError(err);
   }

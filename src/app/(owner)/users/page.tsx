@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
+import { LoadingBlock } from "@/components/ui/empty-state";
 import { useT } from "@/components/i18n/i18n-provider";
 import { labelRole, apiErrorMessage } from "@/lib/i18n/labels";
 
@@ -29,28 +30,32 @@ export default function UsersPage() {
   const [resetPass, setResetPass] = useState("");
   const [q, setQ] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
+  const [showArchived, setShowArchived] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   async function load() {
+    setLoading(true);
     const [uRes, sRes] = await Promise.all([
-      fetch("/api/users"),
+      fetch(`/api/users?archived=${showArchived ? "1" : "0"}`),
       fetch("/api/stores"),
     ]);
     const uData = await uRes.json();
     const sData = await sRes.json();
     if (uRes.ok) setUsers(uData);
-    else setError(uData.error || t("usersPage.errorOwner"));
+    else setError(apiErrorMessage(uData.error, t, "usersPage.errorOwner"));
     if (sRes.ok)
       setStores(
         Array.isArray(sData)
           ? sData.filter((s: Store) => s.kind !== "OWNER_DIRECT")
           : []
       );
+    setLoading(false);
   }
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [showArchived]);
 
   async function onCreate(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -103,6 +108,38 @@ export default function UsersPage() {
     setResetPass("");
   }
 
+  async function archiveUser(id: string, isActive: boolean) {
+    setError("");
+    setMsg("");
+    const res = await fetch("/api/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, isActive }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t, "usersPage.errorOwner"));
+      return;
+    }
+    setMsg(isActive ? t("usersPage.restored") : t("usersPage.archivedOk"));
+    load();
+  }
+
+  async function deleteUser(id: string) {
+    setError("");
+    setMsg("");
+    const res = await fetch(`/api/users?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t, "usersPage.errorOwner"));
+      return;
+    }
+    setMsg(t("usersPage.deleted"));
+    load();
+  }
+
   const filtered = users.filter((u) => {
     const matchQ =
       !q.trim() ||
@@ -120,13 +157,23 @@ export default function UsersPage() {
         count={filtered.length || null}
         subtitle={t("usersPage.subtitle")}
         actions={
-          <Button
-            fullWidth={false}
-            type="button"
-            onClick={() => setShowForm((v) => !v)}
-          >
-            {showForm ? t("common.cancel") : t("usersPage.create")}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              fullWidth={false}
+              type="button"
+              variant="secondary"
+              onClick={() => setShowArchived((v) => !v)}
+            >
+              {showArchived ? t("usersPage.showActive") : t("usersPage.showArchive")}
+            </Button>
+            <Button
+              fullWidth={false}
+              type="button"
+              onClick={() => setShowForm((v) => !v)}
+            >
+              {showForm ? t("common.cancel") : t("usersPage.create")}
+            </Button>
+          </div>
         }
       />
 
@@ -213,18 +260,42 @@ export default function UsersPage() {
                   {!u.isActive ? ` · ${t("usersPage.archived")}` : ""}
                 </div>
               </div>
-              <Button
-                type="button"
-                variant="secondary"
-                fullWidth={false}
-                onClick={() => {
-                  setResetId(u.id);
-                  setResetPass("");
-                  setMsg("");
-                }}
-              >
-                {t("usersPage.resetPassword")}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {u.role !== "OWNER" ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      fullWidth={false}
+                      onClick={() => archiveUser(u.id, !u.isActive)}
+                    >
+                      {u.isActive
+                        ? t("usersPage.archive")
+                        : t("usersPage.restore")}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      fullWidth={false}
+                      onClick={() => deleteUser(u.id)}
+                    >
+                      {t("usersPage.deleteSafe")}
+                    </Button>
+                  </>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  fullWidth={false}
+                  onClick={() => {
+                    setResetId(u.id);
+                    setResetPass("");
+                    setMsg("");
+                  }}
+                >
+                  {t("usersPage.resetPassword")}
+                </Button>
+              </div>
             </div>
             {resetId === u.id ? (
               <form
@@ -257,9 +328,10 @@ export default function UsersPage() {
             ) : null}
           </Card>
         ))}
-        {filtered.length === 0 ? (
+        {filtered.length === 0 && !loading ? (
           <p className="py-8 text-center text-muted">{t("usersPage.noUsers")}</p>
         ) : null}
+        {loading ? <LoadingBlock rows={4} /> : null}
       </div>
     </div>
   );

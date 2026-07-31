@@ -1,4 +1,7 @@
 import { AccountingType, type PrismaClient } from "@prisma/client";
+import { resolveAccountingTypeFromProductTypeName } from "@/lib/product-accounting";
+
+export { resolveAccountingTypeFromProductTypeName } from "@/lib/product-accounting";
 
 const DEFAULT_PRODUCT_TYPES = [
   "Парфюм",
@@ -7,8 +10,42 @@ const DEFAULT_PRODUCT_TYPES = [
   "Освежитель воздуха",
   "Часы",
   "Аксессуары",
+  "Подарки",
   "Другое",
 ] as const;
+
+/** Resolve accounting type from productTypeId; null = manual («Другое»). */
+export async function resolveAccountingTypeForProductTypeId(
+  prisma: PrismaClient,
+  companyId: string,
+  productTypeId: string | null | undefined
+): Promise<AccountingType | null> {
+  if (!productTypeId) return null;
+  const pt = await prisma.productType.findFirst({
+    where: { id: productTypeId, companyId },
+    select: { name: true },
+  });
+  if (!pt) throw new Error("PRODUCT_TYPE_NOT_FOUND");
+  return resolveAccountingTypeFromProductTypeName(pt.name);
+}
+
+/**
+ * Final accounting type for create/update.
+ * Known types override client; «Другое» keeps client choice.
+ */
+export async function resolveProductAccountingType(
+  prisma: PrismaClient,
+  companyId: string,
+  productTypeId: string | null | undefined,
+  clientAccountingType: AccountingType
+): Promise<AccountingType> {
+  const mapped = await resolveAccountingTypeForProductTypeId(
+    prisma,
+    companyId,
+    productTypeId
+  );
+  return mapped ?? clientAccountingType;
+}
 
 /** Ensure company has analytics product types (idempotent). */
 export async function ensureDefaultProductTypes(

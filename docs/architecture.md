@@ -17,6 +17,24 @@ Product → Batch → FIFO (deductBatchesFifo) → StockBalance
 
 Services: `src/lib/services/stock.service.ts`, `sale.service.ts`, `transfer.service.ts`.
 
+**Profit formula (stores):**  
+`Net profit = Sales revenue − COGS (FIFO) − Store expenses`
+
+---
+
+## End-to-end data chain (no duplicates)
+
+```
+Warehouse (receive / Batch)
+  → Inventory (StockBalance, transfers, write-offs, revision)
+    → Store (branch stock)
+      → Seller (User.storeId)
+        → Sale (paymentMethod: CASH | CARD | TRANSFER)
+          → Analytics / Reports
+```
+
+Owner must be able to trace stock from central warehouse to a completed sale.
+
 ---
 
 ## ERP modules (Stage 2 IA)
@@ -25,36 +43,44 @@ Navigation reflects modules; **URLs still use legacy `/warehouse/*` paths** unti
 
 | Module | Responsibility | Current routes |
 |--------|----------------|----------------|
-| **Products** | Nomenclature, brands, categories, types | `/warehouse/products`, `/categories`, `/brands`, `/new`, `/[id]` |
-| **Purchases** | Receipts, batches, suppliers (planned) | `/warehouse/receive`, `/batches` |
+| **Products** | Nomenclature, brands, categories, types, accounting rules | `/warehouse/products`, `/categories`, `/brands`, `/new`, `/[id]` |
+| **Purchases** | Receipts, batches, suppliers | `/warehouse/receive`, `/batches` |
 | **Inventory** | Balances, transfers, write-offs, revision, history | `/warehouse`, `/stock`, `/transfers`, `/return-in`, `/write-offs`, `/history`, `/revision` |
-| **Sales** | Owner returns queue; seller POS separate shell | `/returns`; seller `/pos/*` |
-| **Stores** | Branches, OWNER_DIRECT, store settings | `/stores`, `/stores/[id]` |
-| **Users** | Employees, roles — **create only here** | `/users` |
-| **Stores** | Branches; **assign** existing users (no create) | `/stores`, `/stores/[id]?tab=staff` |
-| **Reports** | Analytics / KPI | `/analytics` |
-| **System** | Settings, notifications, journal | `/settings`, `/notifications`, `/journal` |
-| **Packaging** | Bottles (planned Stage 7) | — |
+| **Packaging** | Bottles (not products) — Stage 7 | TBD (`/warehouse/packaging` or `/products/packaging`) |
+| **Sales** | Returns queue; seller POS shell | `/returns`; seller `/pos/*` |
+| **Stores** | Branches, OWNER_DIRECT, expenses, staff **assign** (no user create) | `/stores`, `/stores/[id]` |
+| **Users** | Create/archive employees; optional store on create | `/users` |
+| **Reports** | Analytics, payment mix, KPI | `/analytics` |
+| **System** | Settings, notifications, journal, **safe system reset** (Owner) | `/settings`, … |
 
 Nav source of truth: `src/lib/navigation/owner-nav.ts`, `warehouse-nav.ts`.
 
 ---
 
-## Users ↔ Stores (Stage 3)
+## Users ↔ Stores
 
 ```
-POST /api/users          → create User (OWNER only; storeId optional)
-POST /api/stores/:id/staff { userId } → assign existing user (OWNER)
-DELETE /api/stores/:id/staff?userId=  → unbind (OWNER; Sale history kept)
+POST /api/users                    → create User (OWNER; storeId optional)
+POST /api/stores                   → create Store; may assign existing sellerIds
+POST /api/stores/:id/staff {userId}→ assign (OWNER)
+DELETE /api/stores/:id/staff?...   → unbind (OWNER; Sale history kept)
 ```
 
-Store UI must not create users. Unassigned sellers can still exist (`storeId = null`).
+| Action | Rule |
+|--------|------|
+| Create user | **Only** `/users` |
+| Create store | May pick **existing** sellers to bind |
+| Soft-delete / archive user | Prefer archive if sales history exists; hard delete only if safe |
+| Soft-delete / archive store | Prefer archive if sales/stock/history; hard delete only if empty |
 
+---
+
+## Roles
 
 | Role | Access |
 |------|--------|
-| OWNER | Full owner shell + users |
-| MANAGER | Owner shell without users admin |
+| OWNER | Full owner shell + users + system reset |
+| MANAGER | Owner shell without users admin / reset |
 | SELLER | `/pos/*` only |
 
 RBAC: `src/lib/rbac.ts`, `src/middleware.ts`.
@@ -65,7 +91,7 @@ RBAC: `src/lib/rbac.ts`, `src/middleware.ts`.
 
 ### Purchase → stock
 
-Supplier (planned) → Purchase receipt UI → `addBatch` → Batch + StockBalance (WAREHOUSE).
+Supplier → Purchase receipt UI → `addBatch` → Batch + StockBalance (WAREHOUSE).
 
 ### Transfer
 
@@ -73,15 +99,20 @@ Warehouse Batch FIFO → Transfer → new Batch at STORE + StockBalance.
 
 ### Sale (piece / weight)
 
-POS cart → `POST /api/sales` → `createSale` → FIFO at STORE (or WAREHOUSE for OWNER_DIRECT).
+POS cart → `POST /api/sales` → `createSale` → FIFO + `paymentMethod`.
 
-### Decant sale (planned Stage 7)
+### Decant sale (Stage 7)
 
-Product (oil, WEIGHT) + Packaging (bottle, PIECE) → one TX, two FIFO deducts.
+Product (oil, WEIGHT) + Packaging (bottle, PIECE) → **one TX, two FIFO deducts**.  
+If either fails → full rollback.
 
 ### Return
 
-SaleReturn request → Owner approve → stock restore via `addBatch` → Sale `RETURNED`.
+SaleReturn → approve → stock restore → Sale `RETURNED`.
+
+### Store expenses
+
+Per-store expenses (rent, salary, utilities, …) → reduce store net profit in analytics.
 
 ---
 
@@ -89,27 +120,47 @@ SaleReturn request → Owner approve → stock restore via `addBatch` → Sale `
 
 | Layer | Location | Rule |
 |-------|----------|------|
-| UI | `src/app`, `src/components` | Display + forms only |
+| UI | `src/app`, `src/components` | Display + forms; loading ≠ empty |
 | API | `src/app/api` | Auth, validate, call services |
 | Services | `src/lib/services` | Business rules, transactions |
 | DB | `prisma/schema.prisma` | Persistence |
 
-Do not put FIFO / profit / stock mutation logic in React components.
+Do not put FIFO / profit / stock mutation logic in React components.  
+Empty states only after fetch completes with zero rows (use skeleton / loading first).
 
 ---
 
-## Planned stages
+## Staged roadmap (approved + extensions)
 
-1. ~~Audit~~  
-2. **Navigation + module boundaries** (this doc)  
-3. Users + Stores (assign existing sellers)  
-4. ProductType → AccountingType  
-5. Purchases + Supplier + Warehouse KPI  
-6. Inventory + Revision cycle  
-7. Packaging + POS + mobile-first  
-8. Cart persistence + idempotency  
-9. Design system  
-10. Performance + cleanup  
+Done:
+
+1. ~~Full audit~~  
+2. ~~Navigation + module boundaries~~  
+3. ~~Users create-only + store assign/unbind~~  
+3.1 ~~Users ↔ Stores complete~~ (create store + staff; archive/safe-delete; dates; loading ≠ empty)
+4. ~~ProductType → AccountingType~~ (`src/lib/product-accounting.ts`; enforced on POST/PATCH products)
+
+Next (order preserved; extensions slotted in):
+
+| Stage | Scope | Includes new requirements |
+|-------|--------|---------------------------|
+| **5** | Purchases + Supplier + Warehouse KPI | Supplier entity; receive flow; warehouse financial KPIs |
+| **5.1** | Stores depth | Store card metrics (open date, SKU, sellers/managers, stock, today sales/profit/expenses/net); **full store expenses** categories |
+| **6** | Inventory + Revision | Full revision cycle; chain Warehouse→…→Sale audit |
+| **7** | Packaging + POS + mobile-first | Bottles CRUD/archive/stock; decant sale (oil+bottle); mobile POS |
+| **8** | Cart persistence + idempotency | IndexedDB drafts; `clientRequestId`; request states |
+| **9** | Design system + loading UX | Tokens; **skeleton loading**; never flash “empty” while loading |
+| **10** | Performance + Reports polish + System reset | Payment analytics (cash/card/transfer); list virtualization; **Owner system wipe** (phrase confirm, one TX, keep settings) |
+
+---
+
+## Stage 10 — System reset (Owner only)
+
+**Wipe:** products, batches, stock, sales, returns, transfers, movements, expenses, stores (non–owner-direct policy TBD), non-Owner users, derived analytics.  
+
+**Keep:** app settings, roles config, locales, design tokens, company shell, Owner account.  
+
+**UI:** warning → confirm → type phrase → single transaction → no accidental trigger.
 
 ---
 
@@ -120,3 +171,6 @@ npx tsc --noEmit
 npm run build
 npm run smoke:cycle
 ```
+
+Before coding each stage: file list + risk note.  
+No FIFO rewrites. No parallel business logic. No UI-only rules.

@@ -1,19 +1,27 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager } from "@/lib/rbac";
+import { requireOwner, requireOwnerOrManager } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { storeSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity, requestAuditMeta } from "@/lib/services/activity-log.service";
 import { listStoresForCompany } from "@/lib/services/stores-list.service";
-import { StoreKind, StoreStatus } from "@prisma/client";
+import {
+  archiveStore,
+  createBranchStore,
+  hardDeleteStore,
+} from "@/lib/services/store-lifecycle.service";
 import { isOwnerDirect } from "@/lib/services/owner-direct.service";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const user = await getSessionUser();
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
-    const rows = await listStoresForCompany(user!.companyId);
+    const includeArchived =
+      new URL(req.url).searchParams.get("archived") === "1";
+    const rows = await listStoresForCompany(user!.companyId, {
+      includeArchived,
+    });
     return jsonOk(rows);
   } catch (err) {
     return handleApiError(err);
@@ -23,30 +31,18 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
-    const denied = requireOwnerOrManager(user);
+    const denied = requireOwner(user);
     if (denied) return denied;
 
     const body = storeSchema.parse(await req.json());
-    const store = await prisma.store.create({
-      data: {
-        name: body.name,
-        address: body.address ?? null,
-        phone: body.phone ?? null,
-        workingHours: body.workingHours ?? null,
-        companyId: user!.companyId,
-        isActive: body.isActive ?? true,
-        kind: StoreKind.BRANCH,
-        status: StoreStatus.ACTIVE,
-        openedAt: new Date(),
-      },
-    });
-    await logActivity({
-      userId: user!.id,
+    const store = await createBranchStore({
       companyId: user!.companyId,
-      action: "STORE_CREATE",
-      entityType: "Store",
-      entityId: store.id,
-      comment: store.name,
+      actorId: user!.id,
+      name: body.name,
+      address: body.address,
+      phone: body.phone,
+      managerId: body.managerId ?? null,
+      sellerIds: body.sellerIds ?? [],
     });
     return jsonOk(store, 201);
   } catch (err) {
@@ -74,9 +70,28 @@ export async function PATCH(req: Request) {
       return handleApiError(new Error("VALIDATION_ERROR"));
     }
 
-    // Удаление запрещено — только архив
     if (data.delete === true) {
-      return handleApiError(new Error("ARCHIVE_ONLY"));
+      const ownerDenied = requireOwner(user);
+      if (ownerDenied) return ownerDenied;
+      return jsonOk(
+        await hardDeleteStore({
+          companyId: user!.companyId,
+          storeId: id,
+          actorId: user!.id,
+        })
+      );
+    }
+
+    if (typeof data.isArchived === "boolean" && data.isArchived !== existing.isArchived) {
+      const ownerDenied = requireOwner(user);
+      if (ownerDenied) return ownerDenied;
+      const updated = await archiveStore({
+        companyId: user!.companyId,
+        storeId: id,
+        actorId: user!.id,
+        archive: data.isArchived,
+      });
+      return jsonOk(updated);
     }
 
     const oldSnapshot = {
@@ -96,12 +111,6 @@ export async function PATCH(req: Request) {
           body.workingHours === undefined ? undefined : body.workingHours,
         isActive: body.isActive,
         status: body.status,
-        isArchived:
-          typeof body.isArchived === "boolean"
-            ? body.isArchived
-            : typeof data.isArchived === "boolean"
-              ? data.isArchived
-              : undefined,
         managerId: body.managerId === undefined ? undefined : body.managerId,
         notifyLowStock: body.notifyLowStock,
         notifyRequests: body.notifyRequests,
@@ -130,6 +139,25 @@ export async function PATCH(req: Request) {
     });
 
     return jsonOk(store);
+  } catch (err) {
+    return handleApiError(err);
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const user = await getSessionUser();
+    const denied = requireOwner(user);
+    if (denied) return denied;
+    const id = new URL(req.url).searchParams.get("id");
+    if (!id) return handleApiError(new Error("ID_REQUIRED"));
+    return jsonOk(
+      await hardDeleteStore({
+        companyId: user!.companyId,
+        storeId: id,
+        actorId: user!.id,
+      })
+    );
   } catch (err) {
     return handleApiError(err);
   }
