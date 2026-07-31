@@ -25,16 +25,16 @@ export async function createSale(params: {
   paymentMethod?: string;
   notes?: string;
 }) {
-  if (!params.items.length) throw new Error("Добавьте хотя бы один товар");
+  if (!params.items.length) throw new Error("EMPTY_CART");
 
   for (const line of params.items) {
     if (!(line.quantity > 0)) {
-      throw new Error("Количество должно быть больше нуля");
+      throw new Error("QTY_MUST_BE_POSITIVE");
     }
   }
 
   const discount = new Prisma.Decimal(params.discountAmount ?? 0);
-  if (discount.lt(0)) throw new Error("Скидка не может быть отрицательной");
+  if (discount.lt(0)) throw new Error("NEGATIVE_DISCOUNT");
 
   const productIds = [...new Set(params.items.map((i) => i.productId))];
 
@@ -71,15 +71,15 @@ export async function createSale(params: {
     }),
   ]);
 
-  if (!store) throw new Error("Магазин не найден");
-  if (!seller) throw new Error("Продавец не найден");
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (!seller) throw new Error("USER_NOT_FOUND");
 
   if (seller.role === "SELLER") {
     if (!seller.storeId || seller.storeId !== store.id) {
-      throw new Error("Продавец может продавать только в своём магазине");
+      throw new Error("SELLER_WRONG_STORE");
     }
     if (store.kind !== StoreKind.BRANCH) {
-      throw new Error("Seller POS работает только с филиалом");
+      throw new Error("SELLER_POS_BRANCH_ONLY");
     }
   }
 
@@ -91,7 +91,7 @@ export async function createSale(params: {
       where: { companyId: params.companyId, isActive: true },
       select: { id: true },
     });
-    if (!warehouse) throw new Error("Центральный склад не найден");
+    if (!warehouse) throw new Error("WAREHOUSE_MISSING");
     locationType = LocationType.WAREHOUSE;
     locationId = warehouse.id;
   } else {
@@ -149,7 +149,7 @@ export async function createSale(params: {
       }
 
       if (discount.gt(subtotal)) {
-        throw new Error("Скидка больше суммы продажи");
+        throw new Error("DISCOUNT_EXCEEDS_TOTAL");
       }
 
       const total = subtotal.sub(discount);
@@ -205,7 +205,7 @@ export async function createSale(params: {
     action: "SALE_CREATE",
     entityType: "Sale",
     entityId: committed.sale.id,
-    comment: `${store.name} · ${decimalToNumber(committed.total)} с.`,
+    comment: `${store.name} · ${decimalToNumber(committed.total)}`,
     metadata: {
       storeId: store.id,
       locationType,

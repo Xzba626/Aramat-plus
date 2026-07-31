@@ -19,7 +19,7 @@ const MOCK: Notif[] = [
   {
     id: "1",
     titleKey: "pos.discountApproved",
-    message: "Dior Sauvage −10%",
+    messageKey: "pos.mockDiscountMsg",
     timeKey: "pos.timeToday",
     unread: true,
     kind: "action",
@@ -27,7 +27,7 @@ const MOCK: Notif[] = [
   {
     id: "2",
     titleKey: "pos.lowStockTitle",
-    message: "Chanel Bleu · 25 мл",
+    messageKey: "pos.mockStockMsg",
     timeKey: "pos.timeToday",
     unread: true,
     kind: "stock",

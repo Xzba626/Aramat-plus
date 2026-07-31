@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { apiErrorMessage } from "@/lib/i18n/labels";
 import { cn } from "@/lib/utils";
 
 type Batch = {
@@ -58,7 +59,7 @@ export default function ProductDetailPage() {
       setProduct(data);
       setNewSalePrice(String(data.salePrice));
     } else {
-      setError(data.error || t("common.error"));
+      setError(apiErrorMessage(data.error, t));
     }
   }
 
@@ -67,7 +68,9 @@ export default function ProductDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const unit = product?.unit?.symbol ?? (product?.accountingType === "WEIGHT" ? "мл" : "шт");
+  const unit =
+    product?.unit?.symbol ??
+    (product?.accountingType === "WEIGHT" ? t("units.ml") : t("units.pcs"));
 
   const warehouseQty = useMemo(() => {
     if (!product) return 0;
@@ -112,7 +115,7 @@ export default function ProductDetailPage() {
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error || t("common.error"));
+      setError(apiErrorMessage(data.error, t));
       return;
     }
 

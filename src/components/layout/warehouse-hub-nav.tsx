@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { WAREHOUSE_SUBNAV } from "@/lib/navigation/owner-nav";
+import {
+  WAREHOUSE_INTERNAL_NAV,
+  isWarehouseNavActive,
+} from "@/lib/navigation/warehouse-nav";
+import { useT } from "@/components/i18n/i18n-provider";
 
 const HUB_SEGMENTS = new Set([
   "products",
@@ -19,8 +23,10 @@ const HUB_SEGMENTS = new Set([
   "archive",
 ]);
 
+/** Desktop hub chips for warehouse-area routes (i18n labels). */
 export function WarehouseHubNav() {
   const pathname = usePathname();
+  const t = useT();
   const parts = pathname.split("/").filter(Boolean);
   const second = parts[1];
   const show =
@@ -29,12 +35,12 @@ export function WarehouseHubNav() {
   if (!show) return null;
 
   return (
-    <div className="mb-6 -mx-1 flex gap-1 overflow-x-auto pb-1">
-      {WAREHOUSE_SUBNAV.map((tab) => {
-        const active =
-          tab.href === "/warehouse"
-            ? pathname === "/warehouse" || pathname === "/warehouse/"
-            : pathname === tab.href || pathname.startsWith(tab.href + "/");
+    <nav
+      className="mb-6 -mx-1 flex gap-1 overflow-x-auto pb-1"
+      aria-label={t("nav.subnavModules")}
+    >
+      {WAREHOUSE_INTERNAL_NAV.map((tab) => {
+        const active = isWarehouseNavActive(pathname, tab.href);
         return (
           <Link
             key={tab.href}
@@ -46,10 +52,10 @@ export function WarehouseHubNav() {
                 : "bg-card text-muted ring-1 ring-border hover:text-ink"
             )}
           >
-            {tab.label}
+            {t(tab.labelKey)}
           </Link>
         );
       })}
-    </div>
+    </nav>
   );
 }

@@ -67,7 +67,7 @@ export async function createSaleReturn(params: {
   await notifyCompanyRoles({
     companyId: params.companyId,
     type: "RETURN_REQUEST",
-    title: "Запрос на возврат",
+    title: "notif.returnRequest",
     message: `${requester.name} · ${sale.store.name} · ${productNames || sale.id}`,
     entityType: "SaleReturn",
     entityId: ret.id,
@@ -124,8 +124,8 @@ export async function decideSaleReturn(params: {
     await notifyUser({
       userId: existing.requesterId,
       type: "SYSTEM",
-      title: "Возврат отклонён",
-      message: params.note?.trim() || `Возврат по продаже ${existing.saleId.slice(-8)} отклонён`,
+      title: "notif.returnRejected",
+      message: params.note?.trim() || existing.saleId.slice(-8),
       entityType: "SaleReturn",
       entityId: existing.id,
     });
@@ -159,7 +159,7 @@ export async function decideSaleReturn(params: {
           locationId,
           quantity: item.quantity,
           costPerUnit: item.costPerUnit,
-          notes: `Возврат продажи ${existing.saleId}`,
+          notes: `sale_return:${existing.saleId}`,
         });
       }
 
@@ -199,10 +199,11 @@ export async function decideSaleReturn(params: {
   await notifyUser({
     userId: existing.requesterId,
     type: "SYSTEM",
-    title: "Возврат одобрен",
-    message: `Товар возвращён на ${
-      locationType === LocationType.WAREHOUSE ? "склад" : "остаток магазина"
-    }`,
+    title:
+      locationType === LocationType.WAREHOUSE
+        ? "notif.returnApprovedWarehouse"
+        : "notif.returnApprovedStore",
+    message: existing.saleId.slice(-8),
     entityType: "SaleReturn",
     entityId: existing.id,
   });

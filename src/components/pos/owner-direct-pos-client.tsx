@@ -81,7 +81,7 @@ export function OwnerDirectPosClient({
       name: b.product.name,
       brand: b.product.brand?.name ?? "—",
       category: b.product.category?.name ?? "—",
-      unit: b.product.unit?.symbol ?? "шт",
+      unit: b.product.unit?.symbol ?? "",
       salePrice: decimalToNumber(b.product.salePrice as never),
       quantity: decimalToNumber(b.quantity as never),
     }));
@@ -222,7 +222,9 @@ export function OwnerDirectPosClient({
     <div className="space-y-5">
       <PageHeader
         title={t("pos.ownerDirectTitle")}
-        subtitle={t("pos.ownerDirectSubtitle", { store: storeName })}
+        subtitle={t("pos.ownerDirectSubtitle", {
+          store: t("nav.storesOwnerDirect"),
+        })}
         actions={
           <Link
             href={`/stores/${storeId}`}

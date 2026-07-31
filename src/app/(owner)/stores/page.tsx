@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { labelStoreStatus } from "@/lib/i18n/labels";
+import { labelStoreStatus, apiErrorMessage } from "@/lib/i18n/labels";
 
 type StoreCard = {
   id: string;
@@ -39,7 +39,7 @@ export default function StoresPage() {
     const res = await fetch("/api/stores");
     const data = await res.json();
     if (res.ok) setStores(data);
-    else setError(data.error || t("storesPage.error"));
+    else setError(apiErrorMessage(data.error, t, "storesPage.error"));
   }
 
   useEffect(() => {
@@ -87,7 +87,7 @@ export default function StoresPage() {
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error || t("storesPage.error"));
+      setError(apiErrorMessage(data.error, t, "storesPage.error"));
       return;
     }
     setShowForm(false);

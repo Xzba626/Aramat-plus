@@ -28,7 +28,7 @@ export default auth((req) => {
 
   if (!isLoggedIn) {
     if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
     }
     const login = new URL("/login", req.url);
     login.searchParams.set(

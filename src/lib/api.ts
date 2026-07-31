@@ -13,7 +13,7 @@ export function jsonError(message: string, status = 400) {
 /** Never leak raw Prisma / stack traces to the client. */
 export function handleApiError(err: unknown) {
   if (err instanceof ZodError) {
-    return jsonError(err.issues.map((i) => i.message).join("; "), 400);
+    return jsonError("VALIDATION_ERROR", 400);
   }
 
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
@@ -39,16 +39,27 @@ export function handleApiError(err: unknown) {
     console.error("[api]", err.message, err.stack);
     const safeCodes = new Set([
       "ARCHIVE_ONLY",
+      "BATCH_QTY_MUST_BE_POSITIVE",
+      "BRANCH_NOT_FOUND",
       "BRAND_NAME_REQUIRED",
       "BRAND_NOT_FOUND",
       "COST_REQUIRED_FOR_STOCK",
+      "DISCOUNT_EXCEEDS_TOTAL",
+      "EMPTY_CART",
       "FORBIDDEN",
       "ID_REQUIRED",
+      "INSUFFICIENT_BATCH_STOCK",
+      "INSUFFICIENT_STOCK",
+      "NEGATIVE_DISCOUNT",
       "NOT_FOUND",
       "PRODUCT_NOT_FOUND",
+      "QTY_MUST_BE_POSITIVE",
       "RETURN_ALREADY_PENDING",
       "SELLER_NO_STORE",
+      "SELLER_POS_BRANCH_ONLY",
+      "SELLER_WRONG_STORE",
       "STORE_NOT_FOUND",
+      "TRANSFER_BRANCH_ONLY",
       "UNAUTHORIZED",
       "USER_NOT_FOUND",
       "VALIDATION_ERROR",
@@ -61,16 +72,22 @@ export function handleApiError(err: unknown) {
           ? 401
           : err.message === "FORBIDDEN"
             ? 403
-            : err.message === "NOT_FOUND"
+            : err.message === "NOT_FOUND" ||
+                err.message === "PRODUCT_NOT_FOUND" ||
+                err.message === "STORE_NOT_FOUND" ||
+                err.message === "BRANCH_NOT_FOUND" ||
+                err.message === "USER_NOT_FOUND" ||
+                err.message === "BRAND_NOT_FOUND" ||
+                err.message === "WAREHOUSE_MISSING"
               ? 404
               : 400;
       return jsonError(err.message, status);
     }
-    // Don't forward Prisma-looking messages
+    // Never forward raw / localized / Prisma messages to the client
     if (/prisma|invocation|column|relation/i.test(err.message)) {
       return jsonError("DB_ERROR", 500);
     }
-    return jsonError(err.message, 400);
+    return jsonError("INTERNAL_ERROR", 500);
   }
 
   console.error("[api] Unknown error", err);

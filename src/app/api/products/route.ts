@@ -77,17 +77,10 @@ export async function GET(req: Request) {
           : min > 0 && qty <= min
             ? ("low" as const)
             : ("active" as const);
-      const statusLabels: Record<typeof statusKey, string> = {
-        archived: "Архив",
-        empty: "Отсутствует",
-        low: "Заканчивается",
-        active: "Активен",
-      };
       return {
         ...p,
         warehouseQty: qty,
         statusKey,
-        statusLabel: statusLabels[statusKey],
       };
     });
 

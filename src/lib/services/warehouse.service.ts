@@ -127,7 +127,7 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
     recentReceipts: receipts.map((r) => ({
       id: r.id,
       createdAt: r.createdAt,
-      userName: r.user?.name ?? "Система",
+      userName: r.user?.name ?? "",
       comment: r.comment,
     })),
     recentTransfers: transfers.map((t) => ({
@@ -141,7 +141,7 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
     recentReturns: returns.map((r) => ({
       id: r.id,
       createdAt: r.createdAt,
-      userName: r.user?.name ?? "Система",
+      userName: r.user?.name ?? "",
       comment: r.comment,
     })),
   };
@@ -233,7 +233,7 @@ export async function getWarehouseStockBreakdown(companyId: string, showFinance:
       row.storeQty += qty;
       row.stores.push({
         storeId: b.locationId,
-        storeName: storeMap.get(b.locationId) ?? "Магазин",
+        storeName: storeMap.get(b.locationId) ?? "",
         qty,
       });
     }

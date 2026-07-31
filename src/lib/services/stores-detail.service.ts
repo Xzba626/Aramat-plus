@@ -8,6 +8,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 import { ensureOwnerDirectStore } from "@/lib/services/owner-direct.service";
+import { logActivity } from "@/lib/services/activity-log.service";
 
 export type StockRowStatus = "OK" | "LOW" | "OUT";
 
@@ -57,7 +58,7 @@ async function resolveLocation(companyId: string, storeId: string) {
 export async function getStoreDetail(companyId: string, storeId: string) {
   await ensureOwnerDirectStore(companyId);
   const loc = await resolveLocation(companyId, storeId);
-  if (!loc) throw new Error("Торговая точка не найдена");
+  if (!loc) throw new Error("STORE_NOT_FOUND");
 
   const { store, locationType, locationId, warehouseName } = loc;
   const now = new Date();
@@ -190,7 +191,7 @@ export async function getStoreStockPaged(
   query: StockQuery
 ) {
   const loc = await resolveLocation(companyId, storeId);
-  if (!loc) throw new Error("Торговая точка не найдена");
+  if (!loc) throw new Error("STORE_NOT_FOUND");
   if (!loc.locationId) {
     return { items: [], total: 0, page: 1, pageSize: 20, pages: 0 };
   }
@@ -285,7 +286,7 @@ export async function getStoreStaff(companyId: string, storeId: string) {
   const store = await prisma.store.findFirst({
     where: { id: storeId, companyId, kind: StoreKind.BRANCH },
   });
-  if (!store) throw new Error("Филиал не найден");
+  if (!store) throw new Error("BRANCH_NOT_FOUND");
 
   const users = await prisma.user.findMany({
     where: {
@@ -331,6 +332,150 @@ export async function getStoreStaff(companyId: string, storeId: string) {
   return enriched;
 }
 
+/** Active sellers/managers eligible to bind to this branch (not already on it). */
+export async function listAssignableStaff(companyId: string, storeId: string) {
+  const store = await prisma.store.findFirst({
+    where: { id: storeId, companyId, kind: StoreKind.BRANCH },
+  });
+  if (!store) throw new Error("BRANCH_NOT_FOUND");
+
+  return prisma.user.findMany({
+    where: {
+      companyId,
+      isActive: true,
+      role: { in: [Role.SELLER, Role.MANAGER] },
+      OR: [{ storeId: null }, { storeId: { not: storeId } }],
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      storeId: true,
+      store: { select: { id: true, name: true } },
+    },
+    orderBy: { name: "asc" },
+  });
+}
+
+/** Bind existing user to branch. Does not create users. */
+export async function assignStoreStaff(params: {
+  companyId: string;
+  storeId: string;
+  userId: string;
+  actorId: string;
+}) {
+  const store = await prisma.store.findFirst({
+    where: {
+      id: params.storeId,
+      companyId: params.companyId,
+      kind: StoreKind.BRANCH,
+      isArchived: false,
+    },
+  });
+  if (!store) throw new Error("BRANCH_NOT_FOUND");
+
+  const target = await prisma.user.findFirst({
+    where: { id: params.userId, companyId: params.companyId },
+  });
+  if (!target) throw new Error("USER_NOT_FOUND");
+  if (target.role === Role.OWNER) throw new Error("FORBIDDEN");
+  if (target.role !== Role.SELLER && target.role !== Role.MANAGER) {
+    throw new Error("FORBIDDEN");
+  }
+
+  if (target.storeId === store.id) {
+    return {
+      id: target.id,
+      name: target.name,
+      email: target.email,
+      role: target.role,
+      storeId: target.storeId,
+      isActive: target.isActive,
+    };
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: target.id },
+    data: { storeId: store.id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      storeId: true,
+      isActive: true,
+    },
+  });
+
+  await logActivity({
+    userId: params.actorId,
+    companyId: params.companyId,
+    action: "USER_UPDATE",
+    entityType: "User",
+    entityId: updated.id,
+    comment: `assign:${store.name}`,
+    metadata: {
+      storeId: store.id,
+      oldStoreId: target.storeId,
+      newStoreId: store.id,
+    },
+  });
+
+  return updated;
+}
+
+/** Remove store binding. User and sales history remain. */
+export async function unassignStoreStaff(params: {
+  companyId: string;
+  storeId: string;
+  userId: string;
+  actorId: string;
+}) {
+  const store = await prisma.store.findFirst({
+    where: { id: params.storeId, companyId: params.companyId, kind: StoreKind.BRANCH },
+  });
+  if (!store) throw new Error("BRANCH_NOT_FOUND");
+
+  const target = await prisma.user.findFirst({
+    where: {
+      id: params.userId,
+      companyId: params.companyId,
+      storeId: params.storeId,
+    },
+  });
+  if (!target) throw new Error("USER_NOT_FOUND");
+
+  const updated = await prisma.user.update({
+    where: { id: target.id },
+    data: { storeId: null },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      storeId: true,
+      isActive: true,
+    },
+  });
+
+  await logActivity({
+    userId: params.actorId,
+    companyId: params.companyId,
+    action: "USER_UPDATE",
+    entityType: "User",
+    entityId: updated.id,
+    comment: `unassign:${store.name}`,
+    metadata: {
+      storeId: store.id,
+      oldStoreId: params.storeId,
+      newStoreId: null,
+    },
+  });
+
+  return updated;
+}
+
 export async function getStoreSalesHistory(
   companyId: string,
   storeId: string,
@@ -338,7 +483,7 @@ export async function getStoreSalesHistory(
   pageSize = 20
 ) {
   const store = await prisma.store.findFirst({ where: { id: storeId, companyId } });
-  if (!store) throw new Error("Торговая точка не найдена");
+  if (!store) throw new Error("STORE_NOT_FOUND");
 
   const where = { storeId };
   const [total, rows] = await Promise.all([
@@ -383,7 +528,7 @@ export async function getStoreSalesHistory(
 
 export async function getStoreDiscountHistory(companyId: string, storeId: string) {
   const store = await prisma.store.findFirst({ where: { id: storeId, companyId } });
-  if (!store) throw new Error("Торговая точка не найдена");
+  if (!store) throw new Error("STORE_NOT_FOUND");
 
   const rows = await prisma.discountRequest.findMany({
     where: {
@@ -416,7 +561,7 @@ export async function getStoreDiscountHistory(companyId: string, storeId: string
 
 export async function getStoreReturnHistory(companyId: string, storeId: string) {
   const store = await prisma.store.findFirst({ where: { id: storeId, companyId } });
-  if (!store) throw new Error("Торговая точка не найдена");
+  if (!store) throw new Error("STORE_NOT_FOUND");
 
   const rows = await prisma.saleReturn.findMany({
     where: { sale: { storeId } },
@@ -459,7 +604,7 @@ export async function getStoreRevisions(
   const store = await prisma.store.findFirst({
     where: { id: storeId, companyId, kind: StoreKind.BRANCH },
   });
-  if (!store) throw new Error("Филиал не найден");
+  if (!store) throw new Error("BRANCH_NOT_FOUND");
 
   const sessions = await prisma.inventorySession.findMany({
     where: { storeId },
@@ -530,7 +675,7 @@ export async function getStoreRequests(
   status?: "PENDING" | "APPROVED" | "REJECTED" | "ALL"
 ) {
   const store = await prisma.store.findFirst({ where: { id: storeId, companyId } });
-  if (!store) throw new Error("Торговая точка не найдена");
+  if (!store) throw new Error("STORE_NOT_FOUND");
 
   const st = status && status !== "ALL" ? status : undefined;
 
@@ -566,7 +711,7 @@ export async function getStoreRequests(
       status: d.status,
       createdAt: d.createdAt,
       requester: d.requester,
-      summary: `${decimalToNumber(d.amount)} с. · ${d.reason ?? "—"}`,
+      summary: `${decimalToNumber(d.amount)} · ${d.reason ?? "—"}`,
     })),
     ...returns.map((r) => ({
       id: r.id,
@@ -574,9 +719,9 @@ export async function getStoreRequests(
       status: r.status,
       createdAt: r.createdAt,
       requester: r.requester,
-      summary: r.reason ?? "Возврат",
+      summary: r.reason ?? "",
     })),
   ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-  return { items, writeOffsNote: "Запросы списаний появятся в модуле склада (write-off)." };
+  return { items, writeOffsNoteKey: "storeDetail.writeOffsHint" };
 }

@@ -61,8 +61,8 @@ export async function createDiscountRequest(params: {
   await notifyCompanyRoles({
     companyId: params.companyId,
     type: "DISCOUNT_REQUEST",
-    title: "Запрос скидки",
-    message: `${requester.name} · ${params.amount} с.${
+    title: "notif.discountRequest",
+    message: `${requester.name} · ${params.amount}${
       params.percent != null ? ` (${params.percent}%)` : ""
     }`,
     entityType: "DiscountRequest",
@@ -115,10 +115,12 @@ export async function decideDiscountRequest(params: {
     userId: existing.requesterId,
     type: "SYSTEM",
     title:
-      params.decision === "APPROVE" ? "Скидка одобрена" : "Скидка отклонена",
+      params.decision === "APPROVE"
+        ? "notif.discountApproved"
+        : "notif.discountRejected",
     message:
       params.note?.trim() ||
-      `Запрос на ${decimalToNumber(existing.amount)} с. — ${status}`,
+      `${decimalToNumber(existing.amount)}`,
     entityType: "DiscountRequest",
     entityId: existing.id,
   });

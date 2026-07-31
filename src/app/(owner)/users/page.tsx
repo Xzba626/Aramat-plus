@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
 import { useT } from "@/components/i18n/i18n-provider";
-import { labelRole } from "@/lib/i18n/labels";
+import { labelRole, apiErrorMessage } from "@/lib/i18n/labels";
 
 type UserRow = {
   id: string;
@@ -72,7 +72,7 @@ export default function UsersPage() {
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error || t("usersPage.errorOwner"));
+      setError(apiErrorMessage(data.error, t, "usersPage.errorOwner"));
       return;
     }
     setMsg(t("usersPage.created"));
@@ -95,7 +95,7 @@ export default function UsersPage() {
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error || t("usersPage.resetFail"));
+      setError(apiErrorMessage(data.error, t, "usersPage.resetFail"));
       return;
     }
     setMsg(t("usersPage.passwordUpdated"));
@@ -162,13 +162,14 @@ export default function UsersPage() {
             <div>
               <FieldLabel>{t("usersPage.storeForSeller")}</FieldLabel>
               <select name="storeId" className="w-full" defaultValue="">
-                <option value="">—</option>
+                <option value="">{t("usersPage.storeOptional")}</option>
                 {stores.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>
                 ))}
               </select>
+              <p className="mt-1 text-xs text-muted">{t("usersPage.storeAssignHint")}</p>
             </div>
             <Button type="submit">{t("common.save")}</Button>
           </form>

@@ -6,11 +6,14 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   BarChart3,
+  Boxes,
   Home,
   Package,
+  PackagePlus,
   Settings,
+  ShoppingBag,
   Store,
-  Warehouse,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import { Role } from "@prisma/client";
@@ -25,10 +28,17 @@ import { useT } from "@/components/i18n/i18n-provider";
 
 const ICONS: Record<string, LucideIcon> = {
   home: Home,
-  warehouse: Warehouse,
+  products: Package,
+  purchases: PackagePlus,
+  inventory: Boxes,
+  sales: ShoppingBag,
   stores: Store,
-  analytics: BarChart3,
+  users: Users,
+  reports: BarChart3,
   settings: Settings,
+  // legacy aliases
+  warehouse: Boxes,
+  analytics: BarChart3,
 };
 
 function NavIcon({ name }: { name: string }) {

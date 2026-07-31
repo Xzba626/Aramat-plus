@@ -31,7 +31,7 @@ export async function POST(req: Request) {
       action: "PASSWORD_RESET",
       entityType: "User",
       entityId: target.id,
-      comment: `Сброс пароля для ${target.name}`,
+      comment: `password_reset:${target.name}`,
     });
 
     return jsonOk({ ok: true });

@@ -16,10 +16,10 @@ export async function createStoreReturnIn(params: {
   reason?: string;
   items: ReturnInLine[];
 }) {
-  if (!params.items.length) throw new Error("Добавьте хотя бы один товар");
+  if (!params.items.length) throw new Error("EMPTY_CART");
 
   const warehouse = await getCentralWarehouse(params.companyId);
-  if (!warehouse) throw new Error("Центральный склад не найден");
+  if (!warehouse) throw new Error("WAREHOUSE_MISSING");
 
   const store = await prisma.store.findFirst({
     where: {
@@ -30,7 +30,7 @@ export async function createStoreReturnIn(params: {
       isArchived: false,
     },
   });
-  if (!store) throw new Error("Филиал не найден");
+  if (!store) throw new Error("BRANCH_NOT_FOUND");
 
   const operationId = `ret-${Date.now()}`;
 
@@ -39,12 +39,12 @@ export async function createStoreReturnIn(params: {
 
     for (const line of params.items) {
       const qty = new Prisma.Decimal(line.quantity);
-      if (qty.lte(0)) throw new Error("Количество должно быть больше нуля");
+      if (qty.lte(0)) throw new Error("QTY_MUST_BE_POSITIVE");
 
       const product = await tx.product.findFirst({
         where: { id: line.productId, companyId: params.companyId, isActive: true },
       });
-      if (!product) throw new Error(`Товар не найден: ${line.productId}`);
+      if (!product) throw new Error("PRODUCT_NOT_FOUND");
 
       const consumed = await deductBatchesFifo(tx, {
         productId: line.productId,
@@ -60,7 +60,7 @@ export async function createStoreReturnIn(params: {
           locationId: warehouse.id,
           quantity: slice.quantity,
           costPerUnit: slice.costPerUnit,
-          notes: `Возврат из ${store.name}${params.reason ? `: ${params.reason}` : ""}`,
+          notes: `warehouse_return:${store.id}${params.reason ? `:${params.reason}` : ""}`,
         });
       }
 

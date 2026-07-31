@@ -35,7 +35,9 @@
     "store": "Магазин",
     "seller": "Продавец",
     "breadcrumb": "Навигация",
-    "error": "Ошибка"
+    "error": "Ошибка",
+    "system": "Система",
+    "storeFallback": "Магазин"
   },
   "errors": {
     "RECORD_EXISTS": "Такая запись уже есть",
@@ -57,7 +59,18 @@
     "ID_REQUIRED": "Укажите идентификатор",
     "ARCHIVE_ONLY": "Удаление запрещено. Используйте архивацию.",
     "FORBIDDEN": "Недостаточно прав",
-    "RETURN_ALREADY_PENDING": "По этой продаже уже есть запрос на возврат"
+    "RETURN_ALREADY_PENDING": "По этой продаже уже есть запрос на возврат",
+    "INSUFFICIENT_STOCK": "Недостаточно остатка на складе",
+    "INSUFFICIENT_BATCH_STOCK": "Недостаточно остатка по партиям",
+    "QTY_MUST_BE_POSITIVE": "Количество должно быть больше нуля",
+    "BATCH_QTY_MUST_BE_POSITIVE": "Количество партии должно быть больше нуля",
+    "EMPTY_CART": "Добавьте хотя бы один товар",
+    "NEGATIVE_DISCOUNT": "Скидка не может быть отрицательной",
+    "DISCOUNT_EXCEEDS_TOTAL": "Скидка больше суммы продажи",
+    "SELLER_WRONG_STORE": "Продавец может продавать только в своём магазине",
+    "SELLER_POS_BRANCH_ONLY": "POS продавца работает только с филиалом",
+    "TRANSFER_BRANCH_ONLY": "Перемещение только в филиал. Личные продажи владельца берут товар напрямую со склада.",
+    "BRANCH_NOT_FOUND": "Филиал не найден"
   },
   "productTypes": {
     "perfume": "Парфюм",
@@ -72,17 +85,17 @@
     "home": "Главная",
     "warehouse": "Склад",
     "warehouseFull": "Центральный склад",
-    "warehouseOverview": "Обзор",
+    "warehouseOverview": "Обзор склада",
     "warehouseCatalog": "Каталог",
     "warehouseStock": "Остатки",
     "warehouseReceive": "Поступления",
-    "warehouseTransfers": "Отправки",
-    "warehouseReturns": "Возвраты",
+    "warehouseTransfers": "Перемещения",
+    "warehouseReturns": "Возвраты продаж",
     "warehouseReturnIn": "Возврат на склад",
     "warehouseWriteOffs": "Списания",
-    "warehouseRevision": "Проверка склада",
-    "warehouseHistory": "История",
-    "warehouseBatches": "Поступления",
+    "warehouseRevision": "Ревизия",
+    "warehouseHistory": "История движений",
+    "warehouseBatches": "Партии",
     "warehouseCategories": "Категории",
     "warehouseBrands": "Бренды",
     "stores": "Магазины",
@@ -90,7 +103,7 @@
     "storesOwnerDirect": "Личные продажи",
     "storeCard": "Карточка магазина",
     "ownerSales": "Продажи владельца",
-    "analytics": "Аналитика",
+    "analytics": "Отчёты",
     "reports": "Отчёты",
     "analyticsNetwork": "Сеть",
     "analyticsStores": "Магазины",
@@ -110,7 +123,26 @@
     "posHistory": "История",
     "posCart": "Корзина",
     "posProfile": "Профиль",
-    "subnavWarehouse": "Навигация склада"
+    "subnavWarehouse": "Навигация склада",
+    "products": "Товары",
+    "productsCatalog": "Каталог",
+    "productsCategories": "Категории",
+    "productsBrands": "Бренды",
+    "purchases": "Закупки",
+    "purchasesReceive": "Поступления",
+    "purchasesBatches": "Партии",
+    "inventory": "Склад",
+    "inventoryOverview": "Обзор склада",
+    "inventoryStock": "Остатки",
+    "inventoryTransfers": "Перемещения",
+    "inventoryReturnIn": "Возврат на склад",
+    "inventoryWriteOffs": "Списания",
+    "inventoryRevision": "Ревизия",
+    "inventoryHistory": "История движений",
+    "sales": "Продажи",
+    "salesReturns": "Возвраты продаж",
+    "modules": "Модули",
+    "subnavModules": "Модули системы"
   },
   "topbar": {
     "notifications": "Уведомления"
@@ -188,7 +220,6 @@
     "avgCheckShort": "Средний чек: {{amount}}",
     "leftQty": "Осталось {{qty}} {{unit}}",
     "profitTodayShort": "Прибыль {{amount}}",
-
     "recommendTitle": "Система рекомендует",
     "recommendOrder": "Проверить остатки: {{name}}",
     "recommendStore": "Посмотреть магазин: {{name}}",
@@ -374,7 +405,12 @@
     "returnReject": "Возврат отклонён",
     "login": "Вход в систему",
     "passwordReset": "Сброс пароля",
-    "userCreate": "Пользователь создан"
+    "userCreate": "Пользователь создан",
+    "writeOff": "Списание",
+    "expenseCreate": "Расход создан",
+    "categoryCreate": "Категория создана",
+    "brandCreate": "Бренд создан",
+    "priceChange": "Изменение цены"
   },
   "entities": {
     "sale": "Продажа",
@@ -385,7 +421,11 @@
     "store": "Магазин",
     "warehouse": "Склад",
     "discount": "Скидка",
-    "return": "Возврат"
+    "return": "Возврат",
+    "writeOff": "Списание",
+    "expense": "Расход",
+    "category": "Категория",
+    "brand": "Бренд"
   },
   "storesPage": {
     "title": "Магазины",
@@ -461,7 +501,7 @@
   },
   "usersPage": {
     "title": "Пользователи",
-    "subtitle": "Владелец · Менеджер · Продавец — логин и пароль выдаёт владелец",
+    "subtitle": "Создание сотрудников только здесь. Привязка к магазину — в карточке филиала.",
     "create": "+ Создать",
     "staff": "Сотрудники",
     "search": "Поиск: имя, email, магазин…",
@@ -471,7 +511,7 @@
     "loginEmail": "Логин (email)",
     "tempPassword": "Временный пароль",
     "role": "Роль",
-    "storeForSeller": "Магазин (для продавца)",
+    "storeForSeller": "Магазин (необязательно)",
     "newPassword": "Новый пароль",
     "created": "Пользователь создан. Пароль больше не отображается — только сброс.",
     "passwordUpdated": "Пароль обновлён",
@@ -479,7 +519,9 @@
     "archived": "архив",
     "errorOwner": "Ошибка (нужны права владельца)",
     "passwordShort": "Пароль не короче 4 символов",
-    "resetFail": "Не удалось сбросить пароль"
+    "resetFail": "Не удалось сбросить пароль",
+    "storeOptional": "Без магазина (привязать позже)",
+    "storeAssignHint": "Продавца можно создать без магазина и привязать в карточке филиала."
   },
   "notificationsPage": {
     "title": "Уведомления",
@@ -530,7 +572,8 @@
     "noSelfRegister": "Регистрации нет — доступ выдаёт только владелец"
   },
   "splash": {
-    "welcome": "Добро пожаловать"
+    "welcome": "Добро пожаловать",
+    "tagline": "Система управления торговлей"
   },
   "pos": {
     "search": "Поиск",
@@ -603,7 +646,9 @@
     "positions": "{{n}} поз.",
     "timeToday": "Сегодня",
     "timeYesterday": "Вчера",
-    "mockReturnMsg": "Запрос по чеку"
+    "mockReturnMsg": "Запрос по чеку",
+    "mockDiscountMsg": "Товар −10%",
+    "mockStockMsg": "Товар · 25 мл"
   },
   "wh": {
     "catalogTitle": "Каталог товаров",
@@ -729,7 +774,7 @@
     "saveHash": "Сохранить hash",
     "addSeller": "+ Добавить продавца",
     "name": "Имя",
-    "email": "Email",
+    "email": "Электронная почта",
     "passwordCreateHint": "Пароль (только при создании, потом только hash)",
     "create": "Создать",
     "saved": "Сохранено",
@@ -742,7 +787,7 @@
     "decision": "Решение",
     "noReturns": "Нет возвратов",
     "confirmedBy": "подтвердил",
-    "revisionsHint": "Manager видит только введённый факт (blind). Owner — ожидание, расхождения, суммы.",
+    "revisionsHint": "Менеджер видит только введённый факт (слепая ревизия). Владелец — ожидание, расхождения, суммы.",
     "noRevisions": "Нет ревизий",
     "conductedBy": "Проводил",
     "blindOnly": "Blind: только факт · позиций {{n}}",
@@ -782,7 +827,18 @@
     "expenseRent": "Аренда",
     "expenseSalary": "Зарплата",
     "expenseUtilities": "Коммунальные",
-    "expenseOther": "Прочее"
+    "expenseOther": "Прочее",
+    "writeOffsHint": "Запросы списаний появятся в модуле склада (списания).",
+    "summaryReturn": "Возврат",
+    "staffAssignHint": "Создавайте сотрудников в разделе «Пользователи», затем привязывайте к магазину здесь.",
+    "assignExisting": "Привязать существующего сотрудника",
+    "selectEmployee": "Сотрудник",
+    "assignStaff": "Привязать",
+    "unassignStaff": "Отвязать",
+    "staffAssigned": "Сотрудник привязан к магазину",
+    "staffUnassigned": "Привязка снята. Пользователь и история продаж сохранены.",
+    "noCandidates": "Нет доступных сотрудников. Создайте продавца в разделе «Пользователи».",
+    "goCreateUser": "К пользователям"
   },
   "settingsSub": {
     "company": "Компания",
@@ -800,7 +856,10 @@
     "newPassword": "Новый пароль",
     "confirmPassword": "Повтор пароля",
     "symbol": "Символ",
-    "code": "Код"
+    "code": "Код",
+    "email": "Электронная почта",
+    "symbolPlaceholder": "мл",
+    "codePlaceholder": "например TRANSFER"
   },
   "returnsPage": {
     "title": "Возвраты",
@@ -829,5 +888,30 @@
     "statusApproved": "Утверждена",
     "createdByManager": "Менеджер",
     "listHint": "Список — из базы (InventorySession). Создание ревизии и корректировка остатков — в карточке магазина (вкладка «Ревизии»). Полный цикл утверждения с FIFO — следующий этап."
+  },
+  "saleStatus": {
+    "COMPLETED": "Завершена",
+    "RETURNED": "Возвращена",
+    "CANCELLED": "Отменена",
+    "PENDING": "В обработке"
+  },
+  "decisionStatus": {
+    "PENDING": "Ожидает",
+    "APPROVED": "Одобрено",
+    "REJECTED": "Отклонено"
+  },
+  "units": {
+    "ml": "мл",
+    "pcs": "шт"
+  },
+  "notif": {
+    "discountRequest": "Запрос скидки",
+    "discountApproved": "Скидка одобрена",
+    "discountRejected": "Скидка отклонена",
+    "returnRequest": "Запрос на возврат",
+    "returnApproved": "Возврат одобрен",
+    "returnRejected": "Возврат отклонён",
+    "returnApprovedWarehouse": "Товар возвращён на склад",
+    "returnApprovedStore": "Товар возвращён на остаток магазина"
   }
 }

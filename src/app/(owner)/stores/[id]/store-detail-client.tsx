@@ -8,7 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { apiErrorMessage } from "@/lib/i18n/labels";
+import {
+  apiErrorMessage,
+  labelDecisionStatus,
+  labelRevisionStatus,
+  labelRole,
+  labelSaleStatus,
+} from "@/lib/i18n/labels";
 
 type StoreDetail = {
   id: string;
@@ -131,7 +137,7 @@ export default function StoreDetailClient() {
     const res = await fetch(`/api/stores/${id}`);
     const data = await res.json();
     if (res.ok) setStore(data);
-    else setError(data.error || t("common.error"));
+    else setError(apiErrorMessage(data.error, t, "common.error"));
   }, [id, t]);
 
   useEffect(() => {
@@ -153,7 +159,9 @@ export default function StoreDetailClient() {
   return (
     <div>
       <PageHeader
-        title={store.name}
+        title={
+          isOwnerDirect ? t("nav.storesOwnerDirect") : store.name
+        }
         subtitle={
           isOwnerDirect
             ? t("storeDetail.ownerDirectSubtitle", {
@@ -481,14 +489,29 @@ function StaffTab({
 }) {
   const fmtDate = (v: string | null | undefined) => (v ? formatDateTime(v) : "—");
   const [staff, setStaff] = useState<StaffRow[]>([]);
-  const [showForm, setShowForm] = useState(false);
-  const [resetFor, setResetFor] = useState<string | null>(null);
-  const [newPass, setNewPass] = useState("");
+  const [candidates, setCandidates] = useState<
+    Array<{
+      id: string;
+      name: string;
+      email: string;
+      role: string;
+      store?: { id: string; name: string } | null;
+    }>
+  >([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [busy, setBusy] = useState(false);
 
   async function load() {
-    const res = await fetch(`/api/stores/${storeId}/staff`);
-    const data = await res.json();
-    if (res.ok) setStaff(data);
+    const [staffRes, candRes] = await Promise.all([
+      fetch(`/api/stores/${storeId}/staff`),
+      fetch(`/api/stores/${storeId}/staff?candidates=1`),
+    ]);
+    const staffData = await staffRes.json();
+    const candData = await candRes.json();
+    if (staffRes.ok) setStaff(staffData);
+    else setError(apiErrorMessage(staffData.error, t, "common.error"));
+    if (candRes.ok) setCandidates(Array.isArray(candData) ? candData : []);
+    else setCandidates([]);
   }
 
   useEffect(() => {
@@ -496,73 +519,52 @@ function StaffTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
 
-  async function createSeller(e: FormEvent<HTMLFormElement>) {
+  async function assignStaff(e: FormEvent) {
     e.preventDefault();
+    if (!selectedUserId) return;
+    setBusy(true);
     setError("");
     setMsg("");
-    const fd = new FormData(e.currentTarget);
-    const res = await fetch("/api/users", {
+    const res = await fetch(`/api/stores/${storeId}/staff`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: String(fd.get("name")),
-        email: String(fd.get("email")),
-        password: String(fd.get("password")),
-        role: "SELLER",
-        storeId,
-      }),
+      body: JSON.stringify({ userId: selectedUserId }),
     });
     const data = await res.json();
+    setBusy(false);
     if (!res.ok) {
-      setError(data.error || t("common.error"));
+      setError(apiErrorMessage(data.error, t, "common.error"));
       return;
     }
-    setMsg(t("storeDetail.sellerCreated"));
-    setShowForm(false);
+    setMsg(t("storeDetail.staffAssigned"));
+    setSelectedUserId("");
     load();
     onChanged();
   }
 
-  async function patchUser(id: string, patch: Record<string, unknown>) {
+  async function unassignStaff(userId: string) {
+    setBusy(true);
     setError("");
     setMsg("");
-    const res = await fetch("/api/users", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, ...patch }),
-    });
+    const res = await fetch(
+      `/api/stores/${storeId}/staff?userId=${encodeURIComponent(userId)}`,
+      { method: "DELETE" }
+    );
     const data = await res.json();
+    setBusy(false);
     if (!res.ok) {
-      setError(data.error || t("common.error"));
+      setError(apiErrorMessage(data.error, t, "common.error"));
       return;
     }
-    setMsg(t("storeDetail.saved"));
+    setMsg(t("storeDetail.staffUnassigned"));
     load();
-  }
-
-  async function resetPassword(userId: string) {
-    if (newPass.length < 4) {
-      setError(t("storeDetail.passwordMin"));
-      return;
-    }
-    const res = await fetch("/api/auth/reset-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, newPassword: newPass }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error || t("common.error"));
-      return;
-    }
-    setMsg(t("storeDetail.passwordResetOk"));
-    setResetFor(null);
-    setNewPass("");
+    onChanged();
   }
 
   return (
     <div>
       <SectionTitle>{t("storeDetail.branchSellers")}</SectionTitle>
+      <p className="mb-3 text-xs text-muted">{t("storeDetail.staffAssignHint")}</p>
       <Card className="mb-4 overflow-hidden p-0">
         {staff.length === 0 ? (
           <div className="py-6 text-center text-muted">{t("storeDetail.noStaff")}</div>
@@ -583,86 +585,69 @@ function StaffTab({
                     </span>
                   </div>
                   <div className="text-xs text-muted">
-                    {u.email} · {u.role} · {t("storeDetail.createdAt")} {fmtDate(u.createdAt)}
+                    {u.email} · {labelRole(u.role, t)} · {t("storeDetail.createdAt")}{" "}
+                    {fmtDate(u.createdAt)}
                   </div>
                   <div className="mt-1 text-xs text-muted">
-                    {t("storeDetail.staffLogin")}: {fmtDate(u.lastLoginAt)} · {t("storeDetail.staffSales")}{" "}
-                    {u.salesCount} · {formatMoney(u.salesSum)} · {t("storeDetail.staffAvgCheck")}{" "}
-                    {formatMoney(u.avgCheck)} · {t("storeDetail.staffDiscounts")} {u.discountRequests} ·{" "}
+                    {t("storeDetail.staffLogin")}: {fmtDate(u.lastLoginAt)} ·{" "}
+                    {t("storeDetail.staffSales")} {u.salesCount} · {formatMoney(u.salesSum)} ·{" "}
+                    {t("storeDetail.staffAvgCheck")} {formatMoney(u.avgCheck)} ·{" "}
+                    {t("storeDetail.staffDiscounts")} {u.discountRequests} ·{" "}
                     {t("storeDetail.staffReturns")} {u.returnRequests}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    fullWidth={false}
-                    onClick={() => patchUser(u.id, { isActive: !u.isActive })}
-                  >
-                    {u.isActive ? t("storeDetail.block") : t("storeDetail.unblock")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    fullWidth={false}
-                    onClick={() =>
-                      patchUser(u.id, { role: u.role === "SELLER" ? "MANAGER" : "SELLER" })
-                    }
-                  >
-                    {t("storeDetail.roleBtn")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    fullWidth={false}
-                    onClick={() => setResetFor(u.id)}
-                  >
-                    {t("storeDetail.resetPassword")}
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  fullWidth={false}
+                  disabled={busy}
+                  onClick={() => unassignStaff(u.id)}
+                >
+                  {t("storeDetail.unassignStaff")}
+                </Button>
               </div>
-              {resetFor === u.id ? (
-                <div className="mt-2 flex flex-wrap items-end gap-2">
-                  <div className="flex-1">
-                    <FieldLabel>{t("storeDetail.newPasswordHint")}</FieldLabel>
-                    <input
-                      type="password"
-                      className="w-full"
-                      value={newPass}
-                      onChange={(e) => setNewPass(e.target.value)}
-                      minLength={4}
-                    />
-                  </div>
-                  <Button type="button" fullWidth={false} onClick={() => resetPassword(u.id)}>
-                    {t("storeDetail.saveHash")}
-                  </Button>
-                </div>
-              ) : null}
             </div>
           ))
         )}
       </Card>
 
-      <Button type="button" variant="secondary" onClick={() => setShowForm((v) => !v)}>
-        {showForm ? t("common.cancel") : t("storeDetail.addSeller")}
-      </Button>
-      {showForm ? (
-        <form onSubmit={createSeller} className="mt-3 max-w-md space-y-3">
+      <Card className="max-w-lg p-4">
+        <div className="mb-2 text-sm font-semibold text-ink">
+          {t("storeDetail.assignExisting")}
+        </div>
+        <form onSubmit={assignStaff} className="space-y-3">
           <div>
-            <FieldLabel>{t("storeDetail.name")}</FieldLabel>
-            <input name="name" required className="w-full" />
+            <FieldLabel>{t("storeDetail.selectEmployee")}</FieldLabel>
+            <select
+              className="w-full"
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+              required
+            >
+              <option value="">—</option>
+              {candidates.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.email}) · {labelRole(c.role, t)}
+                  {c.store ? ` · ${c.store.name}` : ""}
+                </option>
+              ))}
+            </select>
           </div>
-          <div>
-            <FieldLabel>{t("storeDetail.email")}</FieldLabel>
-            <input name="email" type="email" required className="w-full" />
+          {candidates.length === 0 ? (
+            <p className="text-xs text-muted">{t("storeDetail.noCandidates")}</p>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={busy || !selectedUserId} fullWidth={false}>
+              {t("storeDetail.assignStaff")}
+            </Button>
+            <Link href="/users">
+              <Button type="button" variant="secondary" fullWidth={false}>
+                {t("storeDetail.goCreateUser")}
+              </Button>
+            </Link>
           </div>
-          <div>
-            <FieldLabel>{t("storeDetail.passwordCreateHint")}</FieldLabel>
-            <input name="password" type="password" required minLength={4} className="w-full" />
-          </div>
-          <Button type="submit">{t("storeDetail.create")}</Button>
         </form>
-      ) : null}
+      </Card>
     </div>
   );
 }
@@ -725,7 +710,7 @@ function SalesTab({
                   <div className="font-semibold text-ink">№ {s.number}</div>
                   <div className="text-xs text-muted">
                     {formatDateTime(s.createdAt)} · {s.seller.name} · {paymentLabel(s.paymentMethod)} ·{" "}
-                    {s.status}
+                    {labelSaleStatus(s.status, t)}
                   </div>
                   <div className="mt-1 text-xs text-muted">
                     {s.items
@@ -815,7 +800,7 @@ function DiscountsTab({
         items.map((r) => (
           <div key={r.id} className="border-b border-border px-4 py-3 last:border-0">
             <div className="font-semibold text-ink">
-              {formatMoney(r.amount)} · {r.status}
+              {formatMoney(r.amount)} · {labelDecisionStatus(r.status, t)}
             </div>
             <div className="text-xs text-muted">
               {formatDateTime(r.createdAt)} · {r.requester.name} · {r.reason ?? "—"}
@@ -868,7 +853,7 @@ function ReturnsTab({
       ) : (
         items.map((r) => (
           <div key={r.id} className="border-b border-border px-4 py-3 last:border-0">
-            <div className="font-semibold text-ink">{r.status}</div>
+            <div className="font-semibold text-ink">{labelDecisionStatus(r.status, t)}</div>
             <div className="text-xs text-muted">
               {formatDateTime(r.createdAt)} · {r.requester.name}
               {r.reviewer ? ` · ${t("storeDetail.confirmedBy")}: ${r.reviewer.name}` : ""}
@@ -924,7 +909,7 @@ function RevisionsTab({
           items.map((s) => (
             <div key={s.id} className="border-b border-border px-4 py-3 last:border-0">
               <div className="font-semibold text-ink">
-                {formatDateTime(s.createdAt)} · {s.status}
+                {formatDateTime(s.createdAt)} · {labelRevisionStatus(s.status, t)}
               </div>
               <div className="text-xs text-muted">
                 {t("storeDetail.conductedBy")}: {s.createdBy.name}
@@ -1227,7 +1212,7 @@ function RequestsTab({
       const data = await res.json();
       if (res.ok) {
         setItems(data.items);
-        setNote(data.writeOffsNote ?? "");
+        setNote(data.writeOffsNoteKey ? t(data.writeOffsNoteKey) : "");
       }
     })();
   }, [storeId, status]);
@@ -1263,7 +1248,7 @@ function RequestsTab({
           items.map((r) => (
             <div key={`${r.type}-${r.id}`} className="border-b border-border px-4 py-3 last:border-0">
               <div className="font-semibold text-ink">
-                {requestTypeLabel(r.type)} · {r.status}
+                {requestTypeLabel(r.type)} · {labelDecisionStatus(r.status, t)}
               </div>
               <div className="text-xs text-muted">
                 {formatDateTime(r.createdAt)} · {r.requester.name} · {r.summary}
@@ -1333,7 +1318,7 @@ function SettingsTab({
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error || t("common.error"));
+      setError(apiErrorMessage(data.error, t, "common.error"));
       return;
     }
     setMsg(t("storeDetail.settingsSaved"));

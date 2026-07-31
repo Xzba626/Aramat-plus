@@ -29,6 +29,11 @@ export const ACTION_KEYS: Record<string, string> = {
   LOGIN: "actions.login",
   PASSWORD_RESET: "actions.passwordReset",
   USER_CREATE: "actions.userCreate",
+  WRITE_OFF: "actions.writeOff",
+  EXPENSE_CREATE: "actions.expenseCreate",
+  CATEGORY_CREATE: "actions.categoryCreate",
+  BRAND_CREATE: "actions.brandCreate",
+  PRICE_CHANGE: "actions.priceChange",
 };
 
 export const ENTITY_KEYS: Record<string, string> = {
@@ -41,6 +46,23 @@ export const ENTITY_KEYS: Record<string, string> = {
   Warehouse: "entities.warehouse",
   DiscountRequest: "entities.discount",
   SaleReturn: "entities.return",
+  WriteOff: "entities.writeOff",
+  Expense: "entities.expense",
+  Category: "entities.category",
+  Brand: "entities.brand",
+};
+
+export const SALE_STATUS_KEYS: Record<string, string> = {
+  COMPLETED: "saleStatus.COMPLETED",
+  RETURNED: "saleStatus.RETURNED",
+  CANCELLED: "saleStatus.CANCELLED",
+  PENDING: "saleStatus.PENDING",
+};
+
+export const DECISION_STATUS_KEYS: Record<string, string> = {
+  PENDING: "decisionStatus.PENDING",
+  APPROVED: "decisionStatus.APPROVED",
+  REJECTED: "decisionStatus.REJECTED",
 };
 
 export type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
@@ -63,12 +85,34 @@ export function labelStoreStatus(
 
 export function labelAction(action: string, t: TranslateFn): string {
   const key = ACTION_KEYS[action];
-  return key ? t(key) : action.replace(/_/g, " ").toLowerCase();
+  return key ? t(key) : action;
 }
 
 export function labelEntity(entityType: string, t: TranslateFn): string {
   const key = ENTITY_KEYS[entityType];
   return key ? t(key) : entityType;
+}
+
+export function labelSaleStatus(status: string, t: TranslateFn): string {
+  const key = SALE_STATUS_KEYS[status];
+  return key ? t(key) : status;
+}
+
+export function labelDecisionStatus(status: string, t: TranslateFn): string {
+  const key = DECISION_STATUS_KEYS[status];
+  return key ? t(key) : status;
+}
+
+/** Prefer revisionPage.* keys already used by revision UI. */
+export function labelRevisionStatus(status: string, t: TranslateFn): string {
+  const map: Record<string, string> = {
+    IN_PROGRESS: "revisionPage.statusInProgress",
+    PENDING_APPROVAL: "revisionPage.statusPendingApproval",
+    APPROVED: "revisionPage.statusApproved",
+    COMPLETED: "revisionPage.statusApproved",
+  };
+  const key = map[status];
+  return key ? t(key) : status;
 }
 
 /** DB stores canonical RU names; UI always goes through i18n. */
@@ -101,4 +145,18 @@ export function apiErrorMessage(
   const key = `errors.${code}`;
   const translated = t(key);
   return translated === key ? t(fallbackKey) : translated;
+}
+
+/** title field may store an i18n key (e.g. notif.discountRequest). */
+export function resolveNotifTitle(
+  title: string | null | undefined,
+  titleKey: string | null | undefined,
+  t: TranslateFn
+): string {
+  const key = titleKey || (title && /^[a-zA-Z][\w.]*$/.test(title) ? title : null);
+  if (key) {
+    const translated = t(key);
+    if (translated !== key) return translated;
+  }
+  return title ?? "";
 }

@@ -18,7 +18,7 @@ export async function getPosCatalog(params: {
       isActive: true,
     },
   });
-  if (!store) throw new Error("Магазин продавца не найден");
+  if (!store) throw new Error("SELLER_NO_STORE");
 
   const balances = await getStoreStock(store.id);
   const q = (params.q ?? "").trim().toLowerCase();

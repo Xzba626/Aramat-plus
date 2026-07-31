@@ -19,16 +19,19 @@ export async function GET() {
       getDashboardPayload(user!.companyId),
     ]);
 
-    const fromDb = dbRows.map((n) => ({
-      id: n.id,
-      type: n.type,
-      title: n.title,
-      titleKey: null as string | null,
-      message: n.message,
-      isRead: n.isRead,
-      createdAt: n.createdAt.toISOString(),
-      href: null as string | null,
-    }));
+    const fromDb = dbRows.map((n) => {
+      const isKey = /^[a-zA-Z][\w.]*$/.test(n.title);
+      return {
+        id: n.id,
+        type: n.type,
+        title: isKey ? null : n.title,
+        titleKey: isKey ? n.title : null,
+        message: n.message,
+        isRead: n.isRead,
+        createdAt: n.createdAt.toISOString(),
+        href: null as string | null,
+      };
+    });
 
     const fromDash = dash.notifications.map((n) => ({
       id: n.id,

@@ -6,7 +6,7 @@ import { Card, FieldLabel } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import { EmptyState, LoadingBlock } from "@/components/ui/empty-state";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { apiErrorMessage } from "@/lib/i18n/labels";
+import { apiErrorMessage, labelSaleStatus } from "@/lib/i18n/labels";
 
 type Sale = {
   id: string;
@@ -108,7 +108,7 @@ export default function PosHistoryPage() {
             </div>
             <div className="mt-1 text-xs text-muted">
               {formatDateTime(s.createdAt)} · {t("pos.positions", { n: qty })} ·{" "}
-              {s.status}
+              {labelSaleStatus(s.status, t)}
             </div>
             <div className="mt-1 text-xs text-muted">
               {s.items.map((it) => it.product.name).slice(0, 3).join(", ")}
@@ -123,7 +123,7 @@ export default function PosHistoryPage() {
             >
               {s.status === "COMPLETED"
                 ? t("pos.requestReturn")
-                : s.status}
+                : labelSaleStatus(s.status, t)}
             </Button>
           </div>
         );

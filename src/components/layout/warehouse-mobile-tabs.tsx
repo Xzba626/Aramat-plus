@@ -4,13 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useT } from "@/components/i18n/i18n-provider";
+import { warehouseProductSegment } from "@/lib/navigation/warehouse-nav";
 
-/** Mobile-only: 4 primary warehouse tasks — not the full desktop tree. */
+/**
+ * Mobile: four primary ERP entry points inside the warehouse area.
+ * URLs unchanged — labels reflect module boundaries.
+ */
 const MOBILE_TABS = [
-  { href: "/warehouse", labelKey: "nav.warehouseOverview" },
-  { href: "/warehouse/products", labelKey: "nav.warehouseCatalog" },
-  { href: "/warehouse/receive", labelKey: "nav.warehouseReceive" },
-  { href: "/warehouse/history", labelKey: "nav.warehouseHistory" },
+  { href: "/warehouse", labelKey: "nav.inventory" },
+  { href: "/warehouse/products", labelKey: "nav.products" },
+  { href: "/warehouse/receive", labelKey: "nav.purchases" },
+  { href: "/warehouse/stock", labelKey: "nav.inventoryStock" },
 ] as const;
 
 export function WarehouseMobileTabs() {
@@ -20,13 +24,27 @@ export function WarehouseMobileTabs() {
   return (
     <nav
       className="mb-4 -mx-1 flex gap-1 overflow-x-auto pb-1 lg:hidden"
-      aria-label={t("nav.subnavWarehouse")}
+      aria-label={t("nav.subnavModules")}
     >
       {MOBILE_TABS.map((tab) => {
         const active =
           tab.href === "/warehouse"
-            ? pathname === "/warehouse" || pathname === "/warehouse/"
-            : pathname === tab.href || pathname.startsWith(`${tab.href}/`);
+            ? pathname === "/warehouse" ||
+              pathname === "/warehouse/" ||
+              pathname.startsWith("/warehouse/transfers") ||
+              pathname.startsWith("/warehouse/return-in") ||
+              pathname.startsWith("/warehouse/write-offs") ||
+              pathname.startsWith("/warehouse/history")
+            : tab.href === "/warehouse/products"
+              ? pathname.startsWith("/warehouse/products") ||
+                pathname.startsWith("/warehouse/categories") ||
+                pathname.startsWith("/warehouse/brands") ||
+                pathname.startsWith("/warehouse/new") ||
+                warehouseProductSegment(pathname) !== null
+              : tab.href === "/warehouse/receive"
+                ? pathname.startsWith("/warehouse/receive") ||
+                  pathname.startsWith("/warehouse/batches")
+                : pathname === tab.href || pathname.startsWith(`${tab.href}/`);
         return (
           <Link
             key={tab.href}

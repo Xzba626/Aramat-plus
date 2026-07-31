@@ -26,7 +26,7 @@ export async function upsertStockBalance(
   if (existing) {
     const next = existing.quantity.add(delta);
     if (next.lt(0)) {
-      throw new Error("Недостаточно остатка на складе");
+      throw new Error("INSUFFICIENT_STOCK");
     }
     return tx.stockBalance.update({
       where: { id: existing.id },
@@ -35,7 +35,7 @@ export async function upsertStockBalance(
   }
 
   if (delta.lt(0)) {
-    throw new Error("Недостаточно остатка на складе");
+    throw new Error("INSUFFICIENT_STOCK");
   }
 
   return tx.stockBalance.create({
@@ -61,7 +61,7 @@ export async function deductBatchesFifo(
   Array<{ batchId: string; quantity: Prisma.Decimal; costPerUnit: Prisma.Decimal }>
 > {
   const need = new Prisma.Decimal(params.quantity.toString());
-  if (need.lte(0)) throw new Error("Количество должно быть больше нуля");
+  if (need.lte(0)) throw new Error("QTY_MUST_BE_POSITIVE");
 
   // Minimal columns — uses index (productId, locationType, locationId, receivedAt)
   const batches = await tx.batch.findMany({
@@ -96,7 +96,7 @@ export async function deductBatchesFifo(
   }
 
   if (remaining.gt(0)) {
-    throw new Error("Недостаточно остатка по партиям");
+    throw new Error("INSUFFICIENT_BATCH_STOCK");
   }
 
   // One round-trip: apply all batch qty changes + atomic balance decrement
@@ -126,7 +126,7 @@ export async function deductBatchesFifo(
         AND EXISTS (SELECT 1 FROM batch_upd)
     `;
     if (Number(bal) === 0) {
-      throw new Error("Недостаточно остатка на складе");
+      throw new Error("INSUFFICIENT_STOCK");
     }
   }
 
@@ -152,7 +152,7 @@ export async function addBatch(
 ) {
   const quantity = new Prisma.Decimal(params.quantity.toString());
   const costPerUnit = new Prisma.Decimal(params.costPerUnit.toString());
-  if (quantity.lte(0)) throw new Error("Количество партии должно быть больше нуля");
+  if (quantity.lte(0)) throw new Error("BATCH_QTY_MUST_BE_POSITIVE");
 
   const batch = await tx.batch.create({
     data: {

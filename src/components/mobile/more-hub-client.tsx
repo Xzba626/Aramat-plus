@@ -6,10 +6,14 @@ import {
   AlertTriangle,
   Bell,
   BookOpen,
+  Boxes,
   Building2,
   KeyRound,
+  Package,
+  PackagePlus,
   ScrollText,
   Settings,
+  ShoppingBag,
   Users,
   LogOut,
   ChevronRight,
@@ -17,6 +21,33 @@ import {
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { useT } from "@/components/i18n/i18n-provider";
 import { cn } from "@/lib/utils";
+
+const MODULE_LINKS = [
+  {
+    href: "/warehouse/products",
+    labelKey: "nav.products",
+    icon: Package,
+    tone: "neutral" as const,
+  },
+  {
+    href: "/warehouse/receive",
+    labelKey: "nav.purchases",
+    icon: PackagePlus,
+    tone: "neutral" as const,
+  },
+  {
+    href: "/warehouse",
+    labelKey: "nav.inventory",
+    icon: Boxes,
+    tone: "neutral" as const,
+  },
+  {
+    href: "/returns",
+    labelKey: "nav.salesReturns",
+    icon: ShoppingBag,
+    tone: "neutral" as const,
+  },
+];
 
 const LINKS = [
   {
@@ -91,6 +122,35 @@ export function MoreHubClient() {
           {t("dashboard.moreLanguage")}
         </div>
         <LanguageSwitcher />
+      </section>
+
+      <section className="space-y-2">
+        <div className="px-1 text-xs font-bold uppercase tracking-wide text-muted">
+          {t("nav.modules")}
+        </div>
+        {MODULE_LINKS.map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="flex min-h-[56px] items-center gap-3 rounded-[18px] border border-border bg-card px-4 py-3 shadow-[var(--shadow-card)] transition active:scale-[0.99]"
+            >
+              <span
+                className={cn(
+                  "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl",
+                  TONE[item.tone]
+                )}
+              >
+                <Icon className="h-5 w-5" strokeWidth={1.75} />
+              </span>
+              <span className="flex-1 text-sm font-bold text-ink">
+                {t(item.labelKey)}
+              </span>
+              <ChevronRight className="h-4 w-4 text-muted" />
+            </Link>
+          );
+        })}
       </section>
 
       <section className="space-y-2">

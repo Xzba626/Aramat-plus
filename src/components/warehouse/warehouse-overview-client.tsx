@@ -181,7 +181,7 @@ export function WarehouseOverviewClient({
           items={data.recentReceipts.map((r) => ({
             id: r.id,
             line1: r.comment ?? t("warehouse.newBatch"),
-            line2: `${r.userName} · ${formatDateTime(r.createdAt)}`,
+            line2: `${r.userName || t("common.system")} · ${formatDateTime(r.createdAt)}`,
           }))}
         />
         <Feed
@@ -190,10 +190,10 @@ export function WarehouseOverviewClient({
           items={data.recentTransfers.map((tr) => ({
             id: tr.id,
             line1: t("warehouse.transferLine", {
-              store: tr.storeName,
+              store: tr.storeName || t("common.storeFallback"),
               count: tr.itemCount,
             }),
-            line2: `${tr.userName} · ${formatDateTime(tr.createdAt)}`,
+            line2: `${tr.userName || t("common.system")} · ${formatDateTime(tr.createdAt)}`,
           }))}
         />
         <Feed
@@ -202,7 +202,7 @@ export function WarehouseOverviewClient({
           items={data.recentReturns.map((r) => ({
             id: r.id,
             line1: r.comment ?? t("warehouse.returnToWh"),
-            line2: `${r.userName} · ${formatDateTime(r.createdAt)}`,
+            line2: `${r.userName || t("common.system")} · ${formatDateTime(r.createdAt)}`,
           }))}
         />
       </div>

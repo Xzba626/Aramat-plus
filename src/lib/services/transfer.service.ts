@@ -17,13 +17,13 @@ export async function createTransfer(params: {
   notes?: string;
 }) {
   if (!params.items.length) {
-    throw new Error("Добавьте хотя бы один товар");
+    throw new Error("EMPTY_CART");
   }
 
   const warehouse = await prisma.warehouse.findFirst({
     where: { id: params.fromWarehouseId, companyId: params.companyId },
   });
-  if (!warehouse) throw new Error("Склад не найден");
+  if (!warehouse) throw new Error("WAREHOUSE_MISSING");
 
   const store = await prisma.store.findFirst({
     where: {
@@ -33,10 +33,7 @@ export async function createTransfer(params: {
       kind: "BRANCH",
     },
   });
-  if (!store)
-    throw new Error(
-      "Перемещение только в филиал. «Личные продажи владельца» берут товар напрямую со склада."
-    );
+  if (!store) throw new Error("TRANSFER_BRANCH_ONLY");
 
   // Neon/PgBouncer: interactive tx needs a direct (non-pooler) URL and enough time.
   // P2028 "Transaction not found" = pooler recycled the connection or tx timed out.
@@ -56,12 +53,12 @@ export async function createTransfer(params: {
 
       for (const line of params.items) {
         const qty = new Prisma.Decimal(line.quantity);
-        if (qty.lte(0)) throw new Error("Количество должно быть больше нуля");
+        if (qty.lte(0)) throw new Error("QTY_MUST_BE_POSITIVE");
 
         const product = await tx.product.findFirst({
           where: { id: line.productId, companyId: params.companyId, isActive: true },
         });
-        if (!product) throw new Error(`Товар не найден: ${line.productId}`);
+        if (!product) throw new Error("PRODUCT_NOT_FOUND");
 
         const consumed = await deductBatchesFifo(tx, {
           productId: line.productId,
@@ -88,7 +85,7 @@ export async function createTransfer(params: {
             locationId: store.id,
             quantity: slice.quantity,
             costPerUnit: slice.costPerUnit,
-            notes: `Перемещение ${transfer.id}`,
+            notes: `transfer:${transfer.id}`,
             transferItemId: item.id,
           });
 

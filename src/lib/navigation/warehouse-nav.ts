@@ -1,23 +1,50 @@
-/** TASK 02 — internal warehouse navigation (not in main sidebar) */
+/**
+ * Warehouse-area internal navigation (existing URLs).
+ * Grouped by ERP module for IA clarity — Products / Purchases / Inventory.
+ */
 
 export type WarehouseNavItem = {
   href: string;
   labelKey: string;
+  module: "inventory" | "products" | "purchases";
 };
 
 export const WAREHOUSE_INTERNAL_NAV: WarehouseNavItem[] = [
-  { href: "/warehouse", labelKey: "nav.warehouseOverview" },
-  { href: "/warehouse/stock", labelKey: "nav.warehouseStock" },
-  { href: "/warehouse/products", labelKey: "nav.warehouseCatalog" },
-  { href: "/warehouse/categories", labelKey: "nav.warehouseCategories" },
-  { href: "/warehouse/brands", labelKey: "nav.warehouseBrands" },
-  { href: "/warehouse/batches", labelKey: "nav.warehouseBatches" },
-  { href: "/warehouse/receive", labelKey: "nav.warehouseReceive" },
-  { href: "/warehouse/transfers", labelKey: "nav.warehouseTransfers" },
-  { href: "/warehouse/return-in", labelKey: "nav.warehouseReturnIn" },
-  { href: "/warehouse/write-offs", labelKey: "nav.warehouseWriteOffs" },
-  { href: "/warehouse/history", labelKey: "nav.warehouseHistory" },
+  { href: "/warehouse", labelKey: "nav.inventoryOverview", module: "inventory" },
+  { href: "/warehouse/products", labelKey: "nav.productsCatalog", module: "products" },
+  { href: "/warehouse/categories", labelKey: "nav.productsCategories", module: "products" },
+  { href: "/warehouse/brands", labelKey: "nav.productsBrands", module: "products" },
+  { href: "/warehouse/receive", labelKey: "nav.purchasesReceive", module: "purchases" },
+  { href: "/warehouse/batches", labelKey: "nav.purchasesBatches", module: "purchases" },
+  { href: "/warehouse/stock", labelKey: "nav.inventoryStock", module: "inventory" },
+  { href: "/warehouse/transfers", labelKey: "nav.inventoryTransfers", module: "inventory" },
+  { href: "/warehouse/return-in", labelKey: "nav.inventoryReturnIn", module: "inventory" },
+  { href: "/warehouse/write-offs", labelKey: "nav.inventoryWriteOffs", module: "inventory" },
+  { href: "/warehouse/history", labelKey: "nav.inventoryHistory", module: "inventory" },
 ];
+
+const RESERVED_SEGMENTS = new Set([
+  "new",
+  "products",
+  "stock",
+  "categories",
+  "brands",
+  "batches",
+  "receive",
+  "transfers",
+  "return-in",
+  "write-offs",
+  "history",
+  "archive",
+]);
+
+/** Product card URL: /warehouse/[cuid] (not a reserved segment). */
+export function warehouseProductSegment(pathname: string): string | null {
+  const match = pathname.match(/^\/warehouse\/([^/]+)$/);
+  if (!match) return null;
+  if (RESERVED_SEGMENTS.has(match[1])) return null;
+  return match[1];
+}
 
 export function isWarehouseNavActive(pathname: string, href: string): boolean {
   if (href === "/warehouse") {
@@ -27,8 +54,10 @@ export function isWarehouseNavActive(pathname: string, href: string): boolean {
 }
 
 export function warehouseSectionLabelKey(pathname: string): string {
+  if (warehouseProductSegment(pathname)) return "nav.productCard";
+  if (pathname.startsWith("/warehouse/new")) return "nav.newProduct";
   const item = WAREHOUSE_INTERNAL_NAV.find((n) =>
     isWarehouseNavActive(pathname, n.href)
   );
-  return item?.labelKey ?? "nav.warehouse";
+  return item?.labelKey ?? "nav.inventory";
 }

@@ -27,9 +27,9 @@ export default function WarehouseTransfersPage() {
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data)) setItems(data);
-        else setError(data.error || "error");
+        else setError(apiErrorMessage(data.error, t, "common.error"));
       });
-  }, []);
+  }, [t]);
 
   return (
     <div>
@@ -45,7 +45,7 @@ export default function WarehouseTransfersPage() {
 
       <SectionTitle>{t("wh.historyTitle")}</SectionTitle>
       {error ? (
-        <p className="mb-3 text-sm text-danger">{apiErrorMessage(error, t)}</p>
+        <p className="mb-3 text-sm text-danger">{error}</p>
       ) : null}
       {items.map((row) => (
         <Card key={row.id} className="mb-3">

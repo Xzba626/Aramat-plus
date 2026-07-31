@@ -26,7 +26,7 @@ export function SplashScreen({ visible }: { visible: boolean }) {
         <h1 className="text-2xl font-bold tracking-tight text-white">
           AROMAT <span className="text-brand">PLUS</span>
         </h1>
-        <p className="mt-1 text-sm text-white/50">Commercial Management System</p>
+        <p className="mt-1 text-sm text-white/50">{t("splash.tagline")}</p>
         <p className="mt-8 text-base font-medium text-white/80">
           {t("splash.welcome")}
         </p>

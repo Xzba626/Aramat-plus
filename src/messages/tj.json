@@ -35,7 +35,9 @@
     "store": "Мағоза",
     "seller": "Фурӯшанда",
     "breadcrumb": "Роҳнамо",
-    "error": "Хато"
+    "error": "Хато",
+    "system": "Система",
+    "storeFallback": "Мағоза"
   },
   "errors": {
     "RECORD_EXISTS": "Чунин сабт аллакай ҳаст",
@@ -57,7 +59,18 @@
     "ID_REQUIRED": "Идентификаторро нишон диҳед",
     "ARCHIVE_ONLY": "Несткунӣ манъ. Архивацияро истифода баред.",
     "FORBIDDEN": "Ҳуқуқи кофӣ нест",
-    "RETURN_ALREADY_PENDING": "Барои ин фурӯш дархости бозгашт аллакай ҳаст"
+    "RETURN_ALREADY_PENDING": "Барои ин фурӯш дархости бозгашт аллакай ҳаст",
+    "INSUFFICIENT_STOCK": "Дар анбор боқимондаи кофӣ нест",
+    "INSUFFICIENT_BATCH_STOCK": "Аз рӯи партияҳо боқимондаи кофӣ нест",
+    "QTY_MUST_BE_POSITIVE": "Миқдор бояд аз сифр зиёд бошад",
+    "BATCH_QTY_MUST_BE_POSITIVE": "Миқдори партия бояд аз сифр зиёд бошад",
+    "EMPTY_CART": "Ақаллан як мол илова кунед",
+    "NEGATIVE_DISCOUNT": "Тахфиф манфӣ буда наметавонад",
+    "DISCOUNT_EXCEEDS_TOTAL": "Тахфиф аз маблағи фурӯш зиёд аст",
+    "SELLER_WRONG_STORE": "Фурӯшанда танҳо дар мағозаи худ фурӯхта метавонад",
+    "SELLER_POS_BRANCH_ONLY": "POS-и фурӯшанда танҳо бо филиал кор мекунад",
+    "TRANSFER_BRANCH_ONLY": "Интиқол танҳо ба филиал. Фурӯши шахсии соҳиб молро мустақиман аз анбор мегирад.",
+    "BRANCH_NOT_FOUND": "Филиал ёфт нашуд"
   },
   "productTypes": {
     "perfume": "Атр",
@@ -73,16 +86,16 @@
     "warehouse": "Анбор",
     "warehouseFull": "Анбори марказӣ",
     "warehouseOverview": "Шарҳи анбор",
-    "warehouseCatalog": "Молҳо",
+    "warehouseCatalog": "Феҳрист",
     "warehouseStock": "Боқимонда",
     "warehouseReceive": "Қабули мол",
-    "warehouseTransfers": "Интиқол",
-    "warehouseReturns": "Бозгашт",
+    "warehouseTransfers": "Интиқолҳо",
+    "warehouseReturns": "Бозгашти фурӯш",
     "warehouseReturnIn": "Бозгашт ба анбор",
     "warehouseWriteOffs": "Ҳисоббарорӣ",
-    "warehouseRevision": "Санҷиши анбор",
-    "warehouseHistory": "Таърих",
-    "warehouseBatches": "Қабулҳо",
+    "warehouseRevision": "Ревизия",
+    "warehouseHistory": "Таърихи ҳаракат",
+    "warehouseBatches": "Партияҳо",
     "warehouseCategories": "Категорияҳо",
     "warehouseBrands": "Брендҳо",
     "stores": "Мағозаҳо",
@@ -90,7 +103,7 @@
     "storesOwnerDirect": "Фурӯши шахсӣ",
     "storeCard": "Корти мағоза",
     "ownerSales": "Фурӯши соҳибкор",
-    "analytics": "Таҳлил",
+    "analytics": "Ҳисобот",
     "reports": "Ҳисобот",
     "analyticsNetwork": "Шабака",
     "analyticsStores": "Мағозаҳо",
@@ -110,7 +123,26 @@
     "posHistory": "Таърих",
     "posCart": "Сабад",
     "posProfile": "Профил",
-    "subnavWarehouse": "Менюи анбор"
+    "subnavWarehouse": "Менюи анбор",
+    "products": "Молҳо",
+    "productsCatalog": "Феҳрист",
+    "productsCategories": "Категорияҳо",
+    "productsBrands": "Брендҳо",
+    "purchases": "Харидҳо",
+    "purchasesReceive": "Қабули мол",
+    "purchasesBatches": "Партияҳо",
+    "inventory": "Анбор",
+    "inventoryOverview": "Шарҳи анбор",
+    "inventoryStock": "Боқимонда",
+    "inventoryTransfers": "Интиқолҳо",
+    "inventoryReturnIn": "Бозгашт ба анбор",
+    "inventoryWriteOffs": "Ҳисоббарорӣ",
+    "inventoryRevision": "Ревизия",
+    "inventoryHistory": "Таърихи ҳаракат",
+    "sales": "Фурӯшҳо",
+    "salesReturns": "Бозгашти фурӯш",
+    "modules": "Модулҳо",
+    "subnavModules": "Модулҳои система"
   },
   "topbar": {
     "notifications": "Огоҳиномаҳо"
@@ -188,7 +220,6 @@
     "avgCheckShort": "Чеки миёна: {{amount}}",
     "leftQty": "Мондааст {{qty}} {{unit}}",
     "profitTodayShort": "Фоида {{amount}}",
-
     "recommendTitle": "Система тавсия медиҳад",
     "recommendOrder": "Боқимондаро санҷед: {{name}}",
     "recommendStore": "Мағозаро бинед: {{name}}",
@@ -374,7 +405,12 @@
     "returnReject": "Бозгашт рад шуд",
     "login": "Воридшавӣ",
     "passwordReset": "Ивази рамз",
-    "userCreate": "Корбар эҷод шуд"
+    "userCreate": "Корбар эҷод шуд",
+    "writeOff": "Ҳисоббарорӣ",
+    "expenseCreate": "Хароҷот эҷод шуд",
+    "categoryCreate": "Категория эҷод шуд",
+    "brandCreate": "Бренд эҷод шуд",
+    "priceChange": "Тағйири нарх"
   },
   "entities": {
     "sale": "Фурӯш",
@@ -385,7 +421,11 @@
     "store": "Мағоза",
     "warehouse": "Анбор",
     "discount": "Тахфиф",
-    "return": "Бозгашт"
+    "return": "Бозгашт",
+    "writeOff": "Ҳисоббарорӣ",
+    "expense": "Хароҷот",
+    "category": "Категория",
+    "brand": "Бренд"
   },
   "storesPage": {
     "title": "Мағозаҳо",
@@ -461,7 +501,7 @@
   },
   "usersPage": {
     "title": "Корбарон",
-    "subtitle": "Соҳиб · Менеҷер · Фурӯшанда — логин ва рамзро соҳиб медиҳад",
+    "subtitle": "Эҷоди корбарон танҳо дар инҷо. Пайваст ба мағоза — дар корти филиал.",
     "create": "+ Эҷод",
     "staff": "Кормандон",
     "search": "Ҷустуҷӯ: ном, email, мағоза…",
@@ -471,7 +511,7 @@
     "loginEmail": "Логин (email)",
     "tempPassword": "Рамзи муваққатӣ",
     "role": "Нақш",
-    "storeForSeller": "Мағоза (барои фурӯшанда)",
+    "storeForSeller": "Мағоза (ихтиёрӣ)",
     "newPassword": "Рамзи нав",
     "created": "Корбар эҷод шуд. Рамз дигар нишон дода намешавад — танҳо иваз.",
     "passwordUpdated": "Рамз нав шуд",
@@ -479,7 +519,9 @@
     "archived": "бойгонӣ",
     "errorOwner": "Хатогӣ (ҳуқуқи соҳиб лозим аст)",
     "passwordShort": "Рамз на камтар аз 4 аломат",
-    "resetFail": "Рамзро иваз карда нашуд"
+    "resetFail": "Рамзро иваз карда нашуд",
+    "storeOptional": "Бе мағоза (баъдтар пайваст)",
+    "storeAssignHint": "Фурӯшандаро бе мағоза эҷод кардан ва дар корти филиал пайваст кардан мумкин."
   },
   "notificationsPage": {
     "title": "Огоҳиномаҳо",
@@ -530,7 +572,8 @@
     "noSelfRegister": "Бақайдгирӣ нест — дастрасиро танҳо соҳиб медиҳад"
   },
   "splash": {
-    "welcome": "Хуш омадед"
+    "welcome": "Хуш омадед",
+    "tagline": "Системаи идоракунии тиҷорат"
   },
   "pos": {
     "search": "Ҷустуҷӯ",
@@ -603,7 +646,9 @@
     "positions": "{{n}} мол",
     "timeToday": "Имрӯз",
     "timeYesterday": "Дирӯз",
-    "mockReturnMsg": "Дархост аз рӯи чек"
+    "mockReturnMsg": "Дархост аз рӯи чек",
+    "mockDiscountMsg": "Мол −10%",
+    "mockStockMsg": "Мол · 25 мл"
   },
   "wh": {
     "catalogTitle": "Феҳристи молҳо",
@@ -729,7 +774,7 @@
     "saveHash": "Нигоҳ доштани hash",
     "addSeller": "+ Иловаи фурӯшанда",
     "name": "Ном",
-    "email": "Email",
+    "email": "Почтаи электронӣ",
     "passwordCreateHint": "Рамз (танҳо ҳангоми эҷод, баъд танҳо hash)",
     "create": "Эҷод",
     "saved": "Нигоҳ дошта шуд",
@@ -742,7 +787,7 @@
     "decision": "Қарор",
     "noReturns": "Бозгашт нест",
     "confirmedBy": "тасдиқ кард",
-    "revisionsHint": "Менеджер танҳо факти воридшударо мебинад (blind). Соҳиб — интизорӣ, расхождения, сумма.",
+    "revisionsHint": "Менеҷер танҳо факти воридшударо мебинад (ревизияи кӯр). Соҳиб — интизорӣ, фарқиятҳо, маблағҳо.",
     "noRevisions": "Ревизия нест",
     "conductedBy": "Гузаронид",
     "blindOnly": "Blind: танҳо факт · позитсия {{n}}",
@@ -782,7 +827,18 @@
     "expenseRent": "Иҷора",
     "expenseSalary": "Маош",
     "expenseUtilities": "Коммуналӣ",
-    "expenseOther": "Дигар"
+    "expenseOther": "Дигар",
+    "writeOffsHint": "Дархостҳои ҳисоббарорӣ дар модули анбор (ҳисоббарорӣ) пайдо мешаванд.",
+    "summaryReturn": "Бозгашт",
+    "staffAssignHint": "Корбаронро дар қисми «Корбарон» эҷод кунед, сипас дар инҷо ба мағоза пайваст кунед.",
+    "assignExisting": "Корбари мавҷудро пайваст кардан",
+    "selectEmployee": "Корманд",
+    "assignStaff": "Пайваст кардан",
+    "unassignStaff": "Ҷудо кардан",
+    "staffAssigned": "Корманд ба мағоза пайваст шуд",
+    "staffUnassigned": "Пайвастӣ бардошта шуд. Корбар ва таърихи фурӯш нигоҳ дошта шуданд.",
+    "noCandidates": "Корманди дастрас нест. Фурӯшандаро дар қисми «Корбарон» эҷод кунед.",
+    "goCreateUser": "Ба корбарон"
   },
   "settingsSub": {
     "company": "Ширкат",
@@ -800,7 +856,10 @@
     "newPassword": "Рамзи нав",
     "confirmPassword": "Такрори рамз",
     "symbol": "Рамз",
-    "code": "Код"
+    "code": "Код",
+    "email": "Почтаи электронӣ",
+    "symbolPlaceholder": "мл",
+    "codePlaceholder": "масалан TRANSFER"
   },
   "returnsPage": {
     "title": "Бозгаштҳо",
@@ -829,5 +888,30 @@
     "statusApproved": "Тасдиқшуда",
     "createdByManager": "Менеҷер",
     "listHint": "Рӯйхат аз пойгоҳ (InventorySession). Эҷоди ревизия ва ислоҳи боқимонда — дар корти мағоза (варақаи «Ревизияҳо»). Давраи пурраи тасдиқ бо FIFO — марҳалаи оянда."
+  },
+  "saleStatus": {
+    "COMPLETED": "Анҷом ёфт",
+    "RETURNED": "Бозгашт шуд",
+    "CANCELLED": "Бекор шуд",
+    "PENDING": "Дар коркард"
+  },
+  "decisionStatus": {
+    "PENDING": "Интизор",
+    "APPROVED": "Тасдиқ шуд",
+    "REJECTED": "Рад шуд"
+  },
+  "units": {
+    "ml": "мл",
+    "pcs": "дона"
+  },
+  "notif": {
+    "discountRequest": "Дархости тахфиф",
+    "discountApproved": "Тахфиф тасдиқ шуд",
+    "discountRejected": "Тахфиф рад шуд",
+    "returnRequest": "Дархости бозгашт",
+    "returnApproved": "Бозгашт тасдиқ шуд",
+    "returnRejected": "Бозгашт рад шуд",
+    "returnApprovedWarehouse": "Мол ба анбор баргардонда шуд",
+    "returnApprovedStore": "Мол ба боқимондаи мағоза баргардонда шуд"
   }
 }

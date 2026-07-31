@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/module-workspace";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { resolveNotifTitle } from "@/lib/i18n/labels";
 
 type Notif = {
   id: string;
@@ -52,17 +53,15 @@ export default function NotificationsPage() {
 
   const filtered = useMemo(() => {
     return items.filter((n) => {
-      const title = n.titleKey ? t(n.titleKey) : n.title ?? "";
+      const title = resolveNotifTitle(n.title, n.titleKey, t);
       const text = `${title} ${n.message} ${n.type}`.toLowerCase();
       const matchQ = !q.trim() || text.includes(q.toLowerCase());
       if (!matchQ) return false;
       if (tab === "unread") return !n.isRead;
       if (tab === "stock")
-        return /stock|остат|товар|парти|боқимонда|мол/i.test(text);
+        return n.type === "LOW_STOCK" || /stock|low/i.test(n.type);
       if (tab === "actions")
-        return /скидк|возврат|ревиз|запрос|решен|тахфиф|бозгашт|дархост/i.test(
-          text
-        );
+        return /DISCOUNT|RETURN|REQUEST|SYSTEM/i.test(n.type);
       return true;
     });
   }, [items, tab, q, t]);
@@ -156,7 +155,7 @@ export default function NotificationsPage() {
                 />
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold text-ink">
-                    {n.titleKey ? t(n.titleKey) : n.title}
+                    {resolveNotifTitle(n.title, n.titleKey, t)}
                   </div>
                   <div className="text-sm text-muted">{n.message}</div>
                   <div className="mt-1 text-xs text-muted">

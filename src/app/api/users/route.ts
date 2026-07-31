@@ -5,7 +5,6 @@ import { userCreateSchema, userUpdateSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity } from "@/lib/services/activity-log.service";
 import bcrypt from "bcryptjs";
-import { Role } from "@prisma/client";
 
 export async function GET() {
   try {
@@ -41,15 +40,15 @@ export async function POST(req: Request) {
     if (denied) return denied;
 
     const body = userCreateSchema.parse(await req.json());
-    if (body.role === Role.SELLER && !body.storeId) {
-      return handleApiError(new Error("SELLER_NO_STORE"));
-    }
-
+    // Sellers may be created without a store, then assigned from store card / users page.
     if (body.storeId) {
       const store = await prisma.store.findFirst({
         where: { id: body.storeId, companyId: user!.companyId },
       });
       if (!store) return handleApiError(new Error("STORE_NOT_FOUND"));
+      if (store.kind === "OWNER_DIRECT") {
+        return handleApiError(new Error("VALIDATION_ERROR"));
+      }
     }
 
     const passwordHash = await bcrypt.hash(body.password, 10);
@@ -103,6 +102,15 @@ export async function PATCH(req: Request) {
     });
     if (!existing) return handleApiError(new Error("USER_NOT_FOUND"));
 
+    if (body.storeId) {
+      const store = await prisma.store.findFirst({
+        where: { id: body.storeId, companyId: user!.companyId },
+      });
+      if (!store) return handleApiError(new Error("STORE_NOT_FOUND"));
+      if (store.kind === "OWNER_DIRECT") {
+        return handleApiError(new Error("VALIDATION_ERROR"));
+      }
+    }
     const passwordHash = body.password
       ? await bcrypt.hash(body.password, 10)
       : undefined;

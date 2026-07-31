@@ -1,10 +1,11 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { FieldLabel } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { apiErrorMessage } from "@/lib/i18n/labels";
 
 export default function ChangePasswordPage() {
   const { t } = useI18n();
@@ -26,7 +27,7 @@ export default function ChangePasswordPage() {
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error || t("common.error"));
+      setError(apiErrorMessage(data.error, t));
       return;
     }
     setMsg(t("settingsSub.passwordOk"));

@@ -27,9 +27,12 @@ const OWNER_TABS: {
   },
   {
     href: "/warehouse",
-    labelKey: "nav.warehouse",
+    labelKey: "nav.inventory",
     icon: Package,
-    match: (p) => p.startsWith("/warehouse") || p.startsWith("/returns") || p.startsWith("/revision"),
+    match: (p) =>
+      p.startsWith("/warehouse") ||
+      p.startsWith("/returns") ||
+      p.startsWith("/revision"),
   },
   {
     href: "/stores",

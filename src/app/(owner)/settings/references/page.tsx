@@ -1,10 +1,11 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { apiErrorMessage } from "@/lib/i18n/labels";
 
 type RefItem = { id: string; name: string; symbol?: string; code?: string };
 
@@ -52,7 +53,7 @@ function RefSection({
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error || t("common.error"));
+      setError(apiErrorMessage(data.error, t));
       return;
     }
     (e.target as HTMLFormElement).reset();
@@ -83,13 +84,13 @@ function RefSection({
         {extraFields === "symbol" ? (
           <div>
             <FieldLabel>{t("settingsSub.symbol")}</FieldLabel>
-            <input name="symbol" required placeholder="мл" />
+            <input name="symbol" required placeholder={t("settingsSub.symbolPlaceholder")} />
           </div>
         ) : null}
         {extraFields === "code" ? (
           <div>
             <FieldLabel>{t("settingsSub.code")}</FieldLabel>
-            <input name="code" required placeholder="TRANSFER" />
+            <input name="code" required placeholder={t("settingsSub.codePlaceholder")} />
           </div>
         ) : null}
         {error ? <p className="text-sm text-danger">{error}</p> : null}
