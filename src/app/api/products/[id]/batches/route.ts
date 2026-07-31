@@ -6,6 +6,7 @@ import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { LocationType } from "@prisma/client";
 import { addBatch } from "@/lib/services/stock.service";
+import { getActiveSupplier } from "@/lib/services/supplier.service";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -23,6 +24,10 @@ export async function GET(_req: Request, ctx: Ctx) {
 
     const batches = await prisma.batch.findMany({
       where: { productId: id },
+      include: {
+        supplier: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
+      },
       orderBy: { receivedAt: "desc" },
     });
     return jsonOk(batches);
@@ -49,6 +54,13 @@ export async function POST(req: Request, ctx: Ctx) {
     });
     if (!warehouse) return handleApiError(new Error("WAREHOUSE_MISSING"));
 
+    let supplierName: string | null = null;
+    if (body.supplierId) {
+      const supplier = await getActiveSupplier(user!.companyId, body.supplierId);
+      if (!supplier) return handleApiError(new Error("SUPPLIER_NOT_FOUND"));
+      supplierName = supplier.name;
+    }
+
     const batch = await prisma.$transaction(async (tx) => {
       const created = await addBatch(tx, {
         productId: id,
@@ -57,9 +69,12 @@ export async function POST(req: Request, ctx: Ctx) {
         quantity: body.quantity,
         costPerUnit: body.costPerUnit,
         receivedAt: body.receivedAt,
-        notes: body.notes ?? "New batch",
+        notes: body.notes ?? undefined,
+        supplierId: body.supplierId ?? null,
+        createdById: user!.id,
       });
 
+      const supplierPart = supplierName ? ` · ${supplierName}` : "";
       await logActivity({
         tx,
         userId: user!.id,
@@ -67,7 +82,14 @@ export async function POST(req: Request, ctx: Ctx) {
         action: "BATCH_CREATE",
         entityType: "Batch",
         entityId: created.id,
-        comment: `${product.name}: ${body.quantity} @ ${body.costPerUnit}`,
+        comment: `${product.name}: ${body.quantity} @ ${body.costPerUnit}${supplierPart}`,
+        metadata: {
+          productId: id,
+          quantity: body.quantity,
+          costPerUnit: body.costPerUnit,
+          supplierId: body.supplierId ?? null,
+          supplierName,
+        },
       });
 
       return created;

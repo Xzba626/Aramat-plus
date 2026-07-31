@@ -98,6 +98,7 @@ model Company {
   operationTypes  OperationType[]
   expenseTypes    ExpenseType[]
   products        Product[]
+  suppliers       Supplier[]
   settings        Setting[]
   giftRules       GiftRule[]
 }
@@ -133,6 +134,7 @@ model User {
   notifications      Notification[]
   expenses           Expense[]
   activityLogs       ActivityLog[]
+  batchesCreated     Batch[]              @relation("BatchCreator")
 
   @@index([companyId])
   @@index([storeId])
@@ -277,6 +279,24 @@ model ExpenseType {
   @@index([companyId])
 }
 
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  comment   String?
+  isActive  Boolean  @default(true)
+  companyId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  batches Batch[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([companyId, isActive])
+}
+
 // ─── Products ────────────────────────────────────────────────────────────────
 
 model Product {
@@ -349,24 +369,33 @@ model PriceHistory {
 // ─── Batches & Stock ─────────────────────────────────────────────────────────
 
 model Batch {
-  id             String       @id @default(cuid())
-  productId      String
-  locationType   LocationType
-  locationId     String
-  quantity       Decimal      @db.Decimal(14, 3)
-  costPerUnit    Decimal      @db.Decimal(12, 4)
-  receivedAt     DateTime     @default(now())
-  notes          String?
-  transferItemId String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id              String       @id @default(cuid())
+  productId       String
+  locationType    LocationType
+  locationId      String
+  /// Current remaining qty (FIFO decreases this).
+  quantity        Decimal      @db.Decimal(14, 3)
+  /// Qty at receipt — never decreases; used for purchase history / KPIs.
+  initialQuantity Decimal      @db.Decimal(14, 3)
+  costPerUnit     Decimal      @db.Decimal(12, 4)
+  receivedAt      DateTime     @default(now())
+  notes           String?
+  transferItemId  String?
+  supplierId      String?
+  createdById     String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   product       Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier      Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  createdBy     User?          @relation("BatchCreator", fields: [createdById], references: [id], onDelete: SetNull)
   transferItems TransferItem[] @relation("SourceBatch")
   saleItems     SaleItem[]
 
   @@index([productId, locationType, locationId, receivedAt])
   @@index([locationType, locationId])
+  @@index([supplierId])
+  @@index([createdById])
 }
 
 model StockBalance {

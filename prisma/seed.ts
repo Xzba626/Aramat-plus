@@ -192,9 +192,11 @@ async function main() {
       locationType: LocationType.WAREHOUSE,
       locationId: warehouse.id,
       quantity: 100,
+      initialQuantity: 100,
       costPerUnit: 100,
       receivedAt: weekAgo,
       notes: "Партия №1",
+      createdById: owner.id,
     },
   });
   await prisma.batch.create({
@@ -203,9 +205,11 @@ async function main() {
       locationType: LocationType.WAREHOUSE,
       locationId: warehouse.id,
       quantity: 150,
+      initialQuantity: 150,
       costPerUnit: 120,
       receivedAt: new Date(),
       notes: "Партия №2",
+      createdById: owner.id,
     },
   });
   await prisma.stockBalance.create({
@@ -223,8 +227,10 @@ async function main() {
       locationType: LocationType.WAREHOUSE,
       locationId: warehouse.id,
       quantity: 320,
+      initialQuantity: 320,
       costPerUnit: 30,
       notes: "Партия №1",
+      createdById: owner.id,
     },
   });
   await prisma.stockBalance.create({
@@ -242,8 +248,10 @@ async function main() {
       locationType: LocationType.WAREHOUSE,
       locationId: warehouse.id,
       quantity: 140,
+      initialQuantity: 140,
       costPerUnit: 8,
       notes: "Партия №1",
+      createdById: owner.id,
     },
   });
   await prisma.stockBalance.create({
@@ -318,9 +326,11 @@ async function main() {
         locationType: LocationType.STORE,
         locationId: store1.id,
         quantity: line.quantity,
+        initialQuantity: line.quantity,
         costPerUnit: whBatch.costPerUnit,
         notes: `Seed transfer ${seedTransfer.id}`,
         transferItemId: transferItem.id,
+        createdById: owner.id,
       },
     });
     await prisma.stockBalance.create({

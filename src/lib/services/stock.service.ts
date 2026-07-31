@@ -148,6 +148,8 @@ export async function addBatch(
     receivedAt?: Date;
     notes?: string;
     transferItemId?: string;
+    supplierId?: string | null;
+    createdById?: string | null;
   }
 ) {
   const quantity = new Prisma.Decimal(params.quantity.toString());
@@ -160,10 +162,13 @@ export async function addBatch(
       locationType: params.locationType,
       locationId: params.locationId,
       quantity,
+      initialQuantity: quantity,
       costPerUnit,
       receivedAt: params.receivedAt ?? new Date(),
       notes: params.notes,
       transferItemId: params.transferItemId,
+      supplierId: params.supplierId ?? null,
+      createdById: params.createdById ?? null,
     },
   });
 

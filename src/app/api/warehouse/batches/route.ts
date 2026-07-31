@@ -23,7 +23,10 @@ export async function GET() {
             locationId: warehouse.id,
             quantity: { gt: 0 },
           },
-          include: { product: { include: { brand: true, unit: true } } },
+          include: {
+            product: { include: { brand: true, unit: true } },
+            supplier: { select: { id: true, name: true } },
+          },
           orderBy: { receivedAt: "asc" },
           take: 100,
         })
@@ -38,6 +41,7 @@ export async function GET() {
         quantity: decimalToNumber(b.quantity),
         costPerUnit: decimalToNumber(b.costPerUnit),
         notes: b.notes,
+        supplier: b.supplier,
         product: {
           name: b.product.name,
           unit: b.product.unit ? { symbol: b.product.unit.symbol } : null,

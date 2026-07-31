@@ -43,7 +43,9 @@ export function WarehouseMobileTabs() {
                 warehouseProductSegment(pathname) !== null
               : tab.href === "/warehouse/receive"
                 ? pathname.startsWith("/warehouse/receive") ||
-                  pathname.startsWith("/warehouse/batches")
+                  pathname.startsWith("/warehouse/batches") ||
+                  pathname.startsWith("/warehouse/purchases") ||
+                  pathname.startsWith("/warehouse/suppliers")
                 : pathname === tab.href || pathname.startsWith(`${tab.href}/`);
         return (
           <Link

@@ -15,6 +15,7 @@ type BatchRow = {
   quantity: number;
   costPerUnit: number;
   notes: string | null;
+  supplier?: { id: string; name: string } | null;
   product: {
     name: string;
     unit?: { symbol: string } | null;
@@ -61,6 +62,7 @@ export default function BatchesPage() {
                 <div className="mt-1 text-xs text-muted">
                   {formatDate(b.receivedAt)} · {t("wh.colQty")} {b.quantity}
                   {b.product.unit?.symbol ?? ""}
+                  {b.supplier ? ` · ${b.supplier.name}` : ""}
                   {showFinance
                     ? ` · ${t("warehouse.productCardCost")} ${formatMoney(b.costPerUnit)}`
                     : ""}

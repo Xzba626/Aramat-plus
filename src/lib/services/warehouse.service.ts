@@ -13,6 +13,8 @@ const WAREHOUSE_ACTIONS = [
   "BRAND_CREATE",
   "BRAND_UPDATE",
   "PRICE_CHANGE",
+  "WRITE_OFF",
+  "SUPPLIER_CREATE",
 ];
 
 export async function getCentralWarehouse(companyId: string) {
@@ -20,6 +22,13 @@ export async function getCentralWarehouse(companyId: string) {
     where: { companyId, isActive: true },
   });
 }
+
+export type OverviewProductAlert = {
+  id: string;
+  name: string;
+  quantity: number;
+  minStock: number;
+};
 
 export async function getWarehouseOverview(companyId: string, showFinance: boolean) {
   const warehouse = await getCentralWarehouse(companyId);
@@ -29,18 +38,45 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
       skuCount: 0,
       unitsTotal: 0,
       batchCount: 0,
+      categoryCount: 0,
       lowStockCount: 0,
+      outOfStockCount: 0,
+      productCount: 0,
+      totalPurchaseCost: 0,
       totalCost: 0,
       totalSaleValue: 0,
-      productCount: 0,
+      potentialProfit: 0,
+      lowStockItems: [] as OverviewProductAlert[],
+      outOfStockItems: [] as OverviewProductAlert[],
       recentReceipts: [],
       recentTransfers: [],
-      recentReturns: [],
+      recentMovements: [],
+      recentWriteOffs: [],
     };
   }
 
-  const [products, batches, balances, transfers, receipts, returns] = await Promise.all([
+  const [
+    products,
+    categoryCount,
+    activeProducts,
+    batchesWithStock,
+    balances,
+    transfers,
+    receiptBatches,
+    writeOffs,
+    allReceiptBatches,
+  ] = await Promise.all([
     prisma.product.count({ where: { companyId, isActive: true } }),
+    prisma.category.count({ where: { companyId, isArchived: false } }),
+    prisma.product.findMany({
+      where: { companyId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        minStock: true,
+        salePrice: true,
+      },
+    }),
     prisma.batch.count({
       where: {
         locationType: LocationType.WAREHOUSE,
@@ -54,7 +90,7 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
         locationId: warehouse.id,
       },
       include: {
-        product: { select: { minStock: true, salePrice: true, name: true } },
+        product: { select: { id: true, name: true, minStock: true, salePrice: true, isActive: true } },
       },
     }),
     prisma.transfer.findMany({
@@ -67,25 +103,85 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
       orderBy: { createdAt: "desc" },
       take: 5,
     }),
-    prisma.activityLog.findMany({
+    prisma.batch.findMany({
       where: {
-        companyId,
-        action: "BATCH_CREATE",
-        entityType: "Batch",
+        locationType: LocationType.WAREHOUSE,
+        locationId: warehouse.id,
+        transferItemId: null,
+        product: { companyId },
       },
-      include: { user: { select: { name: true } } },
-      orderBy: { createdAt: "desc" },
+      include: {
+        product: { select: { name: true } },
+        supplier: { select: { name: true } },
+        createdBy: { select: { name: true } },
+      },
+      orderBy: { receivedAt: "desc" },
       take: 5,
     }),
     prisma.activityLog.findMany({
-      where: { companyId, action: "WAREHOUSE_RETURN_IN" },
+      where: { companyId, action: "WRITE_OFF" },
       include: { user: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
       take: 5,
     }),
+    showFinance
+      ? prisma.batch.findMany({
+          where: {
+            locationType: LocationType.WAREHOUSE,
+            locationId: warehouse.id,
+            transferItemId: null,
+            product: { companyId },
+          },
+          select: { initialQuantity: true, costPerUnit: true, quantity: true },
+        })
+      : Promise.resolve(
+          [] as Array<{
+            initialQuantity: Prisma.Decimal;
+            costPerUnit: Prisma.Decimal;
+            quantity: Prisma.Decimal;
+          }>
+        ),
   ]);
 
-  const batchRows = await prisma.batch.findMany({
+  const balanceByProduct = new Map(
+    balances.map((b) => [b.productId, decimalToNumber(b.quantity)])
+  );
+
+  let unitsTotal = 0;
+  let totalSaleValue = 0;
+  const lowStockItems: OverviewProductAlert[] = [];
+  const outOfStockItems: OverviewProductAlert[] = [];
+
+  for (const p of activeProducts) {
+    const qty = balanceByProduct.get(p.id) ?? 0;
+    const min = decimalToNumber(p.minStock) || 5;
+    if (qty > 0) {
+      unitsTotal += qty;
+      if (showFinance) {
+        totalSaleValue += qty * decimalToNumber(p.salePrice);
+      }
+      if (qty <= min) {
+        lowStockItems.push({
+          id: p.id,
+          name: p.name,
+          quantity: qty,
+          minStock: min,
+        });
+      }
+    } else {
+      outOfStockItems.push({
+        id: p.id,
+        name: p.name,
+        quantity: 0,
+        minStock: min,
+      });
+    }
+  }
+
+  lowStockItems.sort((a, b) => a.quantity - b.quantity);
+  outOfStockItems.sort((a, b) => a.name.localeCompare(b.name, "ru"));
+
+  const stockBatches = await prisma.batch.findMany({
     where: {
       locationType: LocationType.WAREHOUSE,
       locationId: warehouse.id,
@@ -94,41 +190,56 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
     select: { quantity: true, costPerUnit: true },
   });
 
-  let unitsTotal = 0;
-  let lowStockCount = 0;
-  let totalSaleValue = 0;
-
-  for (const b of balances) {
-    const qty = decimalToNumber(b.quantity);
-    unitsTotal += qty;
-    const min = decimalToNumber(b.product.minStock) || 5;
-    if (qty > 0 && qty <= min) lowStockCount += 1;
-    if (showFinance) {
-      totalSaleValue += qty * decimalToNumber(b.product.salePrice);
-    }
-  }
-
   const totalCost = showFinance
-    ? batchRows.reduce(
+    ? stockBatches.reduce(
         (s, b) => s + decimalToNumber(b.quantity) * decimalToNumber(b.costPerUnit),
         0
       )
     : 0;
 
+  const totalPurchaseCost = showFinance
+    ? allReceiptBatches.reduce(
+        (s, b) =>
+          s + decimalToNumber(b.initialQuantity) * decimalToNumber(b.costPerUnit),
+        0
+      )
+    : 0;
+
+  const potentialProfit = showFinance ? totalSaleValue - totalCost : 0;
+
+  const recentMovements = await prisma.activityLog.findMany({
+    where: {
+      companyId,
+      action: { in: ["TRANSFER_CREATE", "WAREHOUSE_RETURN_IN", "WRITE_OFF", "BATCH_CREATE"] },
+    },
+    include: { user: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 8,
+  });
+
   return {
     warehouse,
     skuCount: balances.filter((b) => decimalToNumber(b.quantity) > 0).length,
     productCount: products,
+    categoryCount,
     unitsTotal: Math.round(unitsTotal * 1000) / 1000,
-    batchCount: batches,
-    lowStockCount,
+    batchCount: batchesWithStock,
+    lowStockCount: lowStockItems.length,
+    outOfStockCount: outOfStockItems.length,
+    totalPurchaseCost: Math.round(totalPurchaseCost * 100) / 100,
     totalCost: Math.round(totalCost * 100) / 100,
     totalSaleValue: Math.round(totalSaleValue * 100) / 100,
-    recentReceipts: receipts.map((r) => ({
-      id: r.id,
-      createdAt: r.createdAt,
-      userName: r.user?.name ?? "",
-      comment: r.comment,
+    potentialProfit: Math.round(potentialProfit * 100) / 100,
+    lowStockItems: lowStockItems.slice(0, 8),
+    outOfStockItems: outOfStockItems.slice(0, 8),
+    recentReceipts: receiptBatches.map((b) => ({
+      id: b.id,
+      createdAt: b.receivedAt,
+      userName: b.createdBy?.name ?? "",
+      productName: b.product.name,
+      quantity: decimalToNumber(b.initialQuantity),
+      supplierName: b.supplier?.name ?? null,
+      comment: b.notes,
     })),
     recentTransfers: transfers.map((t) => ({
       id: t.id,
@@ -138,7 +249,14 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
       itemCount: t.items.length,
       products: t.items.map((i) => i.product.name).slice(0, 3),
     })),
-    recentReturns: returns.map((r) => ({
+    recentMovements: recentMovements.map((m) => ({
+      id: m.id,
+      createdAt: m.createdAt,
+      action: m.action,
+      userName: m.user?.name ?? "",
+      comment: m.comment,
+    })),
+    recentWriteOffs: writeOffs.map((r) => ({
       id: r.id,
       createdAt: r.createdAt,
       userName: r.user?.name ?? "",
@@ -269,7 +387,11 @@ export async function getWarehouseHistory(
       companyId,
       OR: [
         { action: { in: WAREHOUSE_ACTIONS } },
-        { entityType: { in: ["Product", "Batch", "Transfer", "Category", "Brand"] } },
+        {
+          entityType: {
+            in: ["Product", "Batch", "Transfer", "Category", "Brand", "Supplier"],
+          },
+        },
       ],
     },
     include: {
@@ -285,7 +407,11 @@ export async function getWarehouseHistory(
       companyId,
       OR: [
         { action: { in: WAREHOUSE_ACTIONS } },
-        { entityType: { in: ["Product", "Batch", "Transfer", "Category", "Brand"] } },
+        {
+          entityType: {
+            in: ["Product", "Batch", "Transfer", "Category", "Brand", "Supplier"],
+          },
+        },
       ],
     },
   });
