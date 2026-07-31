@@ -17,6 +17,17 @@ const WAREHOUSE_ACTIONS = [
   "SUPPLIER_CREATE",
 ];
 
+/** Purchase stock-in only (exclude transfers + returns). */
+const PURCHASE_BATCH_WHERE: Prisma.BatchWhereInput = {
+  transferItemId: null,
+  NOT: {
+    OR: [
+      { notes: { startsWith: "warehouse_return:" } },
+      { notes: { startsWith: "sale_return:" } },
+    ],
+  },
+};
+
 export async function getCentralWarehouse(companyId: string) {
   return prisma.warehouse.findFirst({
     where: { companyId, isActive: true },
@@ -107,8 +118,8 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
       where: {
         locationType: LocationType.WAREHOUSE,
         locationId: warehouse.id,
-        transferItemId: null,
         product: { companyId },
+        ...PURCHASE_BATCH_WHERE,
       },
       include: {
         product: { select: { name: true } },
@@ -129,8 +140,8 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
           where: {
             locationType: LocationType.WAREHOUSE,
             locationId: warehouse.id,
-            transferItemId: null,
             product: { companyId },
+            ...PURCHASE_BATCH_WHERE,
           },
           select: { initialQuantity: true, costPerUnit: true, quantity: true },
         })

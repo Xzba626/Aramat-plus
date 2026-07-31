@@ -1,7 +1,18 @@
-import { LocationType } from "@prisma/client";
+import { LocationType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 import { getCentralWarehouse } from "@/lib/services/warehouse.service";
+
+/** Batches created by returns must not appear as purchases. */
+export const PURCHASE_BATCH_WHERE: Prisma.BatchWhereInput = {
+  transferItemId: null,
+  NOT: {
+    OR: [
+      { notes: { startsWith: "warehouse_return:" } },
+      { notes: { startsWith: "sale_return:" } },
+    ],
+  },
+};
 
 export type PurchaseHistoryItem = {
   id: string;
@@ -16,7 +27,7 @@ export type PurchaseHistoryItem = {
   createdBy: { id: string; name: string } | null;
 };
 
-/** Purchase receipts = warehouse batches created as stock in (not store transfers). */
+/** Purchase receipts = warehouse stock-in batches (not transfers / returns). */
 export async function getPurchaseHistory(
   companyId: string,
   opts?: { limit?: number; offset?: number; showFinance?: boolean }
@@ -30,11 +41,11 @@ export async function getPurchaseHistory(
     return { total: 0, items: [] as PurchaseHistoryItem[] };
   }
 
-  const where = {
+  const where: Prisma.BatchWhereInput = {
     locationType: LocationType.WAREHOUSE,
     locationId: warehouse.id,
-    transferItemId: null as string | null,
     product: { companyId },
+    ...PURCHASE_BATCH_WHERE,
   };
 
   const [total, batches] = await Promise.all([
