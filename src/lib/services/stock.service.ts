@@ -1,4 +1,4 @@
-import { LocationType, Prisma } from "@prisma/client";
+import { BatchOrigin, LocationType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 type Tx = Prisma.TransactionClient;
@@ -148,6 +148,9 @@ export async function addBatch(
     receivedAt?: Date;
     notes?: string;
     transferItemId?: string;
+    origin?: BatchOrigin;
+    supplierId?: string | null;
+    createdById?: string | null;
   }
 ) {
   const quantity = new Prisma.Decimal(params.quantity.toString());
@@ -160,10 +163,14 @@ export async function addBatch(
       locationType: params.locationType,
       locationId: params.locationId,
       quantity,
+      originalQuantity: quantity,
       costPerUnit,
       receivedAt: params.receivedAt ?? new Date(),
       notes: params.notes,
       transferItemId: params.transferItemId,
+      origin: params.origin ?? BatchOrigin.PURCHASE,
+      supplierId: params.supplierId ?? null,
+      createdById: params.createdById ?? null,
     },
   });
 

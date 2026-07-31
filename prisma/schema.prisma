@@ -28,6 +28,15 @@ enum LocationType {
   STORE
 }
 
+/** How a batch entered stock (Stage 5 purchases vs transfer/return). */
+enum BatchOrigin {
+  PURCHASE
+  TRANSFER
+  RETURN
+  INITIAL
+  OTHER
+}
+
 enum StoreKind {
   BRANCH
   OWNER_DIRECT
@@ -98,8 +107,28 @@ model Company {
   operationTypes  OperationType[]
   expenseTypes    ExpenseType[]
   products        Product[]
+  suppliers       Supplier[]
   settings        Setting[]
   giftRules       GiftRule[]
+}
+
+// ─── Purchases (Stage 5) ─────────────────────────────────────────────────────
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  notes     String?
+  isActive  Boolean  @default(true)
+  companyId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  batches Batch[]
+
+  @@index([companyId])
+  @@index([companyId, isActive])
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -133,6 +162,7 @@ model User {
   notifications      Notification[]
   expenses           Expense[]
   activityLogs       ActivityLog[]
+  batchesCreated     Batch[]              @relation("BatchCreator")
 
   @@index([companyId])
   @@index([storeId])
@@ -354,19 +384,28 @@ model Batch {
   locationType   LocationType
   locationId     String
   quantity       Decimal      @db.Decimal(14, 3)
+  /** Qty at creation — purchase history stays correct after FIFO. */
+  originalQuantity Decimal?   @db.Decimal(14, 3)
   costPerUnit    Decimal      @db.Decimal(12, 4)
   receivedAt     DateTime     @default(now())
   notes          String?
   transferItemId String?
+  origin         BatchOrigin  @default(PURCHASE)
+  supplierId     String?
+  createdById    String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   product       Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier      Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  createdBy     User?          @relation("BatchCreator", fields: [createdById], references: [id], onDelete: SetNull)
   transferItems TransferItem[] @relation("SourceBatch")
   saleItems     SaleItem[]
 
   @@index([productId, locationType, locationId, receivedAt])
   @@index([locationType, locationId])
+  @@index([supplierId])
+  @@index([origin, receivedAt])
 }
 
 model StockBalance {

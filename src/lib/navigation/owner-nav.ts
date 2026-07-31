@@ -50,6 +50,7 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     children: [
       { href: "/warehouse/receive", labelKey: "nav.purchasesReceive" },
       { href: "/warehouse/batches", labelKey: "nav.purchasesBatches" },
+      { href: "/warehouse/suppliers", labelKey: "nav.purchasesSuppliers" },
     ],
   },
   {

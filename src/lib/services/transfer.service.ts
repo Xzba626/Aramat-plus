@@ -1,4 +1,4 @@
-import { LocationType, Prisma } from "@prisma/client";
+import { BatchOrigin, LocationType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { addBatch, deductBatchesFifo } from "@/lib/services/stock.service";
 import { logActivity } from "@/lib/services/activity-log.service";
@@ -87,6 +87,8 @@ export async function createTransfer(params: {
             costPerUnit: slice.costPerUnit,
             notes: `transfer:${transfer.id}`,
             transferItemId: item.id,
+            origin: BatchOrigin.TRANSFER,
+            createdById: params.createdById,
           });
 
           createdItems.push(item);

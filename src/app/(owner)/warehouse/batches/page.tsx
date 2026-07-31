@@ -8,22 +8,27 @@ import { Button } from "@/components/ui/button";
 import { LoadingBlock } from "@/components/ui/empty-state";
 import { useI18n } from "@/components/i18n/i18n-provider";
 
-type BatchRow = {
+type PurchaseRow = {
   id: string;
   productId: string;
   receivedAt: string;
   quantity: number;
+  remainingQty?: number;
   costPerUnit: number;
+  totalCost: number | null;
   notes: string | null;
+  supplier: { id: string; name: string } | null;
+  createdBy: { id: string; name: string } | null;
   product: {
     name: string;
     unit?: { symbol: string } | null;
+    brand?: string | null;
   };
 };
 
-export default function BatchesPage() {
+export default function PurchaseHistoryPage() {
   const { t, formatMoney, formatDate } = useI18n();
-  const [batches, setBatches] = useState<BatchRow[]>([]);
+  const [rows, setRows] = useState<PurchaseRow[]>([]);
   const [showFinance, setShowFinance] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -31,7 +36,7 @@ export default function BatchesPage() {
     fetch("/api/warehouse/batches")
       .then((r) => r.json())
       .then((d) => {
-        setBatches(Array.isArray(d.batches) ? d.batches : []);
+        setRows(Array.isArray(d.purchases) ? d.purchases : Array.isArray(d.batches) ? d.batches : []);
         setShowFinance(Boolean(d.showFinance));
         setLoading(false);
       })
@@ -41,12 +46,12 @@ export default function BatchesPage() {
   return (
     <div>
       <PageHeader
-        title={t("wh.batchesTitle")}
-        count={loading ? null : batches.length}
-        subtitle={t("wh.stockSubtitle")}
+        title={t("purchases.historyTitle")}
+        count={loading ? null : rows.length}
+        subtitle={t("purchases.historySubtitle")}
         actions={
           <Link href="/warehouse/receive">
-            <Button fullWidth={false}>{t("warehouse.newBatch")}</Button>
+            <Button fullWidth={false}>{t("purchases.newReceive")}</Button>
           </Link>
         }
       />
@@ -54,23 +59,31 @@ export default function BatchesPage() {
         <LoadingBlock rows={4} />
       ) : (
         <div className="space-y-2">
-          {batches.map((b) => (
+          {rows.map((b) => (
             <Link key={b.id} href={`/warehouse/${b.productId}`}>
               <Card className="mb-2 p-4">
-                <div className="font-semibold text-ink">{b.product.name}</div>
-                <div className="mt-1 text-xs text-muted">
-                  {formatDate(b.receivedAt)} · {t("wh.colQty")} {b.quantity}
-                  {b.product.unit?.symbol ?? ""}
-                  {showFinance
-                    ? ` · ${t("warehouse.productCardCost")} ${formatMoney(b.costPerUnit)}`
-                    : ""}
-                  {b.notes ? ` · ${b.notes}` : ""}
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <div className="font-semibold text-ink">{b.product.name}</div>
+                    <div className="mt-1 text-xs text-muted">
+                      {formatDate(b.receivedAt)}
+                      {b.supplier ? ` · ${b.supplier.name}` : ` · ${t("purchases.noSupplier")}`}
+                      {` · ${t("purchases.qtyShort")} ${b.quantity}${b.product.unit?.symbol ?? ""}`}
+                      {showFinance
+                        ? ` · ${formatMoney(b.costPerUnit)} · ${t("purchases.total")} ${formatMoney(b.totalCost ?? 0)}`
+                        : ""}
+                    </div>
+                    <div className="mt-1 text-xs text-muted">
+                      {t("purchases.addedBy")}: {b.createdBy?.name ?? t("common.system")}
+                      {b.notes ? ` · ${b.notes}` : ""}
+                    </div>
+                  </div>
                 </div>
               </Card>
             </Link>
           ))}
-          {batches.length === 0 ? (
-            <Card className="p-8 text-center text-muted">{t("wh.batchesEmpty")}</Card>
+          {rows.length === 0 ? (
+            <Card className="p-8 text-center text-muted">{t("purchases.historyEmpty")}</Card>
           ) : null}
         </div>
       )}

@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { batchSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity } from "@/lib/services/activity-log.service";
-import { LocationType } from "@prisma/client";
+import { BatchOrigin, LocationType } from "@prisma/client";
 import { addBatch } from "@/lib/services/stock.service";
+import { assertSupplierInCompany } from "@/lib/services/supplier.service";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -49,6 +50,11 @@ export async function POST(req: Request, ctx: Ctx) {
     });
     if (!warehouse) return handleApiError(new Error("WAREHOUSE_MISSING"));
 
+    const supplier = await assertSupplierInCompany(
+      user!.companyId,
+      body.supplierId
+    );
+
     const batch = await prisma.$transaction(async (tx) => {
       const created = await addBatch(tx, {
         productId: id,
@@ -57,7 +63,10 @@ export async function POST(req: Request, ctx: Ctx) {
         quantity: body.quantity,
         costPerUnit: body.costPerUnit,
         receivedAt: body.receivedAt,
-        notes: body.notes ?? "New batch",
+        notes: body.notes ?? null,
+        origin: BatchOrigin.PURCHASE,
+        supplierId: supplier?.id ?? null,
+        createdById: user!.id,
       });
 
       await logActivity({
@@ -68,6 +77,14 @@ export async function POST(req: Request, ctx: Ctx) {
         entityType: "Batch",
         entityId: created.id,
         comment: `${product.name}: ${body.quantity} @ ${body.costPerUnit}`,
+        metadata: {
+          productId: id,
+          quantity: body.quantity,
+          costPerUnit: body.costPerUnit,
+          supplierId: supplier?.id ?? null,
+          supplierName: supplier?.name ?? null,
+          totalCost: body.quantity * body.costPerUnit,
+        },
       });
 
       return created;

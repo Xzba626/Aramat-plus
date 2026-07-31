@@ -49,6 +49,14 @@ export const batchSchema = z.object({
   costPerUnit: z.coerce.number().positive(),
   receivedAt: z.coerce.date().optional(),
   notes: z.string().max(500).optional().nullable(),
+  supplierId: z.string().min(1).optional().nullable(),
+});
+
+export const supplierSchema = z.object({
+  name: z.string().min(1).max(200),
+  phone: z.string().max(40).optional().nullable(),
+  notes: z.string().max(500).optional().nullable(),
+  isActive: z.boolean().optional(),
 });
 
 export const priceSchema = z.object({

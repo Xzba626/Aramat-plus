@@ -60,6 +60,7 @@ export function handleApiError(err: unknown) {
       "SELLER_POS_BRANCH_ONLY",
       "SELLER_WRONG_STORE",
       "STORE_NOT_FOUND",
+      "SUPPLIER_NOT_FOUND",
       "TRANSFER_BRANCH_ONLY",
       "UNAUTHORIZED",
       "USER_NOT_FOUND",

@@ -1,4 +1,4 @@
-import { LocationType, Prisma } from "@prisma/client";
+import { BatchOrigin, LocationType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 
@@ -13,6 +13,7 @@ const WAREHOUSE_ACTIONS = [
   "BRAND_CREATE",
   "BRAND_UPDATE",
   "PRICE_CHANGE",
+  "WRITE_OFF",
 ];
 
 export async function getCentralWarehouse(companyId: string) {
@@ -30,17 +31,36 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
       unitsTotal: 0,
       batchCount: 0,
       lowStockCount: 0,
+      emptyStockCount: 0,
+      categoryCount: 0,
       totalCost: 0,
       totalSaleValue: 0,
+      potentialProfit: 0,
       productCount: 0,
       recentReceipts: [],
       recentTransfers: [],
       recentReturns: [],
+      recentWriteOffs: [],
+      recentMovements: [],
+      lowStockItems: [],
+      emptyStockItems: [],
     };
   }
 
-  const [products, batches, balances, transfers, receipts, returns] = await Promise.all([
+  const [
+    products,
+    categories,
+    batches,
+    balances,
+    transfers,
+    purchaseBatches,
+    returns,
+    writeOffs,
+    movements,
+    allActiveProducts,
+  ] = await Promise.all([
     prisma.product.count({ where: { companyId, isActive: true } }),
+    prisma.category.count({ where: { companyId, isArchived: false } }),
     prisma.batch.count({
       where: {
         locationType: LocationType.WAREHOUSE,
@@ -54,7 +74,15 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
         locationId: warehouse.id,
       },
       include: {
-        product: { select: { minStock: true, salePrice: true, name: true } },
+        product: {
+          select: {
+            id: true,
+            minStock: true,
+            salePrice: true,
+            name: true,
+            isActive: true,
+          },
+        },
       },
     }),
     prisma.transfer.findMany({
@@ -67,14 +95,18 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
       orderBy: { createdAt: "desc" },
       take: 5,
     }),
-    prisma.activityLog.findMany({
+    prisma.batch.findMany({
       where: {
-        companyId,
-        action: "BATCH_CREATE",
-        entityType: "Batch",
+        locationType: LocationType.WAREHOUSE,
+        locationId: warehouse.id,
+        origin: BatchOrigin.PURCHASE,
       },
-      include: { user: { select: { name: true } } },
-      orderBy: { createdAt: "desc" },
+      include: {
+        product: { select: { name: true } },
+        supplier: { select: { name: true } },
+        createdBy: { select: { name: true } },
+      },
+      orderBy: { receivedAt: "desc" },
       take: 5,
     }),
     prisma.activityLog.findMany({
@@ -82,6 +114,27 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
       include: { user: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
       take: 5,
+    }),
+    prisma.activityLog.findMany({
+      where: { companyId, action: "WRITE_OFF" },
+      include: { user: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    }),
+    prisma.activityLog.findMany({
+      where: {
+        companyId,
+        action: {
+          in: ["BATCH_CREATE", "TRANSFER_CREATE", "WAREHOUSE_RETURN_IN", "WRITE_OFF"],
+        },
+      },
+      include: { user: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+    }),
+    prisma.product.findMany({
+      where: { companyId, isActive: true },
+      select: { id: true, name: true },
     }),
   ]);
 
@@ -97,15 +150,39 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
   let unitsTotal = 0;
   let lowStockCount = 0;
   let totalSaleValue = 0;
+  const lowStockItems: Array<{
+    productId: string;
+    name: string;
+    quantity: number;
+    minStock: number;
+  }> = [];
+  const qtyByProduct = new Map<string, number>();
 
   for (const b of balances) {
     const qty = decimalToNumber(b.quantity);
+    qtyByProduct.set(b.productId, qty);
     unitsTotal += qty;
     const min = decimalToNumber(b.product.minStock) || 5;
-    if (qty > 0 && qty <= min) lowStockCount += 1;
-    if (showFinance) {
+    if (qty > 0 && qty <= min) {
+      lowStockCount += 1;
+      if (lowStockItems.length < 8) {
+        lowStockItems.push({
+          productId: b.productId,
+          name: b.product.name,
+          quantity: qty,
+          minStock: min,
+        });
+      }
+    }
+    if (showFinance && qty > 0) {
       totalSaleValue += qty * decimalToNumber(b.product.salePrice);
     }
+  }
+
+  const emptyStockItems: Array<{ productId: string; name: string }> = [];
+  for (const p of allActiveProducts) {
+    const qty = qtyByProduct.get(p.id) ?? 0;
+    if (qty <= 0) emptyStockItems.push({ productId: p.id, name: p.name });
   }
 
   const totalCost = showFinance
@@ -115,21 +192,37 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
       )
     : 0;
 
+  const potentialProfit = showFinance
+    ? Math.round((totalSaleValue - totalCost) * 100) / 100
+    : 0;
+
   return {
     warehouse,
     skuCount: balances.filter((b) => decimalToNumber(b.quantity) > 0).length,
     productCount: products,
+    categoryCount: categories,
     unitsTotal: Math.round(unitsTotal * 1000) / 1000,
     batchCount: batches,
     lowStockCount,
+    emptyStockCount: emptyStockItems.length,
     totalCost: Math.round(totalCost * 100) / 100,
     totalSaleValue: Math.round(totalSaleValue * 100) / 100,
-    recentReceipts: receipts.map((r) => ({
-      id: r.id,
-      createdAt: r.createdAt,
-      userName: r.user?.name ?? "",
-      comment: r.comment,
-    })),
+    potentialProfit,
+    lowStockItems,
+    emptyStockItems: emptyStockItems.slice(0, 8),
+    recentReceipts: purchaseBatches.map((b) => {
+      const orig = decimalToNumber(b.originalQuantity ?? b.quantity);
+      const cost = decimalToNumber(b.costPerUnit);
+      return {
+        id: b.id,
+        createdAt: b.receivedAt,
+        userName: b.createdBy?.name ?? "",
+        comment: b.notes,
+        productName: b.product.name,
+        supplierName: b.supplier?.name ?? null,
+        totalCost: showFinance ? Math.round(orig * cost * 100) / 100 : null,
+      };
+    }),
     recentTransfers: transfers.map((t) => ({
       id: t.id,
       createdAt: t.createdAt,
@@ -144,6 +237,70 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
       userName: r.user?.name ?? "",
       comment: r.comment,
     })),
+    recentWriteOffs: writeOffs.map((w) => ({
+      id: w.id,
+      createdAt: w.createdAt,
+      userName: w.user?.name ?? "",
+      comment: w.comment,
+    })),
+    recentMovements: movements.map((m) => ({
+      id: m.id,
+      createdAt: m.createdAt,
+      userName: m.user?.name ?? "",
+      action: m.action,
+      comment: m.comment,
+    })),
+  };
+}
+
+export async function listPurchaseHistory(
+  companyId: string,
+  opts?: { showFinance?: boolean; take?: number }
+) {
+  const warehouse = await getCentralWarehouse(companyId);
+  if (!warehouse) return { warehouse: null, purchases: [] as const };
+
+  const take = opts?.take ?? 100;
+  const showFinance = Boolean(opts?.showFinance);
+
+  const batches = await prisma.batch.findMany({
+    where: {
+      locationType: LocationType.WAREHOUSE,
+      locationId: warehouse.id,
+      origin: BatchOrigin.PURCHASE,
+    },
+    include: {
+      product: { include: { brand: true, unit: true } },
+      supplier: { select: { id: true, name: true } },
+      createdBy: { select: { id: true, name: true } },
+    },
+    orderBy: { receivedAt: "desc" },
+    take,
+  });
+
+  return {
+    warehouse,
+    purchases: batches.map((b) => {
+      const qty = decimalToNumber(b.originalQuantity ?? b.quantity);
+      const cost = decimalToNumber(b.costPerUnit);
+      return {
+        id: b.id,
+        productId: b.productId,
+        receivedAt: b.receivedAt.toISOString(),
+        quantity: qty,
+        remainingQty: decimalToNumber(b.quantity),
+        costPerUnit: cost,
+        totalCost: showFinance ? Math.round(qty * cost * 100) / 100 : null,
+        notes: b.notes,
+        supplier: b.supplier,
+        createdBy: b.createdBy,
+        product: {
+          name: b.product.name,
+          unit: b.product.unit ? { symbol: b.product.unit.symbol } : null,
+          brand: b.product.brand?.name ?? null,
+        },
+      };
+    }),
   };
 }
 

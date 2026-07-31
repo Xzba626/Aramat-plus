@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { productSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity } from "@/lib/services/activity-log.service";
-import { LocationType, Prisma } from "@prisma/client";
+import { BatchOrigin, LocationType, Prisma } from "@prisma/client";
 import { decimalToNumber } from "@/lib/utils";
 import { addBatch } from "@/lib/services/stock.service";
 import {
@@ -182,6 +182,8 @@ export async function POST(req: Request) {
           quantity: initialQty,
           costPerUnit,
           notes: "Initial stock",
+          origin: BatchOrigin.INITIAL,
+          createdById: user!.id,
         });
       }
 

@@ -33,6 +33,8 @@ export const ACTION_KEYS: Record<string, string> = {
   EXPENSE_CREATE: "actions.expenseCreate",
   CATEGORY_CREATE: "actions.categoryCreate",
   BRAND_CREATE: "actions.brandCreate",
+  SUPPLIER_CREATE: "actions.supplierCreate",
+  SUPPLIER_UPDATE: "actions.supplierUpdate",
   PRICE_CHANGE: "actions.priceChange",
 };
 
@@ -50,6 +52,7 @@ export const ENTITY_KEYS: Record<string, string> = {
   Expense: "entities.expense",
   Category: "entities.category",
   Brand: "entities.brand",
+  Supplier: "entities.supplier",
 };
 
 export const SALE_STATUS_KEYS: Record<string, string> = {
