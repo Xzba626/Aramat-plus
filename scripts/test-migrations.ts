@@ -8,11 +8,11 @@ import path from "node:path";
 
 const root = path.resolve(__dirname, "..");
 
-function run(cmd: string, env?: NodeJS.ProcessEnv) {
+function run(cmd: string, envExtra?: Record<string, string>) {
   console.log(`\n$ ${cmd}`);
   return execSync(cmd, {
     cwd: root,
-    env: { ...process.env, ...env },
+    env: { ...process.env, ...envExtra },
     encoding: "utf8",
     stdio: ["inherit", "pipe", "pipe"],
   });

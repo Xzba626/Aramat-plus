@@ -63,7 +63,7 @@ export async function POST(req: Request, ctx: Ctx) {
         quantity: body.quantity,
         costPerUnit: body.costPerUnit,
         receivedAt: body.receivedAt,
-        notes: body.notes ?? null,
+        notes: body.notes ?? undefined,
         origin: BatchOrigin.PURCHASE,
         supplierId: supplier?.id ?? null,
         createdById: user!.id,
