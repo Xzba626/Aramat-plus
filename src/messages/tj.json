@@ -37,7 +37,9 @@
     "breadcrumb": "Роҳнамо",
     "error": "Хато",
     "system": "Система",
-    "storeFallback": "Мағоза"
+    "storeFallback": "Мағоза",
+    "archive": "Ба архив",
+    "restore": "Барқарор"
   },
   "errors": {
     "RECORD_EXISTS": "Чунин сабт аллакай ҳаст",
@@ -141,6 +143,7 @@
     "purchasesReceive": "Қабули мол",
     "purchasesBatches": "Таърихи харид",
     "purchasesSuppliers": "Таъминкунандагон",
+    "packaging": "Қуттии шиша",
     "inventory": "Анбор",
     "inventoryOverview": "Шарҳи анбор",
     "inventoryStock": "Боқимонда",
@@ -473,6 +476,8 @@
     "brandCreate": "Бренд эҷод шуд",
     "supplierCreate": "Таъминкунанда эҷод шуд",
     "supplierUpdate": "Таъминкунанда нав шуд",
+    "packagingSkuCreate": "Қуттӣ эҷод шуд",
+    "packagingSkuUpdate": "Қуттӣ нав шуд",
     "priceChange": "Тағйири нарх"
   },
   "entities": {
@@ -487,6 +492,7 @@
     "return": "Бозгашт",
     "writeOff": "Ҳисоббарорӣ",
     "supplier": "Таъминкунанда",
+    "packagingSku": "Қуттӣ",
     "expense": "Хароҷот",
     "category": "Категория",
     "brand": "Бренд"
@@ -532,6 +538,35 @@
     "activate": "Фаъол кардан",
     "showInactive": "Ғайрифаъолҳо",
     "showActive": "Фаъолҳо"
+  },
+  "packaging": {
+    "title": "Қуттӣ (шишаҳо)",
+    "subtitle": "Феҳристи шишаҳои холӣ — на атр. Боқимонда бо адад.",
+    "addSku": "+ Шиша",
+    "created": "Қуттӣ эҷод шуд",
+    "empty": "Қуттӣ нест",
+    "showInactive": "Архивро нишон диҳед",
+    "nameOptional": "Ном (ихтиёрӣ)",
+    "namePlaceholder": "Худкор: Шиша 30 мл · шиша",
+    "volumeMl": "Ҳаҷм, мл",
+    "defaultCost": "Нархи планӣ",
+    "material": "Мавод",
+    "materialGlass": "Шиша",
+    "materialPlastic": "Пластик",
+    "color": "Ранг",
+    "cap": "Сарпӯш",
+    "stock": "Дар анбор",
+    "planCost": "Нархи планӣ",
+    "receive": "Қабул",
+    "receiveBottles": "Қабули қуттӣ",
+    "receiveTitle": "Қабули шишаҳо",
+    "receiveSubtitle": "Моеъ ва қуттӣ алоҳида қабул мешаванд",
+    "tabLiquid": "Моеъ / мол",
+    "tabPackaging": "Қуттӣ",
+    "bottleProduct": "Шиша",
+    "quantityPcs": "Миқдор, адад",
+    "createSkuFirst": "Аввал дар феҳристи қуттӣ эҷод кунед",
+    "catalog": "Феҳристи қуттӣ"
   },
   "storesPage": {
     "title": "Мағозаҳо",

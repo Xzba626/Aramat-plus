@@ -156,3 +156,19 @@ export const reservationCreateSchema = z.object({
     )
     .min(1),
 });
+
+export const packagingSkuSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  volumeMl: z.coerce.number().positive(),
+  material: z.string().max(60).optional().nullable(),
+  color: z.string().max(60).optional().nullable(),
+  cap: z.string().max(60).optional().nullable(),
+  skuCode: z.string().max(80).optional().nullable(),
+  defaultCost: z.coerce.number().positive().optional().nullable(),
+  isDefaultForVolume: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const packagingSkuUpdateSchema = packagingSkuSchema.partial().extend({
+  id: z.string().min(1),
+});

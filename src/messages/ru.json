@@ -37,7 +37,9 @@
     "breadcrumb": "Навигация",
     "error": "Ошибка",
     "system": "Система",
-    "storeFallback": "Магазин"
+    "storeFallback": "Магазин",
+    "archive": "В архив",
+    "restore": "Восстановить"
   },
   "errors": {
     "RECORD_EXISTS": "Такая запись уже есть",
@@ -141,6 +143,7 @@
     "purchasesReceive": "Поступления",
     "purchasesBatches": "История закупок",
     "purchasesSuppliers": "Поставщики",
+    "packaging": "Тара",
     "inventory": "Склад",
     "inventoryOverview": "Обзор склада",
     "inventoryStock": "Остатки",
@@ -474,6 +477,8 @@
     "brandCreate": "Бренд создан",
     "supplierCreate": "Поставщик создан",
     "supplierUpdate": "Поставщик обновлён",
+    "packagingSkuCreate": "Тара создана",
+    "packagingSkuUpdate": "Тара обновлена",
     "priceChange": "Изменение цены"
   },
   "entities": {
@@ -488,6 +493,7 @@
     "return": "Возврат",
     "writeOff": "Списание",
     "supplier": "Поставщик",
+    "packagingSku": "Тара",
     "expense": "Расход",
     "category": "Категория",
     "brand": "Бренд"
@@ -533,6 +539,35 @@
     "activate": "Включить",
     "showInactive": "Неактивные",
     "showActive": "Активные"
+  },
+  "packaging": {
+    "title": "Тара (флаконы)",
+    "subtitle": "Каталог пустых флаконов — не ароматы. Остатки в штуках.",
+    "addSku": "+ Флакон",
+    "created": "Тара создана",
+    "empty": "Нет позиций тары",
+    "showInactive": "Показать архив",
+    "nameOptional": "Название (необязательно)",
+    "namePlaceholder": "Авто: Флакон 30 мл · стекло",
+    "volumeMl": "Объём, мл",
+    "defaultCost": "План. себестоимость",
+    "material": "Материал",
+    "materialGlass": "Стекло",
+    "materialPlastic": "Пластик",
+    "color": "Цвет",
+    "cap": "Крышка",
+    "stock": "На складе",
+    "planCost": "План. с/с",
+    "receive": "Принять",
+    "receiveBottles": "Приёмка тары",
+    "receiveTitle": "Приёмка флаконов",
+    "receiveSubtitle": "Жидкость и тара принимаются отдельно",
+    "tabLiquid": "Жидкость / товар",
+    "tabPackaging": "Тара",
+    "bottleProduct": "Флакон",
+    "quantityPcs": "Количество, шт",
+    "createSkuFirst": "Сначала создайте позицию в каталоге тары",
+    "catalog": "Каталог тары"
   },
   "storesPage": {
     "title": "Магазины",

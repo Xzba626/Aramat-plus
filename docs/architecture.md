@@ -152,17 +152,24 @@ Next (order preserved; extensions slotted in):
 | **9** | Design system + loading UX | Tokens; **skeleton loading**; never flash “empty” while loading |
 | **10** | Performance + Reports polish + System reset | Payment analytics (cash/card/transfer); list virtualization; **Owner system wipe** (phrase confirm, one TX, keep settings) |
 
-### Product Vision Layer (current — UI scenario criterion)
+### Product Vision Completion Phase (канон)
+
+См. [PRODUCT-VISION-LAYER.md](PRODUCT-VISION-LAYER.md).
 
 | Block | Scope | Status |
 |-------|--------|--------|
 | 1 | Discount seller → owner → sale | ✅ |
 | 2 | POS Persistent Cart (+ seller/store scope) | ✅ |
-| 3 | Owner Control Center + workspace IA | 🔄 harden (finance/store/decision feed) |
-| **4** | **Perfume Bottle & Liquid Inventory** | 📋 **next after Block 3 accept** — core, not P2 |
-| 5 | Owner Inbox / Notifications (decision center) | pending |
-| 6 | Store↔store transfer UI | pending |
-| 7 | Backup / Demo reset | pending |
+| **3.1** | **Owner Control Center** (деньги, магазины, решения, Finance) | 🔄 код harden — **UI-приёмка** |
+| **4** | **Perfume Bottle & Liquid Inventory** | 📋 **следующий core** (расширение склада) |
+| **5** | **Notifications / Owner Inbox** | 📋 после Block 4 |
+| 6 | Store↔store workflow | pending |
+| 7 | Customer CRM | pending |
+| 8 | PDF / Excel / Import | pending (после ядра) |
+
+Аудит без правок кода: [PRODUCT-VISION-AUDIT.md](PRODUCT-VISION-AUDIT.md).
+
+Также в фазе (не «забыть»): Backup / Demo / Full Reset · роли WAREHOUSE / ACCOUNTANT · глобальный поиск.
 
 Criterion: function is done only when owner/seller completes the full scenario in UI and sees the result.
 

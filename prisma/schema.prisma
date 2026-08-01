@@ -23,6 +23,12 @@ enum AccountingType {
   PIECE
 }
 
+/** STANDARD = aroma/goods; PACKAGING = empty bottle stock (PIECE). */
+enum ProductKind {
+  STANDARD
+  PACKAGING
+}
+
 enum LocationType {
   WAREHOUSE
   STORE
@@ -144,6 +150,7 @@ model Company {
   expenseTypes    ExpenseType[]
   products        Product[]
   suppliers       Supplier[]
+  packagingSkus   PackagingSku[]
   settings        Setting[]
   giftRules       GiftRule[]
   reservations    Reservation[]
@@ -166,6 +173,32 @@ model Supplier {
   batches Batch[]
 
   @@index([companyId])
+  @@index([companyId, isActive])
+}
+
+// ─── Packaging catalog (Block 4) — bottles are NOT aroma products ────────────
+
+model PackagingSku {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  volumeMl    Decimal  @db.Decimal(14, 3)
+  /// glass | plastic | … (empty string = unspecified)
+  material    String   @default("glass")
+  color       String   @default("")
+  cap         String   @default("")
+  skuCode     String?
+  defaultCost Decimal? @db.Decimal(12, 4)
+  isDefaultForVolume Boolean @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([companyId, volumeMl, material, color, cap])
+  @@index([companyId, volumeMl])
   @@index([companyId, isActive])
 }
 
@@ -367,6 +400,8 @@ model Product {
   unitId         String?
   productTypeId  String?
   accountingType AccountingType @default(PIECE)
+  kind           ProductKind    @default(STANDARD)
+  packagingSkuId String?
   salePrice      Decimal        @db.Decimal(12, 2)
   /// Справочная / плановая себестоимость за единицу (мл или шт). Реальная с/с — на Batch.
   defaultCostPerUnit Decimal?   @db.Decimal(12, 2)
@@ -375,11 +410,12 @@ model Product {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  category    Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  brand       Brand?       @relation(fields: [brandId], references: [id], onDelete: SetNull)
-  unit        Unit?        @relation(fields: [unitId], references: [id], onDelete: SetNull)
-  productType ProductType? @relation(fields: [productTypeId], references: [id], onDelete: SetNull)
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category     Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  brand        Brand?        @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  unit         Unit?         @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  productType  ProductType?  @relation(fields: [productTypeId], references: [id], onDelete: SetNull)
+  packagingSku PackagingSku? @relation(fields: [packagingSkuId], references: [id], onDelete: SetNull)
 
   variants      ProductVariant[]
   batches       Batch[]
@@ -388,13 +424,16 @@ model Product {
   costHistory   CostHistory[]
   transferItems TransferItem[]
   saleItems     SaleItem[]
+  packagingSaleItems SaleItem[] @relation("SaleItemPackaging")
   giftRulesAsGift GiftRule[] @relation("GiftProduct")
   reservationItems ReservationItem[]
 
   @@index([companyId])
   @@index([companyId, name])
+  @@index([companyId, kind])
   @@index([categoryId])
   @@index([brandId])
+  @@index([packagingSkuId])
 }
 
 model ProductVariant {
@@ -569,13 +608,20 @@ model SaleItem {
   salePrice   Decimal @db.Decimal(12, 2)
   costPerUnit Decimal @db.Decimal(12, 4)
   isGift      Boolean @default(false)
+  /// Decant line: aroma (WEIGHT) + empty bottle (PACKAGING Product).
+  isDecant             Boolean  @default(false)
+  packagingProductId   String?
+  packagingQuantity    Decimal? @db.Decimal(14, 3)
+  packagingCostPerUnit Decimal? @db.Decimal(12, 4)
 
-  sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  product Product  @relation(fields: [productId], references: [id])
-  batch   Batch?   @relation(fields: [batchId], references: [id])
+  sale               Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product            Product  @relation(fields: [productId], references: [id])
+  packagingProduct   Product? @relation("SaleItemPackaging", fields: [packagingProductId], references: [id])
+  batch              Batch?   @relation(fields: [batchId], references: [id])
 
   @@index([saleId])
   @@index([productId])
+  @@index([packagingProductId])
 }
 
 // ─── Stock reservations (available qty = physical − ACTIVE) ──────────────────
@@ -704,6 +750,8 @@ model SaleReturnItem {
   quantity     Decimal @db.Decimal(14, 3)
   costPerUnit  Decimal @db.Decimal(12, 4)
   salePrice    Decimal @db.Decimal(12, 2)
+  /// Restore bottle stock only when sealed/unused packaging returned.
+  packagingReturned Boolean @default(false)
 
   return SaleReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
 
