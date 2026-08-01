@@ -32,6 +32,7 @@ export async function POST(req: Request, ctx: Ctx) {
           productId: id,
           oldPrice: product.salePrice,
           newPrice,
+          reason: body.reason.trim(),
           changedById: user!.id,
         },
       });
@@ -48,7 +49,12 @@ export async function POST(req: Request, ctx: Ctx) {
         action: "PRICE_CHANGE",
         entityType: "Product",
         entityId: id,
-        comment: `${product.salePrice.toString()} → ${newPrice.toString()}`,
+        comment: body.reason.trim(),
+        metadata: {
+          before: { salePrice: product.salePrice.toString() },
+          after: { salePrice: newPrice.toString() },
+          reason: body.reason.trim(),
+        },
       });
 
       return p;

@@ -5,6 +5,7 @@ import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { SellerBottomNavLive } from "@/components/pos/seller-bottom-nav-live";
 import { PosTopBar } from "@/components/pos/pos-top-bar";
+import { PosCartSessionBinder } from "@/components/pos/pos-cart-session-binder";
 
 export default async function SellerLayout({ children }: { children: ReactNode }) {
   const session = await auth();
@@ -20,7 +21,10 @@ export default async function SellerLayout({ children }: { children: ReactNode }
 
   return (
     <div className="min-h-screen bg-page">
-      {/* TASK 03: отдельный POS shell — не Owner Desktop */}
+      <PosCartSessionBinder
+        sellerId={session.user.id}
+        storeId={session.user.storeId}
+      />
       <div className="mx-auto flex min-h-screen max-w-[480px] flex-col">
         <PosTopBar storeName={store?.name} />
         <main className="flex-1 px-4 py-4 pb-24">{children}</main>

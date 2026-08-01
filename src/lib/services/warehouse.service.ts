@@ -1,4 +1,4 @@
-import { LocationType, Prisma } from "@prisma/client";
+import { BatchOrigin, LocationType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 
@@ -273,6 +273,70 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
       userName: r.user?.name ?? "",
       comment: r.comment,
     })),
+    recentWriteOffs: writeOffs.map((w) => ({
+      id: w.id,
+      createdAt: w.createdAt,
+      userName: w.user?.name ?? "",
+      comment: w.comment,
+    })),
+    recentMovements: movements.map((m) => ({
+      id: m.id,
+      createdAt: m.createdAt,
+      userName: m.user?.name ?? "",
+      action: m.action,
+      comment: m.comment,
+    })),
+  };
+}
+
+export async function listPurchaseHistory(
+  companyId: string,
+  opts?: { showFinance?: boolean; take?: number }
+) {
+  const warehouse = await getCentralWarehouse(companyId);
+  if (!warehouse) return { warehouse: null, purchases: [] as const };
+
+  const take = opts?.take ?? 100;
+  const showFinance = Boolean(opts?.showFinance);
+
+  const batches = await prisma.batch.findMany({
+    where: {
+      locationType: LocationType.WAREHOUSE,
+      locationId: warehouse.id,
+      origin: BatchOrigin.PURCHASE,
+    },
+    include: {
+      product: { include: { brand: true, unit: true } },
+      supplier: { select: { id: true, name: true } },
+      createdBy: { select: { id: true, name: true } },
+    },
+    orderBy: { receivedAt: "desc" },
+    take,
+  });
+
+  return {
+    warehouse,
+    purchases: batches.map((b) => {
+      const qty = decimalToNumber(b.originalQuantity ?? b.quantity);
+      const cost = decimalToNumber(b.costPerUnit);
+      return {
+        id: b.id,
+        productId: b.productId,
+        receivedAt: b.receivedAt.toISOString(),
+        quantity: qty,
+        remainingQty: decimalToNumber(b.quantity),
+        costPerUnit: cost,
+        totalCost: showFinance ? Math.round(qty * cost * 100) / 100 : null,
+        notes: b.notes,
+        supplier: b.supplier,
+        createdBy: b.createdBy,
+        product: {
+          name: b.product.name,
+          unit: b.product.unit ? { symbol: b.product.unit.symbol } : null,
+          brand: b.product.brand?.name ?? null,
+        },
+      };
+    }),
   };
 }
 

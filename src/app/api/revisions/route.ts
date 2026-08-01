@@ -1,14 +1,50 @@
+import { z } from "zod";
 import { getSessionUser } from "@/lib/session";
 import { requireOwnerOrManager } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
+import {
+  approveInventorySession,
+  cancelInventorySession,
+  createInventorySession,
+  getInventorySessionDetail,
+  updateInventoryCounts,
+} from "@/lib/services/revision.service";
 
-export async function GET() {
+const createSchema = z.object({
+  storeId: z.string().min(1),
+  comment: z.string().max(500).optional().nullable(),
+});
+
+const countSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        productId: z.string().min(1),
+        countedQty: z.coerce.number().min(0),
+        reason: z.string().max(300).optional(),
+      })
+    )
+    .min(1),
+});
+
+const decideSchema = z.object({
+  decision: z.enum(["APPROVE", "CANCEL"]),
+  note: z.string().max(500).optional().nullable(),
+});
+
+export async function GET(req: Request) {
   try {
     const user = await getSessionUser();
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (id) {
+      return jsonOk(await getInventorySessionDetail(user!.companyId, id));
+    }
 
     const sessions = await prisma.inventorySession.findMany({
       where: { store: { companyId: user!.companyId } },
@@ -40,6 +76,70 @@ export async function GET() {
           varianceAbs: Math.round(variance * 1000) / 1000,
           comment: s.comment,
         };
+      })
+    );
+  } catch (err) {
+    return handleApiError(err);
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const user = await getSessionUser();
+    const denied = requireOwnerOrManager(user);
+    if (denied) return denied;
+    const body = createSchema.parse(await req.json());
+    const row = await createInventorySession({
+      companyId: user!.companyId,
+      storeId: body.storeId,
+      createdById: user!.id,
+      comment: body.comment ?? undefined,
+    });
+    return jsonOk(row, 201);
+  } catch (err) {
+    return handleApiError(err);
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const user = await getSessionUser();
+    const denied = requireOwnerOrManager(user);
+    if (denied) return denied;
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (!id) return handleApiError(new Error("ID_REQUIRED"));
+
+    const raw = await req.json();
+    if (raw.decision) {
+      const body = decideSchema.parse(raw);
+      if (body.decision === "APPROVE") {
+        return jsonOk(
+          await approveInventorySession({
+            companyId: user!.companyId,
+            sessionId: id,
+            approvedById: user!.id,
+            note: body.note ?? undefined,
+          })
+        );
+      }
+      return jsonOk(
+        await cancelInventorySession({
+          companyId: user!.companyId,
+          sessionId: id,
+          userId: user!.id,
+        })
+      );
+    }
+
+    const body = countSchema.parse(raw);
+    return jsonOk(
+      await updateInventoryCounts({
+        companyId: user!.companyId,
+        sessionId: id,
+        userId: user!.id,
+        items: body.items,
       })
     );
   } catch (err) {

@@ -1,4 +1,4 @@
-import { LocationType, Prisma } from "@prisma/client";
+import { BatchOrigin, LocationType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 type Tx = Prisma.TransactionClient;

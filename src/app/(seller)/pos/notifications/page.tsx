@@ -1,69 +1,65 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { resolveNotifTitle } from "@/lib/i18n/labels";
 
 type Notif = {
   id: string;
-  titleKey: string;
-  messageKey?: string;
-  message?: string;
-  timeKey: string;
-  unread: boolean;
-  kind: "action" | "stock";
+  type: string;
+  title: string | null;
+  titleKey?: string | null;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
 };
-
-const MOCK: Notif[] = [
-  {
-    id: "1",
-    titleKey: "pos.discountApproved",
-    messageKey: "pos.mockDiscountMsg",
-    timeKey: "pos.timeToday",
-    unread: true,
-    kind: "action",
-  },
-  {
-    id: "2",
-    titleKey: "pos.lowStockTitle",
-    messageKey: "pos.mockStockMsg",
-    timeKey: "pos.timeToday",
-    unread: true,
-    kind: "stock",
-  },
-  {
-    id: "3",
-    titleKey: "pos.returnRejected",
-    messageKey: "pos.mockReturnMsg",
-    timeKey: "pos.timeYesterday",
-    unread: false,
-    kind: "action",
-  },
-];
 
 type Tab = "all" | "unread" | "stock" | "actions";
 
 export default function PosNotificationsPage() {
-  const { t } = useI18n();
+  const { t, formatDateTime } = useI18n();
   const [tab, setTab] = useState<Tab>("all");
-  const [items, setItems] = useState(MOCK);
+  const [items, setItems] = useState<Notif[]>([]);
+  const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+
+  const load = useCallback(async () => {
+    const res = await fetch("/api/notifications");
+    const data = await res.json();
+    if (res.ok && Array.isArray(data)) setItems(data);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const filtered = useMemo(() => {
     return items.filter((n) => {
-      const title = t(n.titleKey);
-      const message = n.messageKey ? t(n.messageKey) : n.message ?? "";
+      const title = resolveNotifTitle(n.title, n.titleKey, t);
       const matchQ =
         !q.trim() ||
-        `${title} ${message}`.toLowerCase().includes(q.toLowerCase());
+        `${title} ${n.message}`.toLowerCase().includes(q.toLowerCase());
       if (!matchQ) return false;
-      if (tab === "unread") return n.unread;
-      if (tab === "stock") return n.kind === "stock";
-      if (tab === "actions") return n.kind === "action";
+      if (tab === "unread") return !n.isRead;
+      if (tab === "stock")
+        return n.type === "LOW_STOCK" || /stock|low/i.test(n.type);
+      if (tab === "actions")
+        return /DISCOUNT|RETURN|REQUEST|SYSTEM/i.test(n.type);
       return true;
     });
   }, [items, tab, q, t]);
+
+  async function markAllRead() {
+    await fetch("/api/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "markAllRead" }),
+    });
+    setItems((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  }
 
   return (
     <div className="space-y-4 pb-20">
@@ -107,27 +103,35 @@ export default function PosNotificationsPage() {
       <button
         type="button"
         className="w-full text-sm font-semibold text-brand"
-        onClick={() => setItems((prev) => prev.map((n) => ({ ...n, unread: false })))}
+        onClick={markAllRead}
       >
         {t("pos.markAllRead")}
       </button>
 
       <div className="space-y-2">
-        {filtered.map((n) => {
-          const title = t(n.titleKey);
-          const message = n.messageKey ? t(n.messageKey) : n.message ?? "";
-          return (
-            <Card
-              key={n.id}
-              className={cn("p-4 text-left", n.unread && "border-brand/30 bg-brand-soft/20")}
-            >
-              <div className="text-sm font-semibold text-ink">{title}</div>
-              <div className="mt-1 text-sm text-muted">{message}</div>
-              <div className="mt-2 text-xs text-muted">{t(n.timeKey)}</div>
-            </Card>
-          );
-        })}
-        {filtered.length === 0 ? (
+        {loading ? (
+          <p className="py-8 text-center text-sm text-muted">{t("common.loading")}</p>
+        ) : null}
+        {!loading &&
+          filtered.map((n) => {
+            const title = resolveNotifTitle(n.title, n.titleKey, t);
+            return (
+              <Card
+                key={n.id}
+                className={cn(
+                  "p-4 text-left",
+                  !n.isRead && "border-brand/30 bg-brand-soft/20"
+                )}
+              >
+                <div className="text-sm font-semibold text-ink">{title}</div>
+                <div className="mt-1 text-sm text-muted">{n.message}</div>
+                <div className="mt-2 text-xs text-muted">
+                  {formatDateTime(n.createdAt)}
+                </div>
+              </Card>
+            );
+          })}
+        {!loading && filtered.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted">{t("common.noData")}</p>
         ) : null}
       </div>

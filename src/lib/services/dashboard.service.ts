@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 import { LocationType } from "@prisma/client";
+import { sumAllocatedExpenses } from "@/lib/services/expense.service";
+import {
+  loadApprovedReturnLines,
+  saleGrossMetricsNetOfReturnsSync,
+  withNetProfit,
+} from "@/lib/services/profit.service";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -20,35 +26,6 @@ function pctChange(current: number, previous: number) {
   };
 }
 
-function saleMetrics(
-  sales: Array<{
-    total: { toNumber?: () => number } | number | string;
-    items: Array<{
-      quantity: { toNumber?: () => number } | number | string;
-      costPerUnit: { toNumber?: () => number } | number | string;
-    }>;
-  }>
-) {
-  const revenue = sales.reduce((s, sale) => s + decimalToNumber(sale.total), 0);
-  const cost = sales.reduce(
-    (s, sale) =>
-      s +
-      sale.items.reduce(
-        (a, it) => a + decimalToNumber(it.costPerUnit) * decimalToNumber(it.quantity),
-        0
-      ),
-    0
-  );
-  const itemsSold = sales.reduce(
-    (s, sale) => s + sale.items.reduce((a, it) => a + decimalToNumber(it.quantity), 0),
-    0
-  );
-  const count = sales.length;
-  const profit = revenue - cost;
-  const avgCheck = count ? revenue / count : 0;
-  return { revenue, cost, profit, count, itemsSold, avgCheck };
-}
-
 export async function getDashboardPayload(companyId: string) {
   const now = new Date();
   const todayStart = startOfDay(now);
@@ -60,42 +37,114 @@ export async function getDashboardPayload(companyId: string) {
     where: { companyId, isActive: true },
   });
 
-  const [salesToday, salesYesterdaySlice, stores] = await Promise.all([
-    prisma.sale.findMany({
-      where: {
-        store: { companyId },
-        status: "COMPLETED",
-        createdAt: { gte: todayStart, lte: now },
-      },
-      include: { items: true, store: { select: { id: true, name: true } } },
-    }),
-    prisma.sale.findMany({
-      where: {
-        store: { companyId },
-        status: "COMPLETED",
-        createdAt: { gte: yesterdayStart, lte: yesterdaySame },
-      },
-      include: { items: true },
-    }),
-    prisma.store.findMany({
-      where: { companyId, isActive: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-  ]);
+  const [salesToday, salesYesterdaySlice, stores, expensesToday, expensesYday] =
+    await Promise.all([
+      prisma.sale.findMany({
+        where: {
+          store: { companyId },
+          status: { in: ["COMPLETED", "PARTIAL_RETURN"] },
+          createdAt: { gte: todayStart, lte: now },
+        },
+        include: {
+          items: {
+            include: { product: { select: { id: true, name: true } } },
+          },
+          store: { select: { id: true, name: true } },
+        },
+      }),
+      prisma.sale.findMany({
+        where: {
+          store: { companyId },
+          status: { in: ["COMPLETED", "PARTIAL_RETURN"] },
+          createdAt: { gte: yesterdayStart, lte: yesterdaySame },
+        },
+        include: { items: true },
+      }),
+      prisma.store.findMany({
+        where: { companyId, isActive: true },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      }),
+      sumAllocatedExpenses({
+        companyId,
+        from: todayStart,
+        to: todayStart,
+      }),
+      sumAllocatedExpenses({
+        companyId,
+        from: yesterdayStart,
+        to: yesterdayStart,
+      }),
+    ]);
 
-  const today = saleMetrics(salesToday);
-  const yday = saleMetrics(salesYesterdaySlice);
+  const returnLines = await loadApprovedReturnLines(
+    [...salesToday, ...salesYesterdaySlice].map((s) => s.id)
+  );
 
-  const storeToday = stores.map((store) => {
+  const todayGross = saleGrossMetricsNetOfReturnsSync(salesToday, returnLines);
+  const ydayGross = saleGrossMetricsNetOfReturnsSync(
+    salesYesterdaySlice,
+    returnLines
+  );
+  const today = withNetProfit(todayGross, expensesToday.total);
+  const yday = withNetProfit(ydayGross, expensesYday.total);
+
+  // Weight vs piece split for today
+  let weightSold = 0;
+  let pieceSold = 0;
+  const productIds = [
+    ...new Set(salesToday.flatMap((s) => s.items.map((i) => i.productId))),
+  ];
+  if (productIds.length) {
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, accountingType: true },
+    });
+    const typeMap = new Map(products.map((p) => [p.id, p.accountingType]));
+    for (const sale of salesToday) {
+      for (const it of sale.items) {
+        if (it.isGift) continue;
+        const qty = decimalToNumber(it.quantity);
+        if (typeMap.get(it.productId) === "WEIGHT") weightSold += qty;
+        else pieceSold += qty;
+      }
+    }
+  }
+
+  const storeTodayBase = stores.map((store) => {
     const storeSales = salesToday.filter((s) => s.store.id === store.id);
-    const m = saleMetrics(storeSales);
+    const g = saleGrossMetricsNetOfReturnsSync(storeSales, returnLines);
+    const storeExp = expensesToday.byStore.get(store.id) ?? 0;
+    const m = withNetProfit(g, storeExp);
+
+    const productRev = new Map<string, { name: string; revenue: number }>();
+    for (const sale of storeSales) {
+      for (const it of sale.items) {
+        if (it.isGift) continue;
+        const rev =
+          decimalToNumber(it.quantity) * decimalToNumber(it.salePrice);
+        const prev = productRev.get(it.productId);
+        if (prev) prev.revenue += rev;
+        else
+          productRev.set(it.productId, {
+            name: it.product.name,
+            revenue: rev,
+          });
+      }
+    }
+    const top = [...productRev.values()].sort((a, b) => b.revenue - a.revenue)[0];
+
     return {
       id: store.id,
       name: store.name,
       revenue: m.revenue,
-      profit: m.profit,
+      grossProfit: m.grossProfit,
+      expenses: m.expenses,
+      netProfit: m.netProfit,
+      profit: m.netProfit,
       salesCount: m.count,
+      topProductName: top?.name ?? null,
+      topProductRevenue: top ? Math.round(top.revenue * 100) / 100 : null,
     };
   });
 
@@ -104,22 +153,32 @@ export async function getDashboardPayload(companyId: string) {
         where: {
           locationType: LocationType.WAREHOUSE,
           locationId: warehouse.id,
-          quantity: { lte: 5 },
+          product: { companyId, isActive: true },
         },
         include: {
           product: {
             select: {
               id: true,
               name: true,
+              minStock: true,
               unit: { select: { symbol: true } },
               accountingType: true,
             },
           },
         },
         orderBy: { quantity: "asc" },
-        take: 12,
+        take: 80,
       })
     : [];
+
+  const lowStockFiltered = lowStock
+    .filter((b) => {
+      const qty = decimalToNumber(b.quantity);
+      const min = decimalToNumber(b.product.minStock);
+      const threshold = min > 0 ? min : 5;
+      return qty <= threshold;
+    })
+    .slice(0, 12);
 
   const weekStart = startOfDay(new Date(now.getTime() - 6 * 86400000));
   const [warehouseBalances, salesWeek] = await Promise.all([
@@ -136,7 +195,7 @@ export async function getDashboardPayload(companyId: string) {
     prisma.sale.findMany({
       where: {
         store: { companyId },
-        status: "COMPLETED",
+        status: { in: ["COMPLETED", "PARTIAL_RETURN"] },
         createdAt: { gte: weekStart, lte: now },
       },
       select: { total: true, createdAt: true },
@@ -159,70 +218,83 @@ export async function getDashboardPayload(companyId: string) {
     sparkline.push(Math.round(dayRev * 100) / 100);
   }
 
-  const storesWithSales = storeToday.filter((s) => s.salesCount > 0).length;
+  const storesWithSales = storeTodayBase.filter((s) => s.salesCount > 0).length;
 
-  const [pendingDiscounts, pendingReturns] = await Promise.all([
-    prisma.discountRequest.findMany({
-      where: {
-        status: "PENDING",
-        OR: [
-          { sale: { store: { companyId } } },
-          { requester: { companyId } },
-        ],
-      },
-      include: {
-        requester: { select: { id: true, name: true } },
-        sale: {
-          include: {
-            store: { select: { id: true, name: true } },
-            items: {
-              take: 3,
-              include: { product: { select: { name: true, salePrice: true } } },
+  const [pendingDiscounts, pendingReturns, openRevisionSessions] =
+    await Promise.all([
+      prisma.discountRequest.findMany({
+        where: {
+          status: "PENDING",
+          companyId,
+        },
+        include: {
+          requester: { select: { id: true, name: true } },
+          store: { select: { id: true, name: true } },
+          sale: {
+            include: {
+              store: { select: { id: true, name: true } },
+              items: {
+                take: 3,
+                include: {
+                  product: { select: { name: true, salePrice: true } },
+                },
+              },
             },
           },
         },
-      },
-      orderBy: { createdAt: "asc" },
-    }),
-    prisma.saleReturn.findMany({
-      where: { status: "PENDING", sale: { store: { companyId } } },
-      include: {
-        requester: { select: { id: true, name: true } },
-        sale: {
-          include: {
-            store: { select: { id: true, name: true } },
-            items: {
-              take: 3,
-              include: { product: { select: { name: true } } },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.saleReturn.findMany({
+        where: { status: "PENDING", sale: { store: { companyId } } },
+        include: {
+          requester: { select: { id: true, name: true } },
+          sale: {
+            include: {
+              store: { select: { id: true, name: true } },
+              items: {
+                take: 3,
+                include: { product: { select: { name: true } } },
+              },
             },
           },
         },
-      },
-      orderBy: { createdAt: "asc" },
-    }),
-  ]);
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.inventorySession.findMany({
+        where: {
+          status: "IN_PROGRESS",
+          store: { companyId },
+        },
+        select: { id: true, storeId: true },
+      }),
+    ]);
 
-  /** UI must translate via titleKey — never ship locale-fixed copy from the server. */
   const decisions = [
     ...pendingDiscounts.map((d) => {
       const productNames =
         d.sale?.items.map((i) => i.product.name).join(", ") ?? "";
+      const original = decimalToNumber(d.originalAmount);
+      const discountAmt = decimalToNumber(d.amount);
+      const storeId = d.store?.id ?? d.sale?.store.id ?? null;
       return {
         id: d.id,
         type: "DISCOUNT" as const,
         priority: "urgent" as const,
         createdAt: d.createdAt.toISOString(),
-        storeName: d.sale?.store.name ?? "—",
+        storeId,
+        storeName: d.store?.name ?? d.sale?.store.name ?? "—",
         actorName: d.requester.name,
         titleKey: "dashboard.decisionDiscount" as const,
-        amount: decimalToNumber(d.amount),
+        amount: discountAmt,
         percent: d.percent != null ? decimalToNumber(d.percent) : null,
         reason: d.reason,
         products: productNames,
         productsFallbackKey: productNames
           ? null
           : ("dashboard.cartOrReceipt" as const),
-        originalTotal: d.sale ? decimalToNumber(d.sale.total) : null,
+        originalTotal: original,
+        finalTotal: Math.round((original - discountAmt) * 100) / 100,
+        href: "/dashboard#decisions",
       };
     }),
     ...pendingReturns.map((r) => {
@@ -232,6 +304,7 @@ export async function getDashboardPayload(companyId: string) {
         type: "RETURN" as const,
         priority: "urgent" as const,
         createdAt: r.createdAt.toISOString(),
+        storeId: r.sale.store.id,
         storeName: r.sale.store.name,
         actorName: r.requester.name,
         titleKey: "dashboard.decisionReturn" as const,
@@ -243,16 +316,72 @@ export async function getDashboardPayload(companyId: string) {
           ? null
           : ("dashboard.cartOrReceipt" as const),
         originalTotal: decimalToNumber(r.sale.total),
+        finalTotal: null as number | null,
+        href: "/returns",
       };
     }),
   ].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 
+  const openRevisions = openRevisionSessions.length;
+
+  const storeToday = storeTodayBase.map((store) => {
+    const discountN = pendingDiscounts.filter(
+      (d) => (d.store?.id ?? d.sale?.store.id) === store.id
+    ).length;
+    const returnN = pendingReturns.filter((r) => r.sale.store.id === store.id)
+      .length;
+    const revisionN = openRevisionSessions.filter(
+      (r) => r.storeId === store.id
+    ).length;
+    const problems: Array<{
+      key: string;
+      labelKey: string;
+      href: string;
+      tone: "danger" | "alert";
+    }> = [];
+    if (store.salesCount === 0) {
+      problems.push({
+        key: "quiet",
+        labelKey: "dashboard.problemNoSales",
+        href: `/stores/${store.id}`,
+        tone: "alert",
+      });
+    }
+    if (discountN > 0) {
+      problems.push({
+        key: "discount",
+        labelKey: "dashboard.problemDiscount",
+        href: "/dashboard#decisions",
+        tone: "danger",
+      });
+    }
+    if (returnN > 0) {
+      problems.push({
+        key: "return",
+        labelKey: "dashboard.problemReturn",
+        href: "/returns",
+        tone: "danger",
+      });
+    }
+    if (revisionN > 0) {
+      problems.push({
+        key: "revision",
+        labelKey: "dashboard.problemRevision",
+        href: "/revision",
+        tone: "alert",
+      });
+    }
+    return { ...store, problems, pendingDiscount: discountN, pendingReturn: returnN };
+  });
+
   const decisionSummary = {
     total: decisions.length,
     discount: decisions.filter((d) => d.type === "DISCOUNT").length,
     return: decisions.filter((d) => d.type === "RETURN").length,
+    lowStock: lowStockFiltered.length,
+    revision: openRevisions,
     price: 0,
     writeOff: 0,
     batch: 0,
@@ -264,11 +393,10 @@ export async function getDashboardPayload(companyId: string) {
       tone: "warning" as const,
       titleKey: d.titleKey,
       message: `${d.storeName} · ${d.actorName}`,
-      href:
-        d.type === "DISCOUNT" ? "/dashboard#decisions" : "/returns",
+      href: d.type === "DISCOUNT" ? "/dashboard#decisions" : "/returns",
       createdAt: d.createdAt,
     })),
-    ...lowStock.slice(0, 5).map((b) => ({
+    ...lowStockFiltered.slice(0, 5).map((b) => ({
       id: `stock-${b.id}`,
       tone:
         decimalToNumber(b.quantity) <= 0
@@ -295,9 +423,13 @@ export async function getDashboardPayload(companyId: string) {
     generatedAt: now.toISOString(),
     today: {
       ...today,
+      weightSold: Math.round(weightSold * 1000) / 1000,
+      pieceSold: Math.round(pieceSold * 1000) / 1000,
       deltas: {
         revenue: pctChange(today.revenue, yday.revenue),
-        profit: pctChange(today.profit, yday.profit),
+        profit: pctChange(today.netProfit, yday.netProfit),
+        netProfit: pctChange(today.netProfit, yday.netProfit),
+        grossProfit: pctChange(today.grossProfit, yday.grossProfit),
         count: pctChange(today.count, yday.count),
         itemsSold: pctChange(today.itemsSold, yday.itemsSold),
         avgCheck: pctChange(today.avgCheck, yday.avgCheck),
@@ -306,13 +438,13 @@ export async function getDashboardPayload(companyId: string) {
     pulse: {
       warehouseUnits: Math.round(warehouseUnits * 1000) / 1000,
       warehouseSku,
-      lowStockCount: lowStock.length,
+      lowStockCount: lowStockFiltered.length,
       storesOpen: storesWithSales,
       storesTotal: stores.length,
       sparkline,
     },
     stores: storeToday,
-    lowStock: lowStock.map((b) => ({
+    lowStock: lowStockFiltered.map((b) => ({
       id: b.id,
       productId: b.product.id,
       name: b.product.name,
@@ -326,6 +458,8 @@ export async function getDashboardPayload(companyId: string) {
     recent: recent.map((log) => ({
       id: log.id,
       action: log.action,
+      entityType: log.entityType,
+      entityId: log.entityId,
       comment: log.comment,
       createdAt: log.createdAt.toISOString(),
       userName: log.user?.name ?? "",
@@ -334,11 +468,13 @@ export async function getDashboardPayload(companyId: string) {
     bestStoreId:
       storeToday.length === 0
         ? null
-        : [...storeToday].sort((a, b) => b.revenue - a.revenue)[0]?.id ?? null,
+        : [...storeToday].sort((a, b) => b.netProfit - a.netProfit)[0]?.id ??
+          null,
     worstStoreId:
       storeToday.length === 0
         ? null
-        : [...storeToday].sort((a, b) => a.revenue - b.revenue)[0]?.id ?? null,
+        : [...storeToday].sort((a, b) => a.netProfit - b.netProfit)[0]?.id ??
+          null,
   };
 }
 

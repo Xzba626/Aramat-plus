@@ -23,9 +23,53 @@ enum AccountingType {
   PIECE
 }
 
+/** STANDARD = aroma/goods; PACKAGING = empty bottle stock (PIECE). */
+enum ProductKind {
+  STANDARD
+  PACKAGING
+}
+
 enum LocationType {
   WAREHOUSE
   STORE
+}
+
+/** How a batch entered stock (Stage 5 purchases vs transfer/return). */
+enum BatchOrigin {
+  PURCHASE
+  TRANSFER
+  RETURN
+  INITIAL
+  ADJUSTMENT
+  OTHER
+}
+
+enum ExpensePeriodicity {
+  ONCE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+/** Catalog reasons for customer returns (analytics-friendly). */
+enum ReturnReasonCode {
+  DEFECT
+  SELLER_ERROR
+  CUSTOMER_ERROR
+  EXPIRED
+  DAMAGED
+  OTHER
+}
+
+/** Catalog reasons for write-offs. */
+enum WriteOffReasonCode {
+  SPOILED
+  BROKEN
+  TESTER
+  STOLEN
+  LOSS
+  EXPIRED
+  OTHER
 }
 
 enum StoreKind {
@@ -69,6 +113,13 @@ enum InventoryStatus {
   CANCELLED
 }
 
+enum ReservationStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
 enum NotificationType {
   LOW_STOCK
   DISCOUNT_REQUEST
@@ -101,26 +152,76 @@ model Company {
   suppliers       Supplier[]
   settings        Setting[]
   giftRules       GiftRule[]
+  reservations    Reservation[]
+  discountRequests DiscountRequest[]
+}
+
+// ─── Purchases (Stage 5) ─────────────────────────────────────────────────────
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  notes     String?
+  isActive  Boolean  @default(true)
+  companyId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  batches Batch[]
+
+  @@index([companyId])
+  @@index([companyId, isActive])
+}
+
+// ─── Packaging catalog (Block 4) — bottles are NOT aroma products ────────────
+
+model PackagingSku {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  volumeMl    Decimal  @db.Decimal(14, 3)
+  /// glass | plastic | … (empty string = unspecified)
+  material    String   @default("glass")
+  color       String   @default("")
+  cap         String   @default("")
+  skuCode     String?
+  defaultCost Decimal? @db.Decimal(12, 4)
+  isDefaultForVolume Boolean @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([companyId, volumeMl, material, color, cap])
+  @@index([companyId, volumeMl])
+  @@index([companyId, isActive])
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  passwordHash String
-  name         String
-  role         Role      @default(SELLER)
-  isActive     Boolean   @default(true)
-  companyId    String
-  storeId      String?
-  lastLoginAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  email             String    @unique
+  passwordHash      String
+  name              String
+  role              Role      @default(SELLER)
+  isActive          Boolean   @default(true)
+  companyId         String
+  storeId           String?
+  lastLoginAt       DateTime?
+  failedLoginCount  Int       @default(0)
+  lockedUntil       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   store   Store?  @relation(fields: [storeId], references: [id], onDelete: SetNull)
   managedStores  Store[] @relation("StoreManager")
+  costChanges    CostHistory[]
 
   priceChanges       PriceHistory[]
   transfers          Transfer[]           @relation("TransferCreator")
@@ -178,10 +279,13 @@ model Store {
   company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   manager           User?              @relation("StoreManager", fields: [managerId], references: [id], onDelete: SetNull)
   users             User[]
-  transfers         Transfer[]
+  transfersIn       Transfer[]         @relation("TransferToStore")
+  transfersOut      Transfer[]         @relation("TransferFromStore")
   sales             Sale[]
   inventorySessions InventorySession[]
   expenses          Expense[]
+  reservations      Reservation[]
+  discountRequests  DiscountRequest[]
 
   @@index([companyId])
   @@index([companyId, kind])
@@ -311,6 +415,8 @@ model Product {
   unitId         String?
   productTypeId  String?
   accountingType AccountingType @default(PIECE)
+  kind           ProductKind    @default(STANDARD)
+  packagingSkuId String?
   salePrice      Decimal        @db.Decimal(12, 2)
   /// Справочная / плановая себестоимость за единицу (мл или шт). Реальная с/с — на Batch.
   defaultCostPerUnit Decimal?   @db.Decimal(12, 2)
@@ -319,24 +425,30 @@ model Product {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  category    Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  brand       Brand?       @relation(fields: [brandId], references: [id], onDelete: SetNull)
-  unit        Unit?        @relation(fields: [unitId], references: [id], onDelete: SetNull)
-  productType ProductType? @relation(fields: [productTypeId], references: [id], onDelete: SetNull)
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category     Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  brand        Brand?        @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  unit         Unit?         @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  productType  ProductType?  @relation(fields: [productTypeId], references: [id], onDelete: SetNull)
+  packagingSku PackagingSku? @relation(fields: [packagingSkuId], references: [id], onDelete: SetNull)
 
   variants      ProductVariant[]
   batches       Batch[]
   stockBalances StockBalance[]
   priceHistory  PriceHistory[]
+  costHistory   CostHistory[]
   transferItems TransferItem[]
   saleItems     SaleItem[]
+  packagingSaleItems SaleItem[] @relation("SaleItemPackaging")
   giftRulesAsGift GiftRule[] @relation("GiftProduct")
+  reservationItems ReservationItem[]
 
   @@index([companyId])
   @@index([companyId, name])
+  @@index([companyId, kind])
   @@index([categoryId])
   @@index([brandId])
+  @@index([packagingSkuId])
 }
 
 model ProductVariant {
@@ -357,6 +469,23 @@ model PriceHistory {
   productId   String
   oldPrice    Decimal  @db.Decimal(12, 2)
   newPrice    Decimal  @db.Decimal(12, 2)
+  reason      String?
+  changedById String
+  createdAt   DateTime @default(now())
+
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  changedBy User    @relation(fields: [changedById], references: [id])
+
+  @@index([productId, createdAt])
+}
+
+/** Planned / default cost changes (Batch.costPerUnit stays the true FIFO cost). */
+model CostHistory {
+  id          String   @id @default(cuid())
+  productId   String
+  oldCost     Decimal? @db.Decimal(12, 2)
+  newCost     Decimal? @db.Decimal(12, 2)
+  reason      String?
   changedById String
   createdAt   DateTime @default(now())
 
@@ -416,7 +545,8 @@ model StockBalance {
 
 model Transfer {
   id              String         @id @default(cuid())
-  fromWarehouseId String
+  fromWarehouseId String?
+  fromStoreId     String?
   toStoreId       String
   createdById     String
   status          TransferStatus @default(COMPLETED)
@@ -424,12 +554,14 @@ model Transfer {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  fromWarehouse Warehouse      @relation(fields: [fromWarehouseId], references: [id])
-  toStore       Store          @relation(fields: [toStoreId], references: [id])
+  fromWarehouse Warehouse?     @relation(fields: [fromWarehouseId], references: [id])
+  fromStore     Store?         @relation("TransferFromStore", fields: [fromStoreId], references: [id])
+  toStore       Store          @relation("TransferToStore", fields: [toStoreId], references: [id])
   createdBy     User           @relation("TransferCreator", fields: [createdById], references: [id])
   items         TransferItem[]
 
   @@index([fromWarehouseId])
+  @@index([fromStoreId])
   @@index([toStoreId])
   @@index([createdAt])
 }
@@ -462,14 +594,21 @@ model Sale {
   total          Decimal    @db.Decimal(12, 2)
   paymentMethod  String     @default("CASH")
   notes          String?
+  /// Linked approved discount request (seller cart → owner → sale).
+  discountRequestId   String?   @unique
+  discountApprovedById String?
+  discountApprovedAt   DateTime?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
   store            Store             @relation(fields: [storeId], references: [id])
   seller           User              @relation(fields: [sellerId], references: [id])
   items            SaleItem[]
-  discountRequests DiscountRequest[]
+  discountRequests DiscountRequest[] @relation("DiscountSaleLink")
+  appliedDiscount  DiscountRequest?  @relation("DiscountAppliedToSale", fields: [discountRequestId], references: [id], onDelete: SetNull)
+  discountApprover User?             @relation("SaleDiscountApprover", fields: [discountApprovedById], references: [id], onDelete: SetNull)
   returns          SaleReturn[]
+  reservation      Reservation?
 
   @@index([storeId, createdAt])
   @@index([sellerId])
@@ -484,36 +623,95 @@ model SaleItem {
   salePrice   Decimal @db.Decimal(12, 2)
   costPerUnit Decimal @db.Decimal(12, 4)
   isGift      Boolean @default(false)
+  /// Decant line: aroma (WEIGHT) + empty bottle (PACKAGING Product).
+  isDecant             Boolean  @default(false)
+  packagingProductId   String?
+  packagingQuantity    Decimal? @db.Decimal(14, 3)
+  packagingCostPerUnit Decimal? @db.Decimal(12, 4)
 
-  sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  product Product  @relation(fields: [productId], references: [id])
-  batch   Batch?   @relation(fields: [batchId], references: [id])
+  sale               Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product            Product  @relation(fields: [productId], references: [id])
+  packagingProduct   Product? @relation("SaleItemPackaging", fields: [packagingProductId], references: [id])
+  batch              Batch?   @relation(fields: [batchId], references: [id])
 
   @@index([saleId])
+  @@index([productId])
+  @@index([packagingProductId])
+}
+
+// ─── Stock reservations (available qty = physical − ACTIVE) ──────────────────
+
+model Reservation {
+  id           String            @id @default(cuid())
+  companyId    String
+  storeId      String
+  locationType LocationType
+  locationId   String
+  status       ReservationStatus @default(ACTIVE)
+  expiresAt    DateTime
+  createdById  String
+  saleId       String?           @unique
+  customerNote String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  store     Store              @relation(fields: [storeId], references: [id])
+  createdBy User               @relation("ReservationCreator", fields: [createdById], references: [id])
+  sale      Sale?              @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  items     ReservationItem[]
+
+  @@index([companyId, status, expiresAt])
+  @@index([storeId, status])
+  @@index([locationType, locationId, status])
+  @@index([createdById])
+}
+
+model ReservationItem {
+  id            String  @id @default(cuid())
+  reservationId String
+  productId     String
+  quantity      Decimal @db.Decimal(14, 3)
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id])
+
+  @@index([reservationId])
   @@index([productId])
 }
 
 // ─── Discounts & Gifts ───────────────────────────────────────────────────────
 
 model DiscountRequest {
-  id           String                 @id @default(cuid())
-  saleId       String?
-  requesterId  String
-  reviewerId   String?
-  amount       Decimal                @db.Decimal(12, 2)
-  percent      Decimal?               @db.Decimal(5, 2)
-  status       DiscountRequestStatus  @default(PENDING)
-  reason       String?
-  reviewNote   String?
-  createdAt    DateTime               @default(now())
-  reviewedAt   DateTime?
+  id             String                @id @default(cuid())
+  companyId      String
+  storeId        String?
+  saleId         String?
+  requesterId    String
+  reviewerId     String?
+  /// Cart subtotal at request time (before discount).
+  originalAmount Decimal               @db.Decimal(12, 2)
+  amount         Decimal               @db.Decimal(12, 2)
+  percent        Decimal?              @db.Decimal(5, 2)
+  status         DiscountRequestStatus @default(PENDING)
+  reason         String?
+  reviewNote     String?
+  /// Snapshot of cart lines: [{ productId, quantity, salePrice }]
+  cartSnapshot   Json?
+  createdAt      DateTime              @default(now())
+  reviewedAt     DateTime?
 
-  sale      Sale? @relation(fields: [saleId], references: [id], onDelete: SetNull)
-  requester User  @relation("DiscountRequester", fields: [requesterId], references: [id])
-  reviewer  User? @relation("DiscountReviewer", fields: [reviewerId], references: [id])
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  store     Store?  @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  sale      Sale?   @relation("DiscountSaleLink", fields: [saleId], references: [id], onDelete: SetNull)
+  appliedSale Sale? @relation("DiscountAppliedToSale")
+  requester User    @relation("DiscountRequester", fields: [requesterId], references: [id])
+  reviewer  User?   @relation("DiscountReviewer", fields: [reviewerId], references: [id])
 
   @@index([status])
   @@index([requesterId])
+  @@index([companyId, status])
+  @@index([storeId])
 }
 
 model GiftRule {
@@ -537,23 +735,43 @@ model GiftRule {
 // ─── Returns ─────────────────────────────────────────────────────────────────
 
 model SaleReturn {
-  id          String       @id @default(cuid())
+  id          String            @id @default(cuid())
   saleId      String
   requesterId String
   reviewerId  String?
-  status      ReturnStatus @default(PENDING)
+  status      ReturnStatus      @default(PENDING)
   reason      String?
+  reasonCode  ReturnReasonCode?
   reviewNote  String?
-  createdAt   DateTime     @default(now())
+  createdAt   DateTime          @default(now())
   reviewedAt  DateTime?
 
   sale      Sale @relation(fields: [saleId], references: [id])
   requester User @relation("ReturnRequester", fields: [requesterId], references: [id])
   reviewer  User? @relation("ReturnReviewer", fields: [reviewerId], references: [id])
+  items     SaleReturnItem[]
 
   @@map("returns")
   @@index([status])
   @@index([saleId])
+}
+
+/** Partial return lines — qty to restore (≤ original SaleItem.quantity). */
+model SaleReturnItem {
+  id           String  @id @default(cuid())
+  returnId     String
+  saleItemId   String
+  productId    String
+  quantity     Decimal @db.Decimal(14, 3)
+  costPerUnit  Decimal @db.Decimal(12, 4)
+  salePrice    Decimal @db.Decimal(12, 2)
+  /// Restore bottle stock only when sealed/unused packaging returned.
+  packagingReturned Boolean @default(false)
+
+  return SaleReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@index([returnId])
+  @@index([saleItemId])
 }
 
 // ─── Inventory / Revision ────────────────────────────────────────────────────
@@ -610,20 +828,28 @@ model Notification {
 }
 
 model Expense {
-  id            String   @id @default(cuid())
+  id            String             @id @default(cuid())
   storeId       String?
   expenseTypeId String
-  amount        Decimal  @db.Decimal(12, 2)
+  amount        Decimal            @db.Decimal(12, 2)
   description   String?
   createdById   String
-  incurredAt    DateTime @default(now())
-  createdAt     DateTime @default(now())
+  /** Legacy / ONCE day stamp; for recurring also mirrors startsAt. */
+  incurredAt    DateTime           @default(now())
+  periodicity   ExpensePeriodicity @default(ONCE)
+  /** Inclusive start of this rate (recurring) or day of one-shot. */
+  startsAt      DateTime           @default(now())
+  /** Inclusive end; null = open-ended recurring. */
+  endsAt        DateTime?
+  createdAt     DateTime           @default(now())
 
   store       Store?      @relation(fields: [storeId], references: [id])
   expenseType ExpenseType @relation(fields: [expenseTypeId], references: [id])
   createdBy   User        @relation(fields: [createdById], references: [id])
 
   @@index([storeId, incurredAt])
+  @@index([storeId, startsAt, endsAt])
+  @@index([periodicity, startsAt])
 }
 
 model ActivityLog {

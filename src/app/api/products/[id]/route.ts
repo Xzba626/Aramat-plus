@@ -29,6 +29,7 @@ export async function GET(_req: Request, ctx: Ctx) {
         batches: { orderBy: { receivedAt: "asc" } },
         stockBalances: true,
         priceHistory: { orderBy: { createdAt: "desc" }, take: 20 },
+        costHistory: { orderBy: { createdAt: "desc" }, take: 20 },
       },
     });
     if (!item) return handleApiError(new Error("PRODUCT_NOT_FOUND"));
@@ -72,33 +73,78 @@ export async function PATCH(req: Request, ctx: Ctx) {
           ? undefined
           : body.unitId;
 
-    const item = await prisma.product.update({
-      where: { id },
-      data: {
-        name: body.name,
-        sku: body.sku === undefined ? undefined : body.sku,
-        categoryId: body.categoryId === undefined ? undefined : body.categoryId,
-        brandId: body.brandId === undefined ? undefined : body.brandId,
-        unitId,
-        productTypeId:
-          body.productTypeId === undefined ? undefined : body.productTypeId,
-        accountingType,
-        salePrice:
-          body.salePrice != null ? new Prisma.Decimal(body.salePrice) : undefined,
-        defaultCostPerUnit:
-          body.defaultCostPerUnit === undefined
-            ? undefined
-            : body.defaultCostPerUnit == null
-              ? null
-              : new Prisma.Decimal(body.defaultCostPerUnit),
-      },
+    // Price/cost must go through dedicated history endpoints — block silent PATCH.
+    if (body.salePrice != null) {
+      return handleApiError(new Error("USE_PRICE_ENDPOINT"));
+    }
+
+    const costChanging =
+      body.defaultCostPerUnit !== undefined &&
+      String(body.defaultCostPerUnit ?? "") !==
+        String(existing.defaultCostPerUnit ?? "");
+
+    const item = await prisma.$transaction(async (tx) => {
+      if (costChanging) {
+        await tx.costHistory.create({
+          data: {
+            productId: id,
+            oldCost: existing.defaultCostPerUnit,
+            newCost:
+              body.defaultCostPerUnit == null
+                ? null
+                : new Prisma.Decimal(body.defaultCostPerUnit),
+            reason: "product_update",
+            changedById: user!.id,
+          },
+        });
+      }
+
+      return tx.product.update({
+        where: { id },
+        data: {
+          name: body.name,
+          sku: body.sku === undefined ? undefined : body.sku,
+          categoryId:
+            body.categoryId === undefined ? undefined : body.categoryId,
+          brandId: body.brandId === undefined ? undefined : body.brandId,
+          unitId,
+          productTypeId:
+            body.productTypeId === undefined ? undefined : body.productTypeId,
+          accountingType,
+          minStock:
+            body.minStock === undefined
+              ? undefined
+              : new Prisma.Decimal(body.minStock),
+          defaultCostPerUnit:
+            body.defaultCostPerUnit === undefined
+              ? undefined
+              : body.defaultCostPerUnit == null
+                ? null
+                : new Prisma.Decimal(body.defaultCostPerUnit),
+        },
+      });
     });
+
     await logActivity({
       userId: user!.id,
       companyId: user!.companyId,
       action: "PRODUCT_UPDATE",
       entityType: "Product",
       entityId: item.id,
+      metadata: {
+        before: {
+          name: existing.name,
+          categoryId: existing.categoryId,
+          defaultCostPerUnit: existing.defaultCostPerUnit?.toString() ?? null,
+          minStock: existing.minStock.toString(),
+        },
+        after: {
+          name: item.name,
+          categoryId: item.categoryId,
+          defaultCostPerUnit: item.defaultCostPerUnit?.toString() ?? null,
+          minStock: item.minStock.toString(),
+        },
+      },
     });
     return jsonOk(item);
   } catch (err) {

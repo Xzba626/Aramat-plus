@@ -61,6 +61,29 @@ export type WarehouseOverviewData = {
     userName: string;
     comment: string | null;
   }>;
+  recentWriteOffs?: Array<{
+    id: string;
+    createdAt: string | Date;
+    userName: string;
+    comment: string | null;
+  }>;
+  recentMovements?: Array<{
+    id: string;
+    createdAt: string | Date;
+    userName: string;
+    action: string;
+    comment: string | null;
+  }>;
+  lowStockItems?: Array<{
+    productId: string;
+    name: string;
+    quantity: number;
+    minStock: number;
+  }>;
+  emptyStockItems?: Array<{
+    productId: string;
+    name: string;
+  }>;
 };
 
 type KpiTone = "profit" | "stock" | "info" | "warning" | "danger" | "neutral";
@@ -244,7 +267,32 @@ export function WarehouseOverviewClient({
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <AlertList
+          title={t("warehouse.feedLowStock")}
+          empty={t("warehouse.emptyLowStock")}
+          tone="warn"
+          items={(data.lowStockItems ?? []).map((i) => ({
+            id: i.productId,
+            href: `/warehouse/${i.productId}`,
+            line1: i.name,
+            line2: `${i.quantity} ≤ ${i.minStock}`,
+          }))}
+        />
+        <AlertList
+          title={t("warehouse.feedEmptyStock")}
+          empty={t("warehouse.emptyEmptyStock")}
+          tone="danger"
+          items={(data.emptyStockItems ?? []).map((i) => ({
+            id: i.productId,
+            href: `/warehouse/${i.productId}`,
+            line1: i.name,
+            line2: t("warehouse.outOfStock"),
+          }))}
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
         <Feed
           title={t("warehouse.feedReceipts")}
           empty={t("warehouse.emptyReceipts")}

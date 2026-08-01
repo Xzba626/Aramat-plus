@@ -81,8 +81,11 @@ export async function POST(req: Request) {
       sellerId: user.id,
       items: body.items,
       discountAmount: body.discountAmount,
+      discountRequestId: body.discountRequestId,
       paymentMethod: body.paymentMethod,
       notes: body.notes ?? undefined,
+      reservationId: body.reservationId,
+      enforceApprovedDiscount: user.role === Role.SELLER,
     });
 
     return jsonOk(sale, 201);

@@ -1060,6 +1060,13 @@ function StoreExpensesPanel({
         expenseTypeId: String(fd.get("type")),
         amount: Number(fd.get("amount")),
         description: String(fd.get("description") || "") || undefined,
+        periodicity: String(fd.get("periodicity") || "ONCE"),
+        startsAt: String(fd.get("startsAt") || "")
+          ? new Date(String(fd.get("startsAt"))).toISOString()
+          : undefined,
+        endsAt: String(fd.get("endsAt") || "")
+          ? new Date(String(fd.get("endsAt"))).toISOString()
+          : null,
       }),
     });
     const data = await res.json();
@@ -1125,6 +1132,30 @@ function StoreExpensesPanel({
                 required
                 className="w-full"
               />
+            </div>
+            <div>
+              <FieldLabel>{t("storeDetail.periodicity")}</FieldLabel>
+              <select name="periodicity" className="w-full" defaultValue="MONTHLY">
+                <option value="ONCE">{t("storeDetail.periodOnce")}</option>
+                <option value="DAILY">{t("storeDetail.periodDaily")}</option>
+                <option value="WEEKLY">{t("storeDetail.periodWeekly")}</option>
+                <option value="MONTHLY">{t("storeDetail.periodMonthly")}</option>
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <FieldLabel>{t("storeDetail.startsAt")}</FieldLabel>
+                <input
+                  name="startsAt"
+                  type="date"
+                  className="w-full"
+                  defaultValue={new Date().toISOString().slice(0, 10)}
+                />
+              </div>
+              <div>
+                <FieldLabel>{t("storeDetail.endsAt")}</FieldLabel>
+                <input name="endsAt" type="date" className="w-full" />
+              </div>
             </div>
             <div>
               <FieldLabel>{t("storeDetail.description")}</FieldLabel>

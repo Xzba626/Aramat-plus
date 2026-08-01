@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { batchSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity } from "@/lib/services/activity-log.service";
-import { LocationType } from "@prisma/client";
+import { BatchOrigin, LocationType } from "@prisma/client";
 import { addBatch } from "@/lib/services/stock.service";
 import { getActiveSupplier } from "@/lib/services/supplier.service";
 

@@ -61,6 +61,12 @@ export const batchSchema = z.object({
 
 export const priceSchema = z.object({
   salePrice: z.coerce.number().positive(),
+  reason: z.string().min(1).max(300),
+});
+
+export const costSchema = z.object({
+  defaultCostPerUnit: z.coerce.number().positive().nullable(),
+  reason: z.string().min(1).max(300),
 });
 
 export const storeSchema = z.object({
@@ -95,7 +101,8 @@ export const userUpdateSchema = z.object({
 });
 
 export const transferSchema = z.object({
-  fromWarehouseId: z.string().min(1),
+  fromWarehouseId: z.string().min(1).optional(),
+  fromStoreId: z.string().min(1).optional(),
   toStoreId: z.string().min(1),
   notes: z.string().max(500).optional().nullable(),
   items: z
@@ -122,6 +129,8 @@ export const saleSchema = z.object({
   storeId: z.string().min(1).optional(),
   paymentMethod: z.string().max(40).optional(),
   discountAmount: z.coerce.number().min(0).optional(),
+  discountRequestId: z.string().min(1).optional(),
+  reservationId: z.string().min(1).optional(),
   notes: z.string().max(500).optional().nullable(),
   items: z
     .array(
@@ -132,4 +141,34 @@ export const saleSchema = z.object({
       })
     )
     .min(1),
+});
+
+export const reservationCreateSchema = z.object({
+  storeId: z.string().min(1).optional(),
+  customerNote: z.string().max(500).optional().nullable(),
+  ttlMinutes: z.coerce.number().min(5).max(24 * 60).optional(),
+  items: z
+    .array(
+      z.object({
+        productId: z.string().min(1),
+        quantity: z.coerce.number().positive(),
+      })
+    )
+    .min(1),
+});
+
+export const packagingSkuSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  volumeMl: z.coerce.number().positive(),
+  material: z.string().max(60).optional().nullable(),
+  color: z.string().max(60).optional().nullable(),
+  cap: z.string().max(60).optional().nullable(),
+  skuCode: z.string().max(80).optional().nullable(),
+  defaultCost: z.coerce.number().positive().optional().nullable(),
+  isDefaultForVolume: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const packagingSkuUpdateSchema = packagingSkuSchema.partial().extend({
+  id: z.string().min(1),
 });

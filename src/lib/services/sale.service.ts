@@ -1,8 +1,18 @@
-import { LocationType, Prisma, StoreKind } from "@prisma/client";
+import { LocationType, Prisma, Role, StoreKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { deductBatchesFifo } from "@/lib/services/stock.service";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { decimalToNumber } from "@/lib/utils";
+import {
+  assertAvailableForSaleLines,
+  assertReservationForSale,
+  completeReservationInTx,
+  expireStaleReservations,
+} from "@/lib/services/reservation.service";
+import {
+  consumeApprovedDiscount,
+  linkDiscountToSale,
+} from "@/lib/services/discount-request.service";
 
 export type SaleLineInput = {
   productId: string;
@@ -12,9 +22,7 @@ export type SaleLineInput = {
 
 /**
  * Fast path for POS checkout.
- * Reads (store/seller/products) are outside the interactive transaction.
- * TX only: FIFO batch deduct + stock balance + Sale/SaleItem writes.
- * Audit log runs after commit (does not hold stock locks).
+ * Optional discountRequestId: only APPROVED linked request may reduce total.
  */
 export async function createSale(params: {
   companyId: string;
@@ -22,8 +30,12 @@ export async function createSale(params: {
   sellerId: string;
   items: SaleLineInput[];
   discountAmount?: number;
+  discountRequestId?: string;
   paymentMethod?: string;
   notes?: string;
+  reservationId?: string;
+  /** Seller must use approved request — cannot pass raw discountAmount. */
+  enforceApprovedDiscount?: boolean;
 }) {
   if (!params.items.length) throw new Error("EMPTY_CART");
 
@@ -33,7 +45,15 @@ export async function createSale(params: {
     }
   }
 
-  const discount = new Prisma.Decimal(params.discountAmount ?? 0);
+  if (
+    params.enforceApprovedDiscount &&
+    (params.discountAmount ?? 0) > 0 &&
+    !params.discountRequestId
+  ) {
+    throw new Error("DISCOUNT_REQUIRES_APPROVAL");
+  }
+
+  let discount = new Prisma.Decimal(params.discountAmount ?? 0);
   if (discount.lt(0)) throw new Error("NEGATIVE_DISCOUNT");
 
   const productIds = [...new Set(params.items.map((i) => i.productId))];
@@ -115,8 +135,39 @@ export async function createSale(params: {
 
   const committed = await prisma.$transaction(
     async (tx) => {
+      await expireStaleReservations(tx, params.companyId);
+
+      if (params.reservationId) {
+        await assertReservationForSale(tx, {
+          companyId: params.companyId,
+          reservationId: params.reservationId,
+          storeId: store.id,
+          sellerId: params.sellerId,
+          items: params.items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+          })),
+          sellerIsRestricted: seller.role === Role.SELLER,
+        });
+      }
+
+      await assertAvailableForSaleLines(tx, {
+        locationType,
+        locationId,
+        items: params.items.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+        })),
+        reservationId: params.reservationId,
+      });
+
       let subtotal = new Prisma.Decimal(0);
       const lineRows: LineRow[] = [];
+      const cartForDiscount: Array<{
+        productId: string;
+        quantity: number;
+        salePrice: number;
+      }> = [];
 
       for (const line of params.items) {
         const product = productById.get(line.productId);
@@ -125,6 +176,14 @@ export async function createSale(params: {
         const qty = new Prisma.Decimal(line.quantity);
         const isGift = Boolean(line.isGift);
         const unitPrice = isGift ? new Prisma.Decimal(0) : product.salePrice;
+
+        if (!isGift) {
+          cartForDiscount.push({
+            productId: line.productId,
+            quantity: decimalToNumber(qty),
+            salePrice: decimalToNumber(unitPrice),
+          });
+        }
 
         const consumed = await deductBatchesFifo(tx, {
           productId: line.productId,
@@ -148,6 +207,25 @@ export async function createSale(params: {
         }
       }
 
+      let discountApprovedById: string | null = null;
+      let discountApprovedAt: Date | null = null;
+      let discountRequestId: string | null = null;
+
+      if (params.discountRequestId) {
+        const consumed = await consumeApprovedDiscount(tx, {
+          companyId: params.companyId,
+          discountRequestId: params.discountRequestId,
+          sellerId: params.sellerId,
+          storeId: store.id,
+          cartItems: cartForDiscount,
+          cartSubtotal: decimalToNumber(subtotal),
+        });
+        discount = new Prisma.Decimal(consumed.discountAmount);
+        discountApprovedById = consumed.approvedById;
+        discountApprovedAt = consumed.approvedAt;
+        discountRequestId = consumed.requestId;
+      }
+
       if (discount.gt(subtotal)) {
         throw new Error("DISCOUNT_EXCEEDS_TOTAL");
       }
@@ -164,6 +242,9 @@ export async function createSale(params: {
           total,
           paymentMethod: params.paymentMethod ?? "CASH",
           notes: params.notes,
+          discountRequestId,
+          discountApprovedById,
+          discountApprovedAt,
           items: {
             create: lineRows.map((r) => ({
               productId: r.productId,
@@ -190,15 +271,30 @@ export async function createSale(params: {
         },
       });
 
-      return { sale, total };
+      if (discountRequestId) {
+        await linkDiscountToSale(tx, {
+          discountRequestId,
+          saleId: sale.id,
+        });
+      }
+
+      if (params.reservationId) {
+        await completeReservationInTx(tx, {
+          reservationId: params.reservationId,
+          saleId: sale.id,
+          userId: params.sellerId,
+          companyId: params.companyId,
+        });
+      }
+
+      return { sale, total, subtotal, discount };
     },
     {
-      maxWait: 5000,
-      timeout: 10000,
+      maxWait: 8000,
+      timeout: 20000,
     }
   );
 
-  // Do not hold the API on audit RTT — log after response path
   void logActivity({
     userId: params.sellerId,
     companyId: params.companyId,
@@ -211,7 +307,11 @@ export async function createSale(params: {
       locationType,
       locationId,
       itemCount: params.items.length,
-      total: committed.total.toString(),
+      originalAmount: committed.subtotal.toString(),
+      discountAmount: committed.discount.toString(),
+      finalAmount: committed.total.toString(),
+      discountRequestId: params.discountRequestId ?? null,
+      reservationId: params.reservationId ?? null,
     },
   }).catch((err) => console.error("[createSale] audit log failed", err));
 
@@ -219,6 +319,9 @@ export async function createSale(params: {
 
   return {
     ...saleRest,
+    originalAmount: decimalToNumber(committed.subtotal),
+    discountAmount: decimalToNumber(committed.discount),
+    finalAmount: decimalToNumber(committed.total),
     items: items.map((it) => ({
       ...it,
       product: {

@@ -18,6 +18,7 @@ export const WAREHOUSE_INTERNAL_NAV: WarehouseNavItem[] = [
   { href: "/warehouse/purchases", labelKey: "nav.purchasesHistory", module: "purchases" },
   { href: "/warehouse/suppliers", labelKey: "nav.purchasesSuppliers", module: "purchases" },
   { href: "/warehouse/batches", labelKey: "nav.purchasesBatches", module: "purchases" },
+  { href: "/warehouse/suppliers", labelKey: "nav.purchasesSuppliers", module: "purchases" },
   { href: "/warehouse/stock", labelKey: "nav.inventoryStock", module: "inventory" },
   { href: "/warehouse/transfers", labelKey: "nav.inventoryTransfers", module: "inventory" },
   { href: "/warehouse/return-in", labelKey: "nav.inventoryReturnIn", module: "inventory" },
@@ -40,6 +41,7 @@ const RESERVED_SEGMENTS = new Set([
   "write-offs",
   "history",
   "archive",
+  "packaging",
 ]);
 
 /** Product card URL: /warehouse/[cuid] (not a reserved segment). */

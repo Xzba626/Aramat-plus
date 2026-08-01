@@ -14,6 +14,7 @@ import {
   ShoppingBag,
   Store,
   Users,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { Role } from "@prisma/client";
@@ -28,16 +29,17 @@ import { useT } from "@/components/i18n/i18n-provider";
 
 const ICONS: Record<string, LucideIcon> = {
   home: Home,
+  finance: Wallet,
+  stores: Store,
+  warehouse: Boxes,
+  sales: ShoppingBag,
+  users: Users,
+  settings: Settings,
+  // legacy aliases
   products: Package,
   purchases: PackagePlus,
   inventory: Boxes,
-  sales: ShoppingBag,
-  stores: Store,
-  users: Users,
   reports: BarChart3,
-  settings: Settings,
-  // legacy aliases
-  warehouse: Boxes,
   analytics: BarChart3,
 };
 

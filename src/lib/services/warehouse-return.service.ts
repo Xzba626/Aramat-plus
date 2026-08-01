@@ -1,4 +1,4 @@
-import { LocationType, Prisma, StoreKind } from "@prisma/client";
+import { BatchOrigin, LocationType, Prisma, StoreKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { addBatch, deductBatchesFifo } from "@/lib/services/stock.service";
 import { logActivity } from "@/lib/services/activity-log.service";
@@ -61,6 +61,8 @@ export async function createStoreReturnIn(params: {
           quantity: slice.quantity,
           costPerUnit: slice.costPerUnit,
           notes: `warehouse_return:${store.id}${params.reason ? `:${params.reason}` : ""}`,
+          origin: BatchOrigin.RETURN,
+          createdById: params.createdById,
         });
       }
 

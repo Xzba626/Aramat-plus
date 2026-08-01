@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -139,31 +140,45 @@ export default function NotificationsPage() {
           </Card>
         ) : (
           <div className="space-y-2">
-            {filtered.map((n) => (
-              <Card
-                key={n.id}
-                className={cn(
-                  "flex gap-3 p-4",
-                  !n.isRead && "border-brand/30 bg-brand-soft/40"
-                )}
-              >
-                <span
+            {filtered.map((n) => {
+              const body = (
+                <Card
                   className={cn(
-                    "mt-1.5 h-2 w-2 shrink-0 rounded-full",
-                    n.isRead ? "bg-border" : "bg-danger"
+                    "flex gap-3 p-4 transition",
+                    !n.isRead && "border-brand/30 bg-brand-soft/40",
+                    n.href && "hover:border-brand/40"
                   )}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold text-ink">
-                    {resolveNotifTitle(n.title, n.titleKey, t)}
+                >
+                  <span
+                    className={cn(
+                      "mt-1.5 h-2 w-2 shrink-0 rounded-full",
+                      n.isRead ? "bg-border" : "bg-danger"
+                    )}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-ink">
+                      {resolveNotifTitle(n.title, n.titleKey, t)}
+                    </div>
+                    <div className="text-sm text-muted">{n.message}</div>
+                    <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted">
+                      <span>{formatDateTime(n.createdAt)}</span>
+                      {n.href ? (
+                        <span className="font-semibold text-brand">
+                          {t("dashboard.openAction")} →
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="text-sm text-muted">{n.message}</div>
-                  <div className="mt-1 text-xs text-muted">
-                    {formatDateTime(n.createdAt)}
-                  </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+              return n.href ? (
+                <Link key={n.id} href={n.href} className="block">
+                  {body}
+                </Link>
+              ) : (
+                <div key={n.id}>{body}</div>
+              );
+            })}
           </div>
         )}
       </ModuleSection>

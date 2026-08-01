@@ -17,6 +17,7 @@ async function main() {
   await prisma.priceHistory.deleteMany();
   await prisma.productVariant.deleteMany();
   await prisma.product.deleteMany();
+  await prisma.packagingSku.deleteMany();
   await prisma.giftRule.deleteMany();
   await prisma.discountRequest.deleteMany();
   await prisma.saleReturn.deleteMany();
@@ -68,12 +69,12 @@ async function main() {
   ]);
 
   await Promise.all([
-    prisma.productType.create({ data: { name: "Парфюм", companyId: company.id } }),
-    prisma.productType.create({ data: { name: "Масляные духи", companyId: company.id } }),
+    prisma.productType.create({ data: { name: "Разливной", companyId: company.id } }),
+    prisma.productType.create({ data: { name: "Штучный", companyId: company.id } }),
     prisma.productType.create({ data: { name: "Дезодорант", companyId: company.id } }),
-    prisma.productType.create({ data: { name: "Освежитель воздуха", companyId: company.id } }),
+    prisma.productType.create({ data: { name: "Освежитель", companyId: company.id } }),
     prisma.productType.create({ data: { name: "Часы", companyId: company.id } }),
-    prisma.productType.create({ data: { name: "Аксессуары", companyId: company.id } }),
+    prisma.productType.create({ data: { name: "Парфюм", companyId: company.id } }),
     prisma.productType.create({ data: { name: "Другое", companyId: company.id } }),
     prisma.operationType.create({
       data: { name: "Перемещение", code: "TRANSFER", companyId: company.id },
@@ -83,6 +84,9 @@ async function main() {
     }),
     prisma.expenseType.create({ data: { name: "Аренда", companyId: company.id } }),
     prisma.expenseType.create({ data: { name: "Зарплата", companyId: company.id } }),
+    prisma.expenseType.create({ data: { name: "Коммунальные", companyId: company.id } }),
+    prisma.expenseType.create({ data: { name: "Интернет", companyId: company.id } }),
+    prisma.expenseType.create({ data: { name: "Прочие", companyId: company.id } }),
   ]);
 
   const store1 = await prisma.store.create({
@@ -350,6 +354,12 @@ async function main() {
   console.log(`  Warehouse: ${warehouse.name}`);
   console.log(`  Stores: ${ownerDirect.name}, ${store1.name}, ${store2.name}`);
   console.log("  Store №1 seed stock: Amber 30 + Musk 20 (via transfer)");
+
+  const { ensureDefaultPackagingSkus } = await import(
+    "../src/lib/services/packaging.service"
+  );
+  await ensureDefaultPackagingSkus(company.id);
+  console.log("  Packaging: default glass Skus 5/10/30/50/100 ml");
 }
 
 main()

@@ -15,6 +15,7 @@
 | Данные в БД? | `npm run diagnose:stock` |
 | Цепочка сервисов? | `npm run test:stock-flow` |
 | Полный сценарий? | `npm run smoke:cycle` |
+| Seller не видит склад? | `npm run test:seller-isolation` |
 | Frontend видит БД? | localhost + те же учётки ниже |
 
 Путь данных (обязательный):
@@ -88,6 +89,7 @@ Vercel пока **не** подключать.
 
 - [ ] `test:stock-flow` PASS  
 - [ ] `smoke:cycle` PASS  
-- [ ] Seller видит остаток после transfer  
+- [ ] `test:seller-isolation` PASS  
+- [ ] Seller видит остаток после transfer (только store, не warehouse)  
 - [ ] Sale уменьшает store stock в Neon/local  
 - [ ] Нет опоры на mock для остатков  

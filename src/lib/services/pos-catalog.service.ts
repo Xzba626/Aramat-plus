@@ -2,8 +2,9 @@ import { LocationType, StoreKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 import { getStoreStock } from "@/lib/services/stock.service";
+import { reservedQtyByProduct } from "@/lib/services/reservation.service";
 
-/** Catalog for Seller POS — ONLY stock at seller's BRANCH store. */
+/** Catalog for Seller POS — available qty = physical − ACTIVE reservations. */
 export async function getPosCatalog(params: {
   companyId: string;
   storeId: string;
@@ -21,10 +22,18 @@ export async function getPosCatalog(params: {
   if (!store) throw new Error("SELLER_NO_STORE");
 
   const balances = await getStoreStock(store.id);
+  const reserved = await reservedQtyByProduct({
+    companyId: params.companyId,
+    locationType: LocationType.STORE,
+    locationId: store.id,
+    productIds: balances.map((b) => b.productId),
+  });
   const q = (params.q ?? "").trim().toLowerCase();
 
   let items = balances.map((b) => {
-    const qty = decimalToNumber(b.quantity);
+    const physical = decimalToNumber(b.quantity);
+    const held = reserved.get(b.productId) ?? 0;
+    const qty = Math.max(0, physical - held);
     const min = decimalToNumber(b.product.minStock);
     let stockStatus: "OK" | "LOW" | "OUT" = "OK";
     if (qty <= 0) stockStatus = "OUT";
@@ -33,6 +42,8 @@ export async function getPosCatalog(params: {
     return {
       productId: b.productId,
       quantity: qty,
+      physicalQty: physical,
+      reservedQty: held,
       stockStatus,
       salePrice: decimalToNumber(b.product.salePrice),
       product: {
@@ -42,7 +53,11 @@ export async function getPosCatalog(params: {
         barcode: b.product.barcode,
         minStock: min,
         brand: b.product.brand
-          ? { id: b.product.brand.id, name: b.product.brand.name, imageUrl: b.product.brand.imageUrl }
+          ? {
+              id: b.product.brand.id,
+              name: b.product.brand.name,
+              imageUrl: b.product.brand.imageUrl,
+            }
           : null,
         category: b.product.category
           ? { id: b.product.category.id, name: b.product.category.name }
@@ -73,7 +88,6 @@ export async function getPosCatalog(params: {
       return hay.includes(q);
     });
 
-    // Exact barcode / sku match → first
     const exact = items.find(
       (i) =>
         i.product.barcode?.toLowerCase() === q ||

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { productSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity } from "@/lib/services/activity-log.service";
-import { LocationType, Prisma } from "@prisma/client";
+import { BatchOrigin, LocationType, Prisma } from "@prisma/client";
 import { decimalToNumber } from "@/lib/utils";
 import { addBatch } from "@/lib/services/stock.service";
 import {
@@ -24,6 +24,7 @@ export async function GET(req: Request) {
     const categoryId = searchParams.get("categoryId");
     const brandId = searchParams.get("brandId");
     const status = searchParams.get("status"); // active | archived | low | empty | all
+    const kind = searchParams.get("kind"); // STANDARD | PACKAGING | all
     const warehouse = await prisma.warehouse.findFirst({
       where: { companyId: user!.companyId, isActive: true },
     });
@@ -31,6 +32,11 @@ export async function GET(req: Request) {
     const items = await prisma.product.findMany({
       where: {
         companyId: user!.companyId,
+        ...(kind === "PACKAGING"
+          ? { kind: "PACKAGING" }
+          : kind === "all"
+            ? {}
+            : { kind: "STANDARD" }),
         ...(status === "archived"
           ? { isActive: false }
           : status === "all"
@@ -53,6 +59,7 @@ export async function GET(req: Request) {
         category: true,
         unit: true,
         productType: true,
+        packagingSku: true,
         stockBalances: warehouse
           ? {
               where: {
@@ -160,7 +167,7 @@ export async function POST(req: Request) {
           barcode: body.barcode ?? null,
           description: body.description ?? null,
           companyId: user!.companyId,
-          categoryId: null,
+          categoryId: body.categoryId ?? null,
           brandId: body.brandId ?? null,
           unitId,
           productTypeId: body.productTypeId ?? null,
@@ -170,7 +177,7 @@ export async function POST(req: Request) {
             costPerUnit != null && costPerUnit > 0
               ? new Prisma.Decimal(costPerUnit)
               : null,
-          minStock: new Prisma.Decimal(0),
+          minStock: new Prisma.Decimal(body.minStock ?? 0),
         },
       });
 

@@ -13,7 +13,15 @@ import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
 import { decimalToNumber } from "@/lib/utils";
 
-const REASON_VALUES = ["DEFECT", "DAMAGED", "EXPIRED", "LOSS", "OTHER"] as const;
+const REASON_VALUES = [
+  "SPOILED",
+  "BROKEN",
+  "TESTER",
+  "STOLEN",
+  "LOSS",
+  "EXPIRED",
+  "OTHER",
+] as const;
 
 type StockItem = {
   productId: string;
@@ -97,7 +105,8 @@ export default function WriteOffsPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        reason: comment || reasonCode,
+        reasonCode: reasonCode,
+        comment: comment || null,
         items: [{ productId: pid, quantity: qty }],
       }),
     });

@@ -46,7 +46,7 @@ Navigation reflects modules; **URLs still use legacy `/warehouse/*` paths** unti
 | **Products** | Nomenclature, brands, categories, types, accounting rules | `/warehouse/products`, `/categories`, `/brands`, `/new`, `/[id]` |
 | **Purchases** | Receipts, batches, suppliers | `/warehouse/receive`, `/batches` |
 | **Inventory** | Balances, transfers, write-offs, revision, history | `/warehouse`, `/stock`, `/transfers`, `/return-in`, `/write-offs`, `/history`, `/revision` |
-| **Packaging** | Bottles (not products) — Stage 7 | TBD (`/warehouse/packaging` or `/products/packaging`) |
+| **Packaging** | `PackagingSku` — bottles (not products), Stage 4 | Gate: [block-4-packaging-gate.md](block-4-packaging-gate.md) |
 | **Sales** | Returns queue; seller POS shell | `/returns`; seller `/pos/*` |
 | **Stores** | Branches, OWNER_DIRECT, expenses, staff **assign** (no user create) | `/stores`, `/stores/[id]` |
 | **Users** | Create/archive employees; optional store on create | `/users` |
@@ -151,6 +151,27 @@ Next (order preserved; extensions slotted in):
 | **8** | Cart persistence + idempotency | IndexedDB drafts; `clientRequestId`; request states |
 | **9** | Design system + loading UX | Tokens; **skeleton loading**; never flash “empty” while loading |
 | **10** | Performance + Reports polish + System reset | Payment analytics (cash/card/transfer); list virtualization; **Owner system wipe** (phrase confirm, one TX, keep settings) |
+
+### Product Vision Completion Phase (канон)
+
+См. [PRODUCT-VISION-LAYER.md](PRODUCT-VISION-LAYER.md).
+
+| Block | Scope | Status |
+|-------|--------|--------|
+| 1 | Discount seller → owner → sale | ✅ |
+| 2 | POS Persistent Cart (+ seller/store scope) | ✅ |
+| **3.1** | **Owner Control Center** (деньги, магазины, решения, Finance) | 🔄 код harden — **UI-приёмка** |
+| **4** | **Perfume Bottle & Liquid Inventory** | 📋 **следующий core** (расширение склада) |
+| **5** | **Notifications / Owner Inbox** | 📋 после Block 4 |
+| 6 | Store↔store workflow | pending |
+| 7 | Customer CRM | pending |
+| 8 | PDF / Excel / Import | pending (после ядра) |
+
+Аудит без правок кода: [PRODUCT-VISION-AUDIT.md](PRODUCT-VISION-AUDIT.md).
+
+Также в фазе (не «забыть»): Backup / Demo / Full Reset · роли WAREHOUSE / ACCOUNTANT · глобальный поиск.
+
+Criterion: function is done only when owner/seller completes the full scenario in UI and sees the result.
 
 ---
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ExpensePeriodicity } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
 import { requireOwnerOrManager } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
@@ -13,6 +14,10 @@ const createSchema = z.object({
   storeId: z.string().min(1).optional().nullable(),
   description: z.string().max(500).optional().nullable(),
   incurredAt: z.string().datetime().optional().nullable(),
+  periodicity: z.nativeEnum(ExpensePeriodicity).optional(),
+  startsAt: z.string().datetime().optional().nullable(),
+  endsAt: z.string().datetime().optional().nullable(),
+  replacesExpenseId: z.string().min(1).optional().nullable(),
 });
 
 export async function GET(req: Request) {
@@ -46,6 +51,10 @@ export async function POST(req: Request) {
       storeId: body.storeId,
       description: body.description ?? undefined,
       incurredAt: body.incurredAt ? new Date(body.incurredAt) : undefined,
+      periodicity: body.periodicity,
+      startsAt: body.startsAt ? new Date(body.startsAt) : undefined,
+      endsAt: body.endsAt ? new Date(body.endsAt) : null,
+      replacesExpenseId: body.replacesExpenseId,
     });
     return jsonOk(row, 201);
   } catch (err) {
