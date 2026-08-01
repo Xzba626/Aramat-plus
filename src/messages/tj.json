@@ -153,7 +153,22 @@
     "salesReturns": "Бозгашти фурӯш",
     "reservations": "Резервҳо",
     "modules": "Модулҳо",
-    "subnavModules": "Модулҳои система"
+    "subnavModules": "Модулҳои система",
+    "finance": "Молия",
+    "financeRevenue": "Даромад",
+    "financeExpenses": "Хароҷот",
+    "financeNetProfit": "Фоидаи соф",
+    "storesSales": "Фурӯшҳо",
+    "storesStock": "Боқимонда",
+    "storesKpi": "KPI",
+    "warehouseWorkspace": "Анбор",
+    "salesDiscounts": "Тахфифҳо",
+    "salesPos": "Фурӯшандагон / POS",
+    "team": "Даста",
+    "teamActivity": "Фаъолият",
+    "settingsWorkspace": "Танзимот",
+    "settingsBackup": "Backup",
+    "settingsDemo": "Demo reset"
   },
   "topbar": {
     "notifications": "Огоҳиномаҳо"
@@ -185,6 +200,19 @@
   },
   "dashboard": {
     "commandCenter": "AROMAT PLUS · Маркази фармон",
+    "controlCenter": "Маркази идора",
+    "controlHint": "Пули имрӯз, қарорҳо ва мағозаҳо — дар 10 сония.",
+    "chipDiscounts": "Тахфифҳо",
+    "chipReturns": "Бозгаштҳо",
+    "chipLowStock": "Боқимондаи кам",
+    "chipRevisions": "Ревизияҳо",
+    "problemNoSales": "фурӯш кам",
+    "problemDiscount": "тахфиф интизор",
+    "problemReturn": "бозгашт ҳаст",
+    "problemRevision": "ревизия ҷараён дорад",
+    "bestProductLabel": "Беҳтарин мол",
+    "openAction": "Кушодан",
+    "decisionFeed": "Лентаи қарорҳо",
     "welcome": "Хуш омадед, {{name}}",
     "welcomeHint": "Аввал қарорҳо ва фурӯши имрӯз — боқӣ дар менюи чап.",
     "greetMorning": "Субҳ ба хайр, {{name}}",
@@ -565,7 +593,8 @@
     "period": {
       "today": "Имрӯз",
       "week": "Ҳафта",
-      "month": "Моҳ"
+      "month": "Моҳ",
+      "year": "Сол"
     },
     "storesToday": "Мағозаҳо имрӯз",
     "storesMonth": "Мағозаҳо дар моҳ",

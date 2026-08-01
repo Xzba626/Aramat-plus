@@ -153,7 +153,22 @@
     "salesReturns": "Возвраты продаж",
     "reservations": "Резервы",
     "modules": "Модули",
-    "subnavModules": "Модули системы"
+    "subnavModules": "Модули системы",
+    "finance": "Финансы",
+    "financeRevenue": "Выручка",
+    "financeExpenses": "Расходы",
+    "financeNetProfit": "Чистая прибыль",
+    "storesSales": "Продажи",
+    "storesStock": "Остатки",
+    "storesKpi": "KPI",
+    "warehouseWorkspace": "Склад",
+    "salesDiscounts": "Скидки",
+    "salesPos": "Продавцы / POS",
+    "team": "Команда",
+    "teamActivity": "Активность",
+    "settingsWorkspace": "Настройки",
+    "settingsBackup": "Backup",
+    "settingsDemo": "Demo reset"
   },
   "topbar": {
     "notifications": "Уведомления"
@@ -186,6 +201,19 @@
   },
   "dashboard": {
     "commandCenter": "AROMAT PLUS · Командный центр",
+    "controlCenter": "Центр управления",
+    "controlHint": "Деньги сегодня, решения и магазины — за 10 секунд.",
+    "chipDiscounts": "Скидки",
+    "chipReturns": "Возвраты",
+    "chipLowStock": "Низкий остаток",
+    "chipRevisions": "Ревизии",
+    "problemNoSales": "мало продаж",
+    "problemDiscount": "ожидает скидка",
+    "problemReturn": "есть возврат",
+    "problemRevision": "идёт ревизия",
+    "bestProductLabel": "Лучший товар",
+    "openAction": "Открыть",
+    "decisionFeed": "Лента решений",
     "welcome": "Добро пожаловать, {{name}}",
     "welcomeHint": "Сначала решения и продажи сегодня — всё остальное в меню слева.",
     "greetMorning": "Доброе утро, {{name}}",
@@ -566,7 +594,8 @@
     "period": {
       "today": "Сегодня",
       "week": "Неделя",
-      "month": "Месяц"
+      "month": "Месяц",
+      "year": "Год"
     },
     "storesToday": "Магазины сегодня",
     "storesMonth": "Магазины за месяц",

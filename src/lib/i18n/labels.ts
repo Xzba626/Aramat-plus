@@ -106,6 +106,43 @@ export function labelDecisionStatus(status: string, t: TranslateFn): string {
   return key ? t(key) : status;
 }
 
+/** Deep-link from ActivityLog / notifications into a working screen. */
+export function entityHref(
+  entityType: string | null | undefined,
+  entityId: string | null | undefined,
+  action?: string | null
+): string | null {
+  if (action === "DISCOUNT_REQUEST" || entityType === "DiscountRequest") {
+    return "/dashboard#decisions";
+  }
+  if (action === "RETURN_REQUEST" || entityType === "SaleReturn") {
+    return entityId ? `/returns` : "/returns";
+  }
+  if (!entityType) return null;
+  switch (entityType) {
+    case "Product":
+      return entityId ? `/warehouse/${entityId}` : "/warehouse/products";
+    case "Store":
+      return entityId ? `/stores/${entityId}` : "/stores";
+    case "Sale":
+      return "/analytics?view=network";
+    case "Transfer":
+      return "/warehouse/transfers";
+    case "Batch":
+      return "/warehouse/batches";
+    case "WriteOff":
+      return "/warehouse/write-offs";
+    case "Expense":
+      return "/analytics?view=expenses";
+    case "User":
+      return "/users";
+    case "Supplier":
+      return "/warehouse/suppliers";
+    default:
+      return null;
+  }
+}
+
 /** Prefer revisionPage.* keys already used by revision UI. */
 export function labelRevisionStatus(status: string, t: TranslateFn): string {
   const map: Record<string, string> = {

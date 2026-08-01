@@ -152,6 +152,20 @@ Next (order preserved; extensions slotted in):
 | **9** | Design system + loading UX | Tokens; **skeleton loading**; never flash “empty” while loading |
 | **10** | Performance + Reports polish + System reset | Payment analytics (cash/card/transfer); list virtualization; **Owner system wipe** (phrase confirm, one TX, keep settings) |
 
+### Product Vision Layer (current — UI scenario criterion)
+
+| Block | Scope | Status |
+|-------|--------|--------|
+| 1 | Discount seller → owner → sale | ✅ |
+| 2 | POS Persistent Cart (+ seller/store scope) | ✅ |
+| 3 | Owner Control Center + workspace IA | 🔄 harden (finance/store/decision feed) |
+| **4** | **Perfume Bottle & Liquid Inventory** | 📋 **next after Block 3 accept** — core, not P2 |
+| 5 | Owner Inbox / Notifications (decision center) | pending |
+| 6 | Store↔store transfer UI | pending |
+| 7 | Backup / Demo reset | pending |
+
+Criterion: function is done only when owner/seller completes the full scenario in UI and sees the result.
+
 ---
 
 ## Stage 10 — System reset (Owner only)

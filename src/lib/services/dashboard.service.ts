@@ -46,7 +46,9 @@ export async function getDashboardPayload(companyId: string) {
           createdAt: { gte: todayStart, lte: now },
         },
         include: {
-          items: true,
+          items: {
+            include: { product: { select: { id: true, name: true } } },
+          },
           store: { select: { id: true, name: true } },
         },
       }),
@@ -109,11 +111,29 @@ export async function getDashboardPayload(companyId: string) {
     }
   }
 
-  const storeToday = stores.map((store) => {
+  const storeTodayBase = stores.map((store) => {
     const storeSales = salesToday.filter((s) => s.store.id === store.id);
     const g = saleGrossMetricsNetOfReturnsSync(storeSales, returnLines);
     const storeExp = expensesToday.byStore.get(store.id) ?? 0;
     const m = withNetProfit(g, storeExp);
+
+    const productRev = new Map<string, { name: string; revenue: number }>();
+    for (const sale of storeSales) {
+      for (const it of sale.items) {
+        if (it.isGift) continue;
+        const rev =
+          decimalToNumber(it.quantity) * decimalToNumber(it.salePrice);
+        const prev = productRev.get(it.productId);
+        if (prev) prev.revenue += rev;
+        else
+          productRev.set(it.productId, {
+            name: it.product.name,
+            revenue: rev,
+          });
+      }
+    }
+    const top = [...productRev.values()].sort((a, b) => b.revenue - a.revenue)[0];
+
     return {
       id: store.id,
       name: store.name,
@@ -123,6 +143,8 @@ export async function getDashboardPayload(companyId: string) {
       netProfit: m.netProfit,
       profit: m.netProfit,
       salesCount: m.count,
+      topProductName: top?.name ?? null,
+      topProductRevenue: top ? Math.round(top.revenue * 100) / 100 : null,
     };
   });
 
@@ -196,46 +218,56 @@ export async function getDashboardPayload(companyId: string) {
     sparkline.push(Math.round(dayRev * 100) / 100);
   }
 
-  const storesWithSales = storeToday.filter((s) => s.salesCount > 0).length;
+  const storesWithSales = storeTodayBase.filter((s) => s.salesCount > 0).length;
 
-  const [pendingDiscounts, pendingReturns] = await Promise.all([
-    prisma.discountRequest.findMany({
-      where: {
-        status: "PENDING",
-        companyId,
-      },
-      include: {
-        requester: { select: { id: true, name: true } },
-        store: { select: { id: true, name: true } },
-        sale: {
-          include: {
-            store: { select: { id: true, name: true } },
-            items: {
-              take: 3,
-              include: { product: { select: { name: true, salePrice: true } } },
+  const [pendingDiscounts, pendingReturns, openRevisionSessions] =
+    await Promise.all([
+      prisma.discountRequest.findMany({
+        where: {
+          status: "PENDING",
+          companyId,
+        },
+        include: {
+          requester: { select: { id: true, name: true } },
+          store: { select: { id: true, name: true } },
+          sale: {
+            include: {
+              store: { select: { id: true, name: true } },
+              items: {
+                take: 3,
+                include: {
+                  product: { select: { name: true, salePrice: true } },
+                },
+              },
             },
           },
         },
-      },
-      orderBy: { createdAt: "asc" },
-    }),
-    prisma.saleReturn.findMany({
-      where: { status: "PENDING", sale: { store: { companyId } } },
-      include: {
-        requester: { select: { id: true, name: true } },
-        sale: {
-          include: {
-            store: { select: { id: true, name: true } },
-            items: {
-              take: 3,
-              include: { product: { select: { name: true } } },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.saleReturn.findMany({
+        where: { status: "PENDING", sale: { store: { companyId } } },
+        include: {
+          requester: { select: { id: true, name: true } },
+          sale: {
+            include: {
+              store: { select: { id: true, name: true } },
+              items: {
+                take: 3,
+                include: { product: { select: { name: true } } },
+              },
             },
           },
         },
-      },
-      orderBy: { createdAt: "asc" },
-    }),
-  ]);
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.inventorySession.findMany({
+        where: {
+          status: "IN_PROGRESS",
+          store: { companyId },
+        },
+        select: { id: true, storeId: true },
+      }),
+    ]);
 
   const decisions = [
     ...pendingDiscounts.map((d) => {
@@ -243,11 +275,13 @@ export async function getDashboardPayload(companyId: string) {
         d.sale?.items.map((i) => i.product.name).join(", ") ?? "";
       const original = decimalToNumber(d.originalAmount);
       const discountAmt = decimalToNumber(d.amount);
+      const storeId = d.store?.id ?? d.sale?.store.id ?? null;
       return {
         id: d.id,
         type: "DISCOUNT" as const,
         priority: "urgent" as const,
         createdAt: d.createdAt.toISOString(),
+        storeId,
         storeName: d.store?.name ?? d.sale?.store.name ?? "—",
         actorName: d.requester.name,
         titleKey: "dashboard.decisionDiscount" as const,
@@ -260,6 +294,7 @@ export async function getDashboardPayload(companyId: string) {
           : ("dashboard.cartOrReceipt" as const),
         originalTotal: original,
         finalTotal: Math.round((original - discountAmt) * 100) / 100,
+        href: "/dashboard#decisions",
       };
     }),
     ...pendingReturns.map((r) => {
@@ -269,6 +304,7 @@ export async function getDashboardPayload(companyId: string) {
         type: "RETURN" as const,
         priority: "urgent" as const,
         createdAt: r.createdAt.toISOString(),
+        storeId: r.sale.store.id,
         storeName: r.sale.store.name,
         actorName: r.requester.name,
         titleKey: "dashboard.decisionReturn" as const,
@@ -281,16 +317,71 @@ export async function getDashboardPayload(companyId: string) {
           : ("dashboard.cartOrReceipt" as const),
         originalTotal: decimalToNumber(r.sale.total),
         finalTotal: null as number | null,
+        href: "/returns",
       };
     }),
   ].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 
+  const openRevisions = openRevisionSessions.length;
+
+  const storeToday = storeTodayBase.map((store) => {
+    const discountN = pendingDiscounts.filter(
+      (d) => (d.store?.id ?? d.sale?.store.id) === store.id
+    ).length;
+    const returnN = pendingReturns.filter((r) => r.sale.store.id === store.id)
+      .length;
+    const revisionN = openRevisionSessions.filter(
+      (r) => r.storeId === store.id
+    ).length;
+    const problems: Array<{
+      key: string;
+      labelKey: string;
+      href: string;
+      tone: "danger" | "alert";
+    }> = [];
+    if (store.salesCount === 0) {
+      problems.push({
+        key: "quiet",
+        labelKey: "dashboard.problemNoSales",
+        href: `/stores/${store.id}`,
+        tone: "alert",
+      });
+    }
+    if (discountN > 0) {
+      problems.push({
+        key: "discount",
+        labelKey: "dashboard.problemDiscount",
+        href: "/dashboard#decisions",
+        tone: "danger",
+      });
+    }
+    if (returnN > 0) {
+      problems.push({
+        key: "return",
+        labelKey: "dashboard.problemReturn",
+        href: "/returns",
+        tone: "danger",
+      });
+    }
+    if (revisionN > 0) {
+      problems.push({
+        key: "revision",
+        labelKey: "dashboard.problemRevision",
+        href: "/revision",
+        tone: "alert",
+      });
+    }
+    return { ...store, problems, pendingDiscount: discountN, pendingReturn: returnN };
+  });
+
   const decisionSummary = {
     total: decisions.length,
     discount: decisions.filter((d) => d.type === "DISCOUNT").length,
     return: decisions.filter((d) => d.type === "RETURN").length,
+    lowStock: lowStockFiltered.length,
+    revision: openRevisions,
     price: 0,
     writeOff: 0,
     batch: 0,
@@ -367,6 +458,8 @@ export async function getDashboardPayload(companyId: string) {
     recent: recent.map((log) => ({
       id: log.id,
       action: log.action,
+      entityType: log.entityType,
+      entityId: log.entityId,
       comment: log.comment,
       createdAt: log.createdAt.toISOString(),
       userName: log.user?.name ?? "",

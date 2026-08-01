@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     const periodParam =
       new URL(req.url).searchParams.get("period") ?? "month";
     const period = (
-      ["today", "week", "month"].includes(periodParam)
+      ["today", "week", "month", "year"].includes(periodParam)
         ? periodParam
         : "month"
     ) as AnalyticsPeriod;

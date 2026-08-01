@@ -7,6 +7,7 @@ import {
   cartMatchesSnapshot,
   linesToFingerprintLines,
 } from "@/lib/pos/cart-fingerprint";
+import { posCartStorageKey } from "@/lib/pos/cart-storage-key";
 
 export type PosCartLine = {
   productId: string;
@@ -23,7 +24,6 @@ export type PosDiscountState = {
   originalAmount: number;
   discountAmount: number;
   finalAmount: number;
-  /** Snapshot hash at request time — must match current cart. */
   cartHash: string;
 };
 
@@ -31,20 +31,23 @@ export type PosPayment = "CASH" | "CARD" | "TRANSFER";
 
 type PosCartState = {
   lines: PosCartLine[];
+  sellerId: string | null;
   storeId: string | null;
   paymentMethod: PosPayment;
   notes: string;
   customerNote: string;
   discount: PosDiscountState | null;
-  /** True after persist rehydration (client). */
   _hasHydrated: boolean;
   setHasHydrated: (v: boolean) => void;
-  setStoreId: (storeId: string | null) => void;
+  /**
+   * Bind cart namespace to seller+store. Different pairs = independent carts.
+   * Triggers rehydrate from IndexedDB for that namespace.
+   */
+  bindSession: (sellerId: string, storeId: string) => Promise<void>;
   setPaymentMethod: (m: PosPayment) => void;
   setNotes: (notes: string) => void;
   setCustomerNote: (note: string) => void;
   setDiscount: (d: PosDiscountState | null) => void;
-  /** Drop discount if cart no longer matches approved/pending snapshot. */
   syncDiscountWithCart: () => void;
   add: (item: Omit<PosCartLine, "quantity"> & { quantity?: number }) => void;
   setQty: (productId: string, quantity: number) => void;
@@ -65,7 +68,13 @@ function invalidateDiscountIfNeeded(
   return discount;
 }
 
-/** IndexedDB storage for Zustand persist (falls back to localStorage). */
+/** Active namespace for storage keys — sellerId:storeId */
+let cartNamespace = "anon";
+
+export function getCartNamespace() {
+  return cartNamespace;
+}
+
 function createIdbStorage() {
   const DB = "aramat-plus-pos";
   const STORE = "kv";
@@ -89,54 +98,61 @@ function createIdbStorage() {
     });
   }
 
+  function namespaced(name: string) {
+    return `${name}::${cartNamespace}`;
+  }
+
   async function idbGet(name: string): Promise<string | null> {
+    const key = namespaced(name);
     try {
       const db = await openDb();
       return await new Promise((resolve, reject) => {
         const tx = db.transaction(STORE, "readonly");
-        const req = tx.objectStore(STORE).get(name);
+        const req = tx.objectStore(STORE).get(key);
         req.onsuccess = () =>
           resolve(typeof req.result === "string" ? req.result : null);
         req.onerror = () => reject(req.error);
       });
     } catch {
       try {
-        return localStorage.getItem(name);
+        return localStorage.getItem(key);
       } catch {
-        return memory.get(name) ?? null;
+        return memory.get(key) ?? null;
       }
     }
   }
 
   async function idbSet(name: string, value: string): Promise<void> {
+    const key = namespaced(name);
     try {
       const db = await openDb();
       await new Promise<void>((resolve, reject) => {
         const tx = db.transaction(STORE, "readwrite");
-        tx.objectStore(STORE).put(value, name);
+        tx.objectStore(STORE).put(value, key);
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
       });
       try {
-        localStorage.setItem(name, value);
+        localStorage.setItem(key, value);
       } catch {
-        /* mirror optional */
+        /* optional mirror */
       }
     } catch {
       try {
-        localStorage.setItem(name, value);
+        localStorage.setItem(key, value);
       } catch {
-        memory.set(name, value);
+        memory.set(key, value);
       }
     }
   }
 
   async function idbRemove(name: string): Promise<void> {
+    const key = namespaced(name);
     try {
       const db = await openDb();
       await new Promise<void>((resolve, reject) => {
         const tx = db.transaction(STORE, "readwrite");
-        tx.objectStore(STORE).delete(name);
+        tx.objectStore(STORE).delete(key);
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
       });
@@ -144,41 +160,82 @@ function createIdbStorage() {
       /* ignore */
     }
     try {
-      localStorage.removeItem(name);
+      localStorage.removeItem(key);
     } catch {
-      memory.delete(name);
+      memory.delete(key);
     }
   }
 
   return {
-    getItem: async (name: string): Promise<string | null> => idbGet(name),
-    setItem: async (name: string, value: string): Promise<void> =>
-      idbSet(name, value),
-    removeItem: async (name: string): Promise<void> => idbRemove(name),
+    getItem: async (name: string) => idbGet(name),
+    setItem: async (name: string, value: string) => idbSet(name, value),
+    removeItem: async (name: string) => idbRemove(name),
   };
 }
+
+const emptyCart = {
+  lines: [] as PosCartLine[],
+  paymentMethod: "CASH" as PosPayment,
+  notes: "",
+  customerNote: "",
+  discount: null as PosDiscountState | null,
+};
 
 export const usePosCart = create<PosCartState>()(
   persist(
     (set, get) => ({
-      lines: [],
+      ...emptyCart,
+      sellerId: null,
       storeId: null,
-      paymentMethod: "CASH",
-      notes: "",
-      customerNote: "",
-      discount: null,
       _hasHydrated: false,
 
       setHasHydrated: (v) => set({ _hasHydrated: v }),
 
-      setStoreId: (storeId) => set({ storeId }),
+      bindSession: async (sellerId, storeId) => {
+        const prev = get();
+        const nextNs = `${sellerId}:${storeId}`;
+        if (
+          cartNamespace === nextNs &&
+          prev.sellerId === sellerId &&
+          prev.storeId === storeId &&
+          prev._hasHydrated
+        ) {
+          return;
+        }
+        // Switch namespace — previous cart already persisted via zustand set()
+        cartNamespace = nextNs;
+        set({
+          ...emptyCart,
+          sellerId,
+          storeId,
+          _hasHydrated: false,
+        });
+        await usePosCart.persist.rehydrate();
+        const after = get();
+        // Guard: if hydrated cart belongs to another pair, wipe
+        if (
+          (after.sellerId && after.sellerId !== sellerId) ||
+          (after.storeId && after.storeId !== storeId)
+        ) {
+          set({
+            ...emptyCart,
+            sellerId,
+            storeId,
+            _hasHydrated: true,
+          });
+        } else {
+          set({
+            sellerId,
+            storeId,
+            _hasHydrated: true,
+            discount: invalidateDiscountIfNeeded(after.lines, after.discount),
+          });
+        }
+      },
 
       setPaymentMethod: (paymentMethod) => set({ paymentMethod }),
-
       setNotes: (notes) => set({ notes }),
-
       setCustomerNote: (customerNote) => set({ customerNote }),
-
       setDiscount: (discount) => set({ discount }),
 
       syncDiscountWithCart: () => {
@@ -256,11 +313,9 @@ export const usePosCart = create<PosCartState>()(
 
       clear: () =>
         set({
-          lines: [],
-          discount: null,
-          notes: "",
-          customerNote: "",
-          paymentMethod: "CASH",
+          ...emptyCart,
+          sellerId: get().sellerId,
+          storeId: get().storeId,
         }),
 
       count: () => get().lines.reduce((s, l) => s + l.quantity, 0),
@@ -276,6 +331,7 @@ export const usePosCart = create<PosCartState>()(
       storage: createJSONStorage(() => createIdbStorage()),
       partialize: (s) => ({
         lines: s.lines,
+        sellerId: s.sellerId,
         storeId: s.storeId,
         paymentMethod: s.paymentMethod,
         notes: s.notes,
@@ -299,3 +355,4 @@ export function discountMatchesCart(
 }
 
 export { cartMatchesSnapshot };
+export { posCartStorageKey };

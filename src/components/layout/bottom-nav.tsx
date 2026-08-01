@@ -6,7 +6,7 @@ import {
   Home,
   Package,
   Store,
-  BarChart3,
+  Wallet,
   MoreHorizontal,
   type LucideIcon,
 } from "lucide-react";
@@ -26,14 +26,10 @@ const OWNER_TABS: {
     match: (p) => p === "/dashboard" || p === "/",
   },
   {
-    href: "/warehouse",
-    labelKey: "nav.inventory",
-    icon: Package,
-    match: (p) =>
-      p.startsWith("/warehouse") ||
-      p.startsWith("/returns") ||
-      p.startsWith("/reservations") ||
-      p.startsWith("/revision"),
+    href: "/analytics?view=expenses",
+    labelKey: "nav.finance",
+    icon: Wallet,
+    match: (p) => p.startsWith("/analytics"),
   },
   {
     href: "/stores",
@@ -42,10 +38,12 @@ const OWNER_TABS: {
     match: (p) => p.startsWith("/stores"),
   },
   {
-    href: "/analytics",
-    labelKey: "nav.reports",
-    icon: BarChart3,
-    match: (p) => p.startsWith("/analytics"),
+    href: "/warehouse",
+    labelKey: "nav.warehouseWorkspace",
+    icon: Package,
+    match: (p) =>
+      p.startsWith("/warehouse") ||
+      p.startsWith("/revision"),
   },
   {
     href: "/more",
@@ -57,7 +55,9 @@ const OWNER_TABS: {
       p.startsWith("/users") ||
       p.startsWith("/notifications") ||
       p.startsWith("/journal") ||
-      p.startsWith("/attention"),
+      p.startsWith("/attention") ||
+      p.startsWith("/returns") ||
+      p.startsWith("/reservations"),
   },
 ];
 

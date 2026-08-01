@@ -9,14 +9,13 @@ import {
   Boxes,
   Building2,
   KeyRound,
-  Package,
-  PackagePlus,
   ScrollText,
   Settings,
   ShoppingBag,
   Users,
   LogOut,
   ChevronRight,
+  Wallet,
 } from "lucide-react";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { useT } from "@/components/i18n/i18n-provider";
@@ -24,27 +23,27 @@ import { cn } from "@/lib/utils";
 
 const MODULE_LINKS = [
   {
-    href: "/warehouse/products",
-    labelKey: "nav.products",
-    icon: Package,
-    tone: "neutral" as const,
-  },
-  {
-    href: "/warehouse/receive",
-    labelKey: "nav.purchases",
-    icon: PackagePlus,
+    href: "/analytics?view=expenses",
+    labelKey: "nav.finance",
+    icon: Wallet,
     tone: "neutral" as const,
   },
   {
     href: "/warehouse",
-    labelKey: "nav.inventory",
+    labelKey: "nav.warehouseWorkspace",
     icon: Boxes,
     tone: "neutral" as const,
   },
   {
     href: "/returns",
-    labelKey: "nav.salesReturns",
+    labelKey: "nav.sales",
     icon: ShoppingBag,
+    tone: "neutral" as const,
+  },
+  {
+    href: "/users",
+    labelKey: "nav.team",
+    icon: Users,
     tone: "neutral" as const,
   },
 ];

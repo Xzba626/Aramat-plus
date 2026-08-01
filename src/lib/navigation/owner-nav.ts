@@ -21,8 +21,8 @@ export type OwnerNavSection = {
 };
 
 /**
- * Owner Desktop navigation — ERP module boundaries.
- * URLs stay on existing paths (Stage 2); redirects to /products etc. come later.
+ * Owner workspaces (Block 3 IA) — existing URLs, new mental model.
+ * Control Center first; ERP modules grouped by job.
  */
 export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
   {
@@ -32,50 +32,14 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     icon: "home",
   },
   {
-    id: "products",
-    labelKey: "nav.products",
-    href: "/warehouse/products",
-    icon: "products",
+    id: "finance",
+    labelKey: "nav.finance",
+    href: "/analytics?view=expenses",
+    icon: "finance",
     children: [
-      { href: "/warehouse/products", labelKey: "nav.productsCatalog" },
-      { href: "/warehouse/categories", labelKey: "nav.productsCategories" },
-      { href: "/warehouse/brands", labelKey: "nav.productsBrands" },
-    ],
-  },
-  {
-    id: "purchases",
-    labelKey: "nav.purchases",
-    href: "/warehouse/receive",
-    icon: "purchases",
-    children: [
-      { href: "/warehouse/receive", labelKey: "nav.purchasesReceive" },
-      { href: "/warehouse/batches", labelKey: "nav.purchasesBatches" },
-      { href: "/warehouse/suppliers", labelKey: "nav.purchasesSuppliers" },
-    ],
-  },
-  {
-    id: "inventory",
-    labelKey: "nav.inventory",
-    href: "/warehouse",
-    icon: "inventory",
-    children: [
-      { href: "/warehouse", labelKey: "nav.inventoryOverview" },
-      { href: "/warehouse/stock", labelKey: "nav.inventoryStock" },
-      { href: "/warehouse/transfers", labelKey: "nav.inventoryTransfers" },
-      { href: "/warehouse/return-in", labelKey: "nav.inventoryReturnIn" },
-      { href: "/warehouse/write-offs", labelKey: "nav.inventoryWriteOffs" },
-      { href: "/revision", labelKey: "nav.inventoryRevision" },
-      { href: "/warehouse/history", labelKey: "nav.inventoryHistory" },
-    ],
-  },
-  {
-    id: "sales",
-    labelKey: "nav.sales",
-    href: "/returns",
-    icon: "sales",
-    children: [
-      { href: "/returns", labelKey: "nav.salesReturns" },
-      { href: "/reservations", labelKey: "nav.reservations" },
+      { href: "/analytics?view=network", labelKey: "nav.financeRevenue" },
+      { href: "/analytics?view=expenses", labelKey: "nav.financeExpenses" },
+      { href: "/analytics?view=network&focus=net", labelKey: "nav.financeNetProfit" },
     ],
   },
   {
@@ -85,38 +49,66 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     icon: "stores",
     children: [
       { href: "/stores", labelKey: "nav.storesAll" },
+      { href: "/analytics?view=stores", labelKey: "nav.storesSales" },
+      { href: "/warehouse/stock", labelKey: "nav.storesStock" },
+      { href: "/analytics?view=stores", labelKey: "nav.storesKpi" },
       { href: "/stores#owner-direct", labelKey: "nav.storesOwnerDirect" },
     ],
   },
   {
-    id: "users",
-    labelKey: "nav.users",
-    href: "/users",
-    icon: "users",
-    roles: [Role.OWNER],
-  },
-  {
-    id: "reports",
-    labelKey: "nav.reports",
-    href: "/analytics",
-    icon: "reports",
+    id: "warehouse",
+    labelKey: "nav.warehouseWorkspace",
+    href: "/warehouse",
+    icon: "warehouse",
     children: [
-      { href: "/analytics?view=network", labelKey: "nav.analyticsNetwork" },
-      { href: "/analytics?view=stores", labelKey: "nav.analyticsStores" },
-      { href: "/analytics?view=products", labelKey: "nav.analyticsProducts" },
-      { href: "/analytics?view=sellers", labelKey: "nav.analyticsSellers" },
-      { href: "/analytics?view=expenses", labelKey: "nav.analyticsFinance" },
+      { href: "/warehouse", labelKey: "nav.inventoryOverview" },
+      { href: "/warehouse/receive", labelKey: "nav.purchasesReceive" },
+      { href: "/warehouse/batches", labelKey: "nav.purchasesBatches" },
+      { href: "/warehouse/suppliers", labelKey: "nav.purchasesSuppliers" },
+      { href: "/warehouse/transfers", labelKey: "nav.inventoryTransfers" },
+      { href: "/warehouse/return-in", labelKey: "nav.inventoryReturnIn" },
+      { href: "/warehouse/write-offs", labelKey: "nav.inventoryWriteOffs" },
+      { href: "/revision", labelKey: "nav.inventoryRevision" },
+      { href: "/warehouse/history", labelKey: "nav.inventoryHistory" },
+      { href: "/warehouse/products", labelKey: "nav.productsCatalog" },
+      { href: "/warehouse/categories", labelKey: "nav.productsCategories" },
+      { href: "/warehouse/brands", labelKey: "nav.productsBrands" },
     ],
   },
   {
-    id: "system",
-    labelKey: "nav.system",
+    id: "sales",
+    labelKey: "nav.sales",
+    href: "/returns",
+    icon: "sales",
+    children: [
+      { href: "/returns", labelKey: "nav.salesReturns" },
+      { href: "/dashboard#decisions", labelKey: "nav.salesDiscounts" },
+      { href: "/reservations", labelKey: "nav.reservations" },
+      { href: "/analytics?view=sellers", labelKey: "nav.salesPos" },
+    ],
+  },
+  {
+    id: "team",
+    labelKey: "nav.team",
+    href: "/users",
+    icon: "users",
+    roles: [Role.OWNER],
+    children: [
+      { href: "/users", labelKey: "nav.users" },
+      { href: "/journal", labelKey: "nav.journal" },
+      { href: "/analytics?view=sellers", labelKey: "nav.teamActivity" },
+    ],
+  },
+  {
+    id: "settings",
+    labelKey: "nav.settingsWorkspace",
     href: "/settings",
     icon: "settings",
     children: [
-      { href: "/notifications", labelKey: "nav.notifications" },
-      { href: "/journal", labelKey: "nav.journal" },
       { href: "/settings", labelKey: "nav.settings" },
+      { href: "/notifications", labelKey: "nav.notifications" },
+      { href: "/settings#backup", labelKey: "nav.settingsBackup" },
+      { href: "/settings#demo", labelKey: "nav.settingsDemo" },
     ],
   },
 ];
@@ -125,47 +117,72 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
 export function filterNavForRole(role: Role): OwnerNavSection[] {
   return OWNER_NAV_SECTIONS.map((section) => {
     if (section.roles && !section.roles.includes(role)) return null;
-    if (section.id === "system" && section.children) {
-      return {
-        ...section,
-        children: section.children.filter(
-          (c) => !(c.href === "/users" && role !== Role.OWNER)
-        ),
-      };
-    }
     return section;
   }).filter(Boolean) as OwnerNavSection[];
 }
 
 export function isPathActive(pathname: string, href: string): boolean {
-  const pathOnly = href.split("?")[0].split("#")[0];
+  const [pathPart, query = ""] = href.split("?");
+  const pathOnly = pathPart.split("#")[0];
+  const hash = href.includes("#") ? href.split("#")[1]?.split("?")[0] : "";
 
+  let pathOk = false;
   if (pathOnly === "/warehouse") {
-    return pathname === "/warehouse" || pathname === "/warehouse/";
-  }
-  if (pathOnly === "/dashboard") {
-    return pathname === "/dashboard" || pathname === "/";
-  }
-  if (pathOnly === "/stores") {
-    return pathname === "/stores" || pathname === "/stores/";
-  }
-  if (pathOnly === "/analytics") {
-    return pathname === "/analytics" || pathname.startsWith("/analytics");
-  }
-  if (pathOnly === "/settings") {
-    return pathname === "/settings" || pathname.startsWith("/settings/");
-  }
-  if (pathOnly === "/returns") {
-    return pathname === "/returns" || pathname.startsWith("/returns/");
-  }
-  if (pathOnly === "/revision") {
-    return pathname === "/revision" || pathname.startsWith("/revision/");
-  }
-  if (pathOnly === "/users") {
-    return pathname === "/users" || pathname.startsWith("/users/");
+    pathOk = pathname === "/warehouse" || pathname === "/warehouse/";
+  } else if (pathOnly === "/dashboard") {
+    pathOk = pathname === "/dashboard" || pathname === "/";
+  } else if (pathOnly === "/stores") {
+    pathOk = pathname === "/stores" || pathname === "/stores/";
+  } else if (pathOnly === "/analytics") {
+    pathOk = pathname === "/analytics" || pathname.startsWith("/analytics");
+  } else if (pathOnly === "/settings") {
+    pathOk = pathname === "/settings" || pathname.startsWith("/settings/");
+  } else if (pathOnly === "/returns") {
+    pathOk = pathname === "/returns" || pathname.startsWith("/returns/");
+  } else if (pathOnly === "/revision") {
+    pathOk = pathname === "/revision" || pathname.startsWith("/revision/");
+  } else if (pathOnly === "/users") {
+    pathOk = pathname === "/users" || pathname.startsWith("/users/");
+  } else {
+    pathOk = pathname === pathOnly || pathname.startsWith(`${pathOnly}/`);
   }
 
-  return pathname === pathOnly || pathname.startsWith(`${pathOnly}/`);
+  if (!pathOk) return false;
+
+  // When href specifies ?view=, require exact view for analytics children
+  if (query.startsWith("view=")) {
+    // Client pathname from next/navigation has no search — callers with
+    // full href still get path match; section highlighting uses path only.
+    // Prefer longest matching child via sectionForPath order below.
+    return true;
+  }
+
+  if (hash && pathOnly === "/dashboard") {
+    return pathOk;
+  }
+
+  return true;
+}
+
+/**
+ * Prefer child whose query view matches current search when available.
+ * Falls back to first path match.
+ */
+export function findActiveChild(
+  section: OwnerNavSection,
+  pathname: string,
+  searchParams?: URLSearchParams | null
+): OwnerNavItem | undefined {
+  if (!section.children?.length) return undefined;
+  const view = searchParams?.get("view");
+  if (view) {
+    const byView = section.children.find((c) => {
+      const q = c.href.split("?")[1]?.split("#")[0] ?? "";
+      return q === `view=${view}` && isPathActive(pathname, c.href);
+    });
+    if (byView) return byView;
+  }
+  return section.children.find((c) => isPathActive(pathname, c.href));
 }
 
 function isProductCardPath(pathname: string): boolean {
@@ -174,7 +191,35 @@ function isProductCardPath(pathname: string): boolean {
 
 export function sectionForPath(pathname: string): OwnerNavSection | undefined {
   if (isProductCardPath(pathname) || pathname.startsWith("/warehouse/new")) {
-    return OWNER_NAV_SECTIONS.find((s) => s.id === "products");
+    return OWNER_NAV_SECTIONS.find((s) => s.id === "warehouse");
+  }
+
+  // Analytics views map to workspaces (query not in usePathname)
+  if (pathname.startsWith("/analytics")) {
+    return OWNER_NAV_SECTIONS.find((s) => s.id === "finance");
+  }
+
+  if (
+    pathname.startsWith("/warehouse") ||
+    pathname.startsWith("/revision")
+  ) {
+    return OWNER_NAV_SECTIONS.find((s) => s.id === "warehouse");
+  }
+
+  if (pathname.startsWith("/returns") || pathname.startsWith("/reservations")) {
+    return OWNER_NAV_SECTIONS.find((s) => s.id === "sales");
+  }
+
+  if (pathname.startsWith("/users") || pathname.startsWith("/journal")) {
+    return OWNER_NAV_SECTIONS.find((s) => s.id === "team");
+  }
+
+  if (pathname.startsWith("/settings") || pathname.startsWith("/notifications")) {
+    return OWNER_NAV_SECTIONS.find((s) => s.id === "settings");
+  }
+
+  if (pathname.startsWith("/stores")) {
+    return OWNER_NAV_SECTIONS.find((s) => s.id === "stores");
   }
 
   for (const section of OWNER_NAV_SECTIONS) {
@@ -191,14 +236,14 @@ export function breadcrumbsForPath(pathname: string): BreadcrumbItem[] {
   const crumbs: BreadcrumbItem[] = [{ labelKey: "nav.home", href: "/dashboard" }];
 
   if (isProductCardPath(pathname)) {
-    crumbs.push({ labelKey: "nav.products", href: "/warehouse/products" });
+    crumbs.push({ labelKey: "nav.warehouseWorkspace", href: "/warehouse" });
     crumbs.push({ labelKey: "nav.productsCatalog", href: "/warehouse/products" });
     crumbs.push({ labelKey: "nav.productCard" });
     return crumbs;
   }
 
   if (pathname.startsWith("/warehouse/new")) {
-    crumbs.push({ labelKey: "nav.products", href: "/warehouse/products" });
+    crumbs.push({ labelKey: "nav.warehouseWorkspace", href: "/warehouse" });
     crumbs.push({ labelKey: "nav.newProduct" });
     return crumbs;
   }
@@ -235,7 +280,7 @@ export function breadcrumbsForPath(pathname: string): BreadcrumbItem[] {
   }
 
   if (pathname.startsWith("/revision")) {
-    crumbs.push({ labelKey: "nav.inventory", href: "/warehouse" });
+    crumbs.push({ labelKey: "nav.warehouseWorkspace", href: "/warehouse" });
     crumbs.push({ labelKey: "nav.inventoryRevision" });
     return crumbs;
   }

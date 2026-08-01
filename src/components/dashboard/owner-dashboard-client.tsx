@@ -5,17 +5,15 @@ import Link from "next/link";
 import {
   ArrowDownRight,
   ArrowUpRight,
-  BarChart3,
+  Bell,
   CheckCircle2,
   Package,
   PackagePlus,
-  Receipt,
+  RotateCcw,
   Store,
   TrendingUp,
-  Truck,
   AlertTriangle,
-  Wallet,
-  Plus,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,21 +21,7 @@ import { HelpTip } from "@/components/ui/help-tip";
 import { cn } from "@/lib/utils";
 import type { DashboardPayload } from "@/lib/services/dashboard.service";
 import { useI18n } from "@/components/i18n/i18n-provider";
-
-function Sparkline({ values }: { values: number[] }) {
-  const max = Math.max(...values, 1);
-  return (
-    <div className="flex h-10 items-end gap-1" aria-hidden>
-      {values.map((v, i) => (
-        <span
-          key={i}
-          className="w-full min-w-[6px] rounded-sm bg-zone-money/30"
-          style={{ height: `${Math.max(12, Math.round((v / max) * 100))}%` }}
-        />
-      ))}
-    </div>
-  );
-}
+import { entityHref, labelAction } from "@/lib/i18n/labels";
 
 function greetKey(
   hour: number
@@ -74,13 +58,11 @@ function TodayKpi({
   const isEmpty = value === "—" || value === "0 с." || value === "0";
   return (
     <div className="rounded-[18px] border border-border bg-card p-4 shadow-[var(--shadow-card)]">
-      <div className="flex items-start justify-between gap-2">
-        <HelpTip hintKey={hintKey}>
-          <span className="text-xs font-bold uppercase tracking-wide text-muted">
-            {label}
-          </span>
-        </HelpTip>
-      </div>
+      <HelpTip hintKey={hintKey}>
+        <span className="text-xs font-bold uppercase tracking-wide text-muted">
+          {label}
+        </span>
+      </HelpTip>
       {isEmpty && emptyLabel ? (
         <>
           <p className="mt-3 text-lg font-bold text-muted">—</p>
@@ -114,19 +96,13 @@ function TodayKpi({
   );
 }
 
-type ActionTile = {
+type DecisionChip = {
   href: string;
+  count: number;
   labelKey: string;
   icon: LucideIcon;
+  tone: "danger" | "alert" | "muted";
 };
-
-const ACTIONS: ActionTile[] = [
-  { href: "/warehouse/receive?tab=batch", labelKey: "dashboard.actionReceive", icon: PackagePlus },
-  { href: "/warehouse/transfers/new", labelKey: "dashboard.actionTransfer", icon: Truck },
-  { href: "/analytics", labelKey: "dashboard.actionReport", icon: BarChart3 },
-  { href: "/warehouse/new", labelKey: "dashboard.actionNewProduct", icon: Plus },
-  { href: "/warehouse/stock", labelKey: "dashboard.actionCheckStock", icon: Package },
-];
 
 type TrafficLevel = "red" | "yellow" | "green";
 
@@ -189,6 +165,44 @@ export function OwnerDashboardClient({
 
   const displayName = userName.trim() || t("roles.owner");
   const firstName = displayName.split(/\s+/)[0] || displayName;
+  const hasSales = today.count > 0;
+
+  const decisionChips: DecisionChip[] = [
+    {
+      href: "/dashboard#decisions",
+      count: decisionSummary.discount,
+      labelKey: "dashboard.chipDiscounts",
+      icon: Bell,
+      tone: "danger",
+    },
+    {
+      href: "/returns",
+      count: decisionSummary.return,
+      labelKey: "dashboard.chipReturns",
+      icon: RotateCcw,
+      tone: "danger",
+    },
+    {
+      href: "/warehouse/stock",
+      count: decisionSummary.lowStock ?? pulse.lowStockCount,
+      labelKey: "dashboard.chipLowStock",
+      icon: Package,
+      tone: "alert",
+    },
+    {
+      href: "/revision",
+      count: decisionSummary.revision ?? 0,
+      labelKey: "dashboard.chipRevisions",
+      icon: ClipboardList,
+      tone: "alert",
+    },
+  ];
+
+  const attentionTotal =
+    decisionSummary.discount +
+    decisionSummary.return +
+    (decisionSummary.lowStock ?? 0) +
+    (decisionSummary.revision ?? 0);
 
   const traffic = useMemo((): {
     level: TrafficLevel;
@@ -221,17 +235,14 @@ export function OwnerDashboardClient({
       text: t("dashboard.statusAllGood"),
       badge: t("dashboard.trafficGreen"),
     };
-  }, [data.lowStock, data.stores, decisionSummary.total, pulse.lowStockCount, t, today.deltas.revenue]);
-
-  const bestStore =
-    data.stores.find((s) => s.id === data.bestStoreId) ??
-    [...data.stores].sort((a, b) => b.revenue - a.revenue)[0];
-  const worstStore =
-    data.stores.find((s) => s.id === data.worstStoreId) ??
-    [...data.stores].sort((a, b) => a.revenue - b.revenue)[0];
-  const quietStores = data.stores.filter((s) => s.salesCount === 0);
-
-  const hasSales = today.count > 0;
+  }, [
+    data.lowStock,
+    data.stores,
+    decisionSummary.total,
+    pulse.lowStockCount,
+    t,
+    today.deltas.revenue,
+  ]);
 
   const trafficStyles: Record<TrafficLevel, string> = {
     red: "border-danger/30 bg-danger/5",
@@ -244,15 +255,23 @@ export function OwnerDashboardClient({
     green: "bg-zone-money",
   };
 
+  const recent = data.recent ?? [];
+
   return (
     <div className="space-y-10">
-      {/* Header + traffic light */}
+      {/* Control Center header */}
       <section className="space-y-4">
-        <h2 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
-          {t(greetKey(hour), { name: firstName })}
-        </h2>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-brand">
+            {t("dashboard.controlCenter")}
+          </p>
+          <h2 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+            {t(greetKey(hour), { name: firstName })}
+          </h2>
+          <p className="mt-1 text-sm text-muted">{t("dashboard.controlHint")}</p>
+        </div>
         <Link
-          href="/attention"
+          href="#decisions"
           className={cn(
             "flex items-center gap-3 rounded-[18px] border px-4 py-3.5 transition hover:shadow-[var(--shadow-card)]",
             trafficStyles[traffic.level]
@@ -273,12 +292,12 @@ export function OwnerDashboardClient({
         </Link>
       </section>
 
-      {/* Zone 1 — Today */}
+      {/* Today — money */}
       <section>
         <ZoneHeader title={t("dashboard.zoneToday")} />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-3">
           <TodayKpi
-            label={t("dashboard.salesToday")}
+            label={t("dashboard.revenueLabel")}
             hintKey="todayRevenue"
             value={hasSales ? formatMoney(today.revenue, { short: true }) : "—"}
             emptyLabel={t("dashboard.noSalesYet")}
@@ -286,53 +305,70 @@ export function OwnerDashboardClient({
             vsYesterdayLabel={t("dashboard.vsYesterday")}
           />
           <TodayKpi
+            label={t("dashboard.grossProfitLabel")}
+            hintKey="dashboardProfit"
+            value={
+              hasSales
+                ? formatMoney(today.grossProfit ?? today.profit, { short: true })
+                : "—"
+            }
+            emptyLabel={t("dashboard.noProfitYet")}
+            delta={hasSales ? today.deltas.grossProfit : undefined}
+            vsYesterdayLabel={t("dashboard.vsYesterday")}
+          />
+          <TodayKpi
             label={t("dashboard.netProfit")}
             hintKey="dashboardProfit"
-            value={hasSales ? formatMoney(today.profit, { short: true }) : "—"}
+            value={hasSales ? formatMoney(today.netProfit ?? today.profit, { short: true }) : "—"}
             emptyLabel={t("dashboard.noProfitYet")}
-            delta={hasSales ? today.deltas.profit : undefined}
+            delta={hasSales ? today.deltas.netProfit : undefined}
             vsYesterdayLabel={t("dashboard.vsYesterday")}
           />
-          <TodayKpi
-            label={t("dashboard.checksToday")}
-            hintKey="dashboardChecks"
-            value={hasSales ? String(today.count) : "—"}
-            emptyLabel={t("dashboard.noChecksYet")}
-            delta={hasSales ? today.deltas.count : undefined}
-            vsYesterdayLabel={t("dashboard.vsYesterday")}
-          />
-          <TodayKpi
-            label={t("dashboard.avgCheck")}
-            hintKey="dashboardAvgCheck"
-            value={hasSales ? formatMoney(today.avgCheck, { short: true }) : "—"}
-            emptyLabel={t("dashboard.noSalesHint")}
-            delta={hasSales ? today.deltas.avgCheck : undefined}
-            vsYesterdayLabel={t("dashboard.vsYesterday")}
-          />
-        </div>
-        <div className="mt-4 rounded-[18px] border border-zone-money/20 bg-zone-money-soft/50 p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wide text-zone-money-deep">
-              {t("dashboard.weekSales")}
-            </span>
-            <Link href="/analytics" className="text-xs font-semibold text-brand hover:underline">
-              {t("dashboard.details")} →
-            </Link>
-          </div>
-          <Sparkline values={pulse.sparkline} />
         </div>
       </section>
 
-      {/* Zone 2 — Attention */}
+      {/* Need decisions — chips + queue */}
       <section id="decisions">
         <ZoneHeader
-          title={t("dashboard.zoneAttention")}
+          title={t("dashboard.needDecision")}
           subtitle={t("dashboard.attentionSubtitle")}
         />
 
-        {decisionSummary.total === 0 &&
-        data.lowStock.length === 0 &&
-        quietStores.length === 0 ? (
+        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {decisionChips.map((chip) => {
+            const Icon = chip.icon;
+            const active = chip.count > 0;
+            return (
+              <Link
+                key={chip.labelKey}
+                href={chip.href}
+                className={cn(
+                  "rounded-[16px] border p-3 transition hover:shadow-[var(--shadow-card)]",
+                  active && chip.tone === "danger" && "border-danger/25 bg-danger/5",
+                  active && chip.tone === "alert" && "border-zone-alert/25 bg-zone-alert-soft",
+                  !active && "border-border bg-card"
+                )}
+              >
+                <div className="flex items-center gap-2 text-muted">
+                  <Icon className="h-4 w-4" strokeWidth={1.75} />
+                  <span className="text-[11px] font-semibold uppercase tracking-wide">
+                    {t(chip.labelKey)}
+                  </span>
+                </div>
+                <p
+                  className={cn(
+                    "mt-2 text-2xl font-bold tabular-nums",
+                    active ? "text-ink" : "text-muted"
+                  )}
+                >
+                  {chip.count}
+                </p>
+              </Link>
+            );
+          })}
+        </div>
+
+        {attentionTotal === 0 && decisions.length === 0 && data.lowStock.length === 0 ? (
           <div className="flex items-start gap-3 rounded-[18px] border border-zone-money/20 bg-zone-money-soft p-5">
             <CheckCircle2 className="h-6 w-6 shrink-0 text-zone-money-deep" />
             <p className="text-sm font-medium text-zone-money-deep">
@@ -411,14 +447,16 @@ export function OwnerDashboardClient({
                 key={p.id}
                 className={cn(
                   "flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-l-4 bg-card p-4 shadow-[var(--shadow-card)]",
-                  p.empty ? "border-danger/20 border-l-danger" : "border-zone-alert/20 border-l-zone-alert"
+                  p.empty
+                    ? "border-danger/20 border-l-danger"
+                    : "border-zone-alert/20 border-l-zone-alert"
                 )}
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <span
+                  <AlertTriangle
                     className={cn(
-                      "h-2 w-2 shrink-0 rounded-full",
-                      p.empty ? "bg-danger" : "bg-zone-alert"
+                      "h-4 w-4 shrink-0",
+                      p.empty ? "text-danger" : "text-zone-alert"
                     )}
                   />
                   <div>
@@ -438,118 +476,219 @@ export function OwnerDashboardClient({
                 </Link>
               </div>
             ))}
-
-            {quietStores.map((s) => (
-              <div
-                key={s.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-l-4 border-l-zone-alert border-zone-alert/20 bg-card p-4 shadow-[var(--shadow-card)]"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="h-2 w-2 rounded-full bg-zone-alert" />
-                  <p className="font-semibold text-ink">
-                    {t("dashboard.attentionNoSales", { name: s.name })}
-                  </p>
-                </div>
-                <Link
-                  href={`/stores/${s.id}`}
-                  className="rounded-xl border border-border bg-page px-3 py-2 text-xs font-bold text-ink hover:border-brand/30"
-                >
-                  {t("dashboard.openStoreBtn")}
-                </Link>
-              </div>
-            ))}
           </div>
         )}
       </section>
 
-      {/* Zone 3 — Network */}
+      {/* Stores */}
       <section>
-        <ZoneHeader title={t("dashboard.zoneNetwork")} />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {bestStore && bestStore.revenue > 0 ? (
-            <Link
-              href={`/stores/${bestStore.id}`}
-              className="rounded-[18px] border border-zone-money/25 bg-zone-money-soft p-4 transition hover:shadow-[var(--shadow-card)]"
-            >
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-zone-money-deep">
-                <TrendingUp className="h-4 w-4" />
-                {t("dashboard.bestStoreLabel")}
-              </div>
-              <p className="mt-2 truncate text-lg font-bold text-ink">{bestStore.name}</p>
-              <p className="mt-1 text-sm tabular-nums text-zone-money-deep">
-                {formatMoney(bestStore.revenue, { short: true })} ·{" "}
-                {t("dashboard.profitTodayShort", {
-                  amount: formatMoney(bestStore.profit, { short: true }),
-                })}
-              </p>
-            </Link>
-          ) : null}
-
-          {worstStore && data.stores.length > 1 ? (
-            <Link
-              href={`/stores/${worstStore.id}`}
-              className="rounded-[18px] border border-border bg-card p-4 transition hover:shadow-[var(--shadow-card)]"
-            >
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted">
-                <Store className="h-4 w-4" />
-                {t("dashboard.worstStoreLabel")}
-              </div>
-              <p className="mt-2 truncate text-lg font-bold text-ink">{worstStore.name}</p>
-              <p className="mt-1 text-sm tabular-nums text-muted">
-                {worstStore.revenue > 0
-                  ? formatMoney(worstStore.revenue, { short: true })
-                  : t("dashboard.noSalesYet")}
-              </p>
-            </Link>
-          ) : null}
-
-          <div className="rounded-[18px] border border-zone-stores/25 bg-zone-stores-soft/40 p-4">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-zone-stores-deep">
-              <Receipt className="h-4 w-4" />
-              {t("dashboard.quietStores")}
-            </div>
-            {quietStores.length === 0 ? (
-              <p className="mt-3 text-sm font-medium text-zone-stores-deep">
-                {t("dashboard.allStoresSold")}
-              </p>
-            ) : (
-              <ul className="mt-2 space-y-1">
-                {quietStores.slice(0, 4).map((s) => (
-                  <li key={s.id}>
-                    <Link
-                      href={`/stores/${s.id}`}
-                      className="text-sm font-semibold text-ink hover:text-brand"
-                    >
-                      {s.name} →
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
+        <ZoneHeader title={t("dashboard.storesToday")} />
+        {data.stores.length === 0 ? (
+          <p className="text-sm text-muted">{t("dashboard.noStores")}</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {data.stores.map((s) => {
+              const problems = "problems" in s && Array.isArray(s.problems) ? s.problems : [];
+              const topName =
+                "topProductName" in s ? (s.topProductName as string | null) : null;
+              return (
+                <div
+                  key={s.id}
+                  className={cn(
+                    "rounded-[18px] border bg-card p-4 shadow-[var(--shadow-card)]",
+                    s.id === data.bestStoreId && s.revenue > 0
+                      ? "border-zone-money/30"
+                      : s.id === data.worstStoreId && data.stores.length > 1
+                        ? "border-zone-alert/25"
+                        : "border-border"
+                  )}
+                >
+                  <Link href={`/stores/${s.id}`} className="block">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-base font-bold text-ink">
+                          {s.name}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted">
+                          {t("dashboard.salesN", { n: s.salesCount })}
+                        </p>
+                      </div>
+                      {s.id === data.bestStoreId && s.revenue > 0 ? (
+                        <TrendingUp className="h-4 w-4 shrink-0 text-zone-money-deep" />
+                      ) : (
+                        <Store className="h-4 w-4 shrink-0 text-muted" />
+                      )}
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted">
+                          {t("dashboard.revenueLabel")}
+                        </p>
+                        <p className="font-semibold tabular-nums text-ink">
+                          {s.revenue > 0
+                            ? formatMoney(s.revenue, { short: true })
+                            : "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted">
+                          {t("dashboard.profitLabel")}
+                        </p>
+                        <p className="font-semibold tabular-nums text-zone-money-deep">
+                          {s.revenue > 0
+                            ? formatMoney(s.netProfit ?? s.profit, { short: true })
+                            : "—"}
+                        </p>
+                      </div>
+                    </div>
+                    {topName ? (
+                      <p className="mt-2 text-xs text-muted">
+                        {t("dashboard.bestProductLabel")}:{" "}
+                        <span className="font-semibold text-ink">{topName}</span>
+                      </p>
+                    ) : null}
+                  </Link>
+                  {problems.length > 0 ? (
+                    <ul className="mt-3 space-y-1 border-t border-border pt-2">
+                      {problems.map((p) => (
+                        <li key={p.key}>
+                          <Link
+                            href={p.href}
+                            className={cn(
+                              "text-xs font-semibold hover:underline",
+                              p.tone === "danger" ? "text-danger" : "text-zone-alert"
+                            )}
+                          >
+                            ↓ {t(p.labelKey)}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
-        </div>
+        )}
       </section>
 
-      {/* Zone 4 — Actions */}
+      {/* Decision / activity feed */}
       <section>
-        <ZoneHeader title={t("dashboard.zoneActions")} />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {ACTIONS.map((a) => {
-            const Icon = a.icon;
-            return (
-              <Link
-                key={a.href}
-                href={a.href}
-                className="flex min-h-[100px] flex-col items-center justify-center gap-2.5 rounded-[18px] border border-border bg-card p-4 text-center shadow-[var(--shadow-card)] transition hover:border-brand/40 hover:shadow-[var(--shadow-lift)] active:scale-[0.98]"
-              >
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-soft text-brand">
-                  <Icon className="h-6 w-6" strokeWidth={1.75} />
-                </span>
-                <span className="text-xs font-bold text-ink sm:text-sm">{t(a.labelKey)}</span>
-              </Link>
-            );
-          })}
+        <div className="mb-4 flex items-end justify-between gap-3">
+          <h3 className="text-base font-bold text-ink sm:text-lg">
+            {t("dashboard.decisionFeed")}
+          </h3>
+          <Link
+            href="/journal"
+            className="shrink-0 text-xs font-semibold text-brand hover:underline"
+          >
+            {t("dashboard.goJournal")} →
+          </Link>
         </div>
+
+        {decisions.length > 0 ? (
+          <ul className="mb-4 space-y-2">
+            {decisions.slice(0, 5).map((d) => (
+              <li
+                key={`feed-${d.type}-${d.id}`}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-danger/20 bg-card px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink">
+                    {t(d.titleKey)}
+                    {d.type === "DISCOUNT" ? (
+                      <span className="ml-2 font-normal text-muted">
+                        {formatMoney(d.originalTotal ?? d.amount)} →{" "}
+                        {formatMoney(
+                          d.finalTotal ??
+                            (d.originalTotal ?? 0) - d.amount
+                        )}
+                      </span>
+                    ) : null}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {d.storeName} · {d.actorName}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={"href" in d && d.href ? d.href : "/dashboard#decisions"}
+                    className="rounded-xl border border-border px-3 py-1.5 text-xs font-bold text-ink hover:border-brand/30"
+                  >
+                    {t("dashboard.openAction")}
+                  </Link>
+                  <Button
+                    type="button"
+                    fullWidth={false}
+                    disabled={busyId === d.id}
+                    onClick={() => decide(d.type, d.id, "APPROVE")}
+                  >
+                    {t("common.approve")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    fullWidth={false}
+                    disabled={busyId === d.id}
+                    onClick={() => decide(d.type, d.id, "REJECT")}
+                  >
+                    {t("common.reject")}
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        {recent.length === 0 && decisions.length === 0 ? (
+          <p className="text-sm text-muted">{t("dashboard.noRecords")}</p>
+        ) : (
+          <ul className="divide-y divide-border rounded-[18px] border border-border bg-card">
+            {recent.slice(0, 8).map((log) => {
+              const href = entityHref(
+                "entityType" in log ? (log.entityType as string) : null,
+                "entityId" in log ? (log.entityId as string | null) : null,
+                log.action
+              );
+              const row = (
+                <div className="flex items-start gap-3 px-4 py-3">
+                  <PackagePlus className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-ink">
+                      {labelAction(log.action, t)}
+                      {log.comment ? (
+                        <span className="font-normal text-muted">
+                          {" "}
+                          — {log.comment}
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted">
+                      {log.userName || t("dashboard.systemUser")} ·{" "}
+                      {formatDateTime(log.createdAt)}
+                    </p>
+                  </div>
+                  {href ? (
+                    <span className="shrink-0 text-xs font-semibold text-brand">
+                      {t("dashboard.openAction")} →
+                    </span>
+                  ) : null}
+                </div>
+              );
+              return (
+                <li key={log.id}>
+                  {href ? (
+                    <Link href={href} className="block hover:bg-page/80">
+                      {row}
+                    </Link>
+                  ) : (
+                    row
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
     </div>
   );

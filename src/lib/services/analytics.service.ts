@@ -25,11 +25,12 @@ function weekStart(d = new Date()) {
   return x;
 }
 
-export type AnalyticsPeriod = "today" | "week" | "month";
+export type AnalyticsPeriod = "today" | "week" | "month" | "year";
 
 function periodFrom(period: AnalyticsPeriod, now = new Date()) {
   if (period === "today") return startOfDay(now);
   if (period === "week") return weekStart(now);
+  if (period === "year") return new Date(now.getFullYear(), 0, 1);
   return monthStart(now);
 }
 
@@ -262,8 +263,16 @@ export async function getAnalyticsBreakdown(
     where: {
       startsAt: { lte: now },
       OR: [
-        { store: { companyId } },
-        { createdBy: { companyId } },
+        { endsAt: null },
+        { endsAt: { gte: from } },
+      ],
+      AND: [
+        {
+          OR: [
+            { store: { companyId } },
+            { createdBy: { companyId } },
+          ],
+        },
       ],
     },
     include: {
