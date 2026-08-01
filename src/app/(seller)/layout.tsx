@@ -12,19 +12,24 @@ export default async function SellerLayout({ children }: { children: ReactNode }
   if (!session?.user) redirect("/login");
   if (session.user.role !== Role.SELLER) redirect("/dashboard");
 
-  const store = session.user.storeId
+  // Always read store binding from DB — JWT can lag after Owner assigns a store.
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { storeId: true, isActive: true },
+  });
+  if (!dbUser?.isActive) redirect("/login");
+
+  const storeId = dbUser.storeId;
+  const store = storeId
     ? await prisma.store.findFirst({
-        where: { id: session.user.storeId },
+        where: { id: storeId },
         select: { name: true },
       })
     : null;
 
   return (
     <div className="min-h-screen bg-page">
-      <PosCartSessionBinder
-        sellerId={session.user.id}
-        storeId={session.user.storeId}
-      />
+      <PosCartSessionBinder sellerId={session.user.id} storeId={storeId} />
       <div className="mx-auto flex min-h-screen max-w-[480px] flex-col">
         <PosTopBar storeName={store?.name} />
         <main className="flex-1 px-4 py-4 pb-24">{children}</main>

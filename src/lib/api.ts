@@ -83,6 +83,7 @@ export function handleApiError(err: unknown) {
       "VALIDATION_ERROR",
       "WAREHOUSE_MISSING",
       "WRONG_PASSWORD",
+      "WIPE_PHRASE_MISMATCH",
       "ACCOUNT_LOCKED",
       "RETURN_QTY_EXCEEDS",
       "RETURN_ITEMS_REQUIRED",

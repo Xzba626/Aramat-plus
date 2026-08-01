@@ -39,19 +39,28 @@ export default auth((req) => {
   }
 
   if (role === "SELLER") {
-    if (
-      pathname.startsWith("/dashboard") ||
-      pathname.startsWith("/warehouse") ||
-      pathname.startsWith("/stores") ||
-      pathname.startsWith("/transfers") ||
-      pathname.startsWith("/settings") ||
-      pathname.startsWith("/analytics") ||
-      pathname.startsWith("/users") ||
-      pathname.startsWith("/revision") ||
-      pathname.startsWith("/returns") ||
-      pathname.startsWith("/journal") ||
-      pathname.startsWith("/notifications")
-    ) {
+    const ownerOnlyPrefixes = [
+      "/dashboard",
+      "/warehouse",
+      "/stores",
+      "/transfers",
+      "/settings",
+      "/analytics",
+      "/users",
+      "/revision",
+      "/returns",
+      "/journal",
+      "/notifications",
+      "/reservations",
+      "/more",
+      "/attention",
+      "/sales",
+      "/sellers",
+      "/reports",
+      "/history",
+      "/export",
+    ];
+    if (ownerOnlyPrefixes.some((p) => pathname.startsWith(p))) {
       return NextResponse.redirect(new URL("/pos", req.url));
     }
   }

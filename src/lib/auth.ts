@@ -48,8 +48,66 @@ function lockDurationMs(failCount: number): number | null {
   return 15 * 60_000;
 }
 
+const STORE_REFRESH_MS = 15_000;
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  callbacks: {
+    ...authConfig.callbacks,
+    async jwt({ token, user }) {
+      if (user) {
+        const u = user as {
+          id?: string;
+          role?: string;
+          companyId?: string;
+          storeId?: string | null;
+        };
+        token.id = u.id ?? token.sub ?? "";
+        token.role = u.role as typeof token.role;
+        token.companyId = u.companyId as string;
+        token.storeId = u.storeId;
+        (token as { storeRefreshedAt?: number }).storeRefreshedAt = Date.now();
+        return token;
+      }
+
+      // Refresh store binding / role without forcing re-login (seller assignment bug).
+      const userId = String(token.id ?? token.sub ?? "");
+      const last =
+        (token as { storeRefreshedAt?: number }).storeRefreshedAt ?? 0;
+      if (userId && Date.now() - last >= STORE_REFRESH_MS) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            storeId: true,
+            role: true,
+            companyId: true,
+            isActive: true,
+            name: true,
+          },
+        });
+        (token as { storeRefreshedAt?: number }).storeRefreshedAt = Date.now();
+        if (!dbUser || !dbUser.isActive) {
+          token.storeId = null;
+          return token;
+        }
+        token.storeId = dbUser.storeId;
+        token.role = dbUser.role;
+        token.companyId = dbUser.companyId;
+        if (dbUser.name) token.name = dbUser.name;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = String(token.id ?? "");
+        session.user.role = token.role as typeof session.user.role;
+        session.user.companyId = token.companyId as string;
+        session.user.storeId =
+          (token.storeId as string | null | undefined) ?? null;
+      }
+      return session;
+    },
+  },
   providers: [
     Credentials({
       name: "credentials",

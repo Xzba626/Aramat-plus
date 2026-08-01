@@ -108,8 +108,8 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     children: [
       { href: "/settings", labelKey: "nav.settings" },
       { href: "/notifications", labelKey: "nav.notifications" },
-      { href: "/settings#backup", labelKey: "nav.settingsBackup" },
-      { href: "/settings#demo", labelKey: "nav.settingsDemo" },
+      { href: "/settings/wipe", labelKey: "nav.settingsDemo" },
+      { href: "/settings/company", labelKey: "nav.settingsBackup" },
     ],
   },
 ];
