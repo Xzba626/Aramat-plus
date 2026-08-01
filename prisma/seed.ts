@@ -17,6 +17,7 @@ async function main() {
   await prisma.priceHistory.deleteMany();
   await prisma.productVariant.deleteMany();
   await prisma.product.deleteMany();
+  await prisma.packagingSku.deleteMany();
   await prisma.giftRule.deleteMany();
   await prisma.discountRequest.deleteMany();
   await prisma.saleReturn.deleteMany();
@@ -343,6 +344,12 @@ async function main() {
   console.log(`  Warehouse: ${warehouse.name}`);
   console.log(`  Stores: ${ownerDirect.name}, ${store1.name}, ${store2.name}`);
   console.log("  Store №1 seed stock: Amber 30 + Musk 20 (via transfer)");
+
+  const { ensureDefaultPackagingSkus } = await import(
+    "../src/lib/services/packaging.service"
+  );
+  await ensureDefaultPackagingSkus(company.id);
+  console.log("  Packaging: default glass Skus 5/10/30/50/100 ml");
 }
 
 main()

@@ -24,6 +24,7 @@ export async function GET(req: Request) {
     const categoryId = searchParams.get("categoryId");
     const brandId = searchParams.get("brandId");
     const status = searchParams.get("status"); // active | archived | low | empty | all
+    const kind = searchParams.get("kind"); // STANDARD | PACKAGING | all
     const warehouse = await prisma.warehouse.findFirst({
       where: { companyId: user!.companyId, isActive: true },
     });
@@ -31,6 +32,11 @@ export async function GET(req: Request) {
     const items = await prisma.product.findMany({
       where: {
         companyId: user!.companyId,
+        ...(kind === "PACKAGING"
+          ? { kind: "PACKAGING" }
+          : kind === "all"
+            ? {}
+            : { kind: "STANDARD" }),
         ...(status === "archived"
           ? { isActive: false }
           : status === "all"
@@ -53,6 +59,7 @@ export async function GET(req: Request) {
         category: true,
         unit: true,
         productType: true,
+        packagingSku: true,
         stockBalances: warehouse
           ? {
               where: {
