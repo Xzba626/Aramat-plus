@@ -137,6 +137,28 @@ ARAMAT PLUS
 
 После продажи остаток автоматически уменьшается.
 
+### Разливные духи и флаконы (обязательное правило)
+
+**Флакон — расходный материал упаковки, не товар для продажи.**
+
+- Собственный склад упаковки, остаток, закупочная стоимость, FIFO.
+- **Не** отображается в POS, **не** имеет цены продажи и выручки.
+- При продаже WEIGHT: одна транзакция списывает жидкость (мл, FIFO) и флакон (1 шт, FIFO).
+- **COGS** = стоимость жидкости + стоимость флакона (не Expense).
+- **Запрещено** создавать отдельные товары `Dior 5ml` / `Dior 10ml`.
+
+POS WEIGHT: выбор аромата → ввод мл → выбор флакона → проверка наличия → продажа.
+
+Полная спецификация: [packaging-bottle-model.md](packaging-bottle-model.md).
+
+### Изоляция продавца (остатки)
+
+```
+Склад → Transfer → Остаток магазина → POS продавца (только свой магазин)
+```
+
+Продавец не видит склад и чужие магазины. Smoke: `npm run test:seller-isolation`.
+
 ---
 
 ## 9. Управление товарами
@@ -395,6 +417,7 @@ ARAMAT PLUS
 | — | [IA Three Centers](ia-three-centers.md) | Архитектура IA |
 | 16 | [Центральный склад](warehouse-central.md) | Готов / в разработке |
 | 17 | [Owner Direct Sales](owner-direct-sales.md) | Готов |
+| 18 | **[Packaging / Bottle Model](packaging-bottle-model.md)** | **Обязательно** |
 | — | Business Process Specification (BPS) | Рекомендуется |
 | — | Architecture (кратко) | `docs/architecture.md` |
 | — | Database notes | `docs/database-schema.md` |
