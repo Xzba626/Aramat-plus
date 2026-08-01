@@ -69,7 +69,7 @@ export function OwnerDirectPosClient({
 
   const loadCatalog = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/warehouse/stock");
+    const res = await fetch("/api/warehouse/stock?forPos=1");
     const data = (await res.json()) as StockApi & { error?: string };
     if (!res.ok) {
       setError(apiErrorMessage(data.error, t, "common.error"));
@@ -215,6 +215,34 @@ export function OwnerDirectPosClient({
     setCart([]);
     setMsg(t("pos.saleDone"));
     toast(t("pos.saleDone"));
+    await loadCatalog();
+  }
+
+  async function reserveCart() {
+    if (cart.length === 0 || checkoutBusy) return;
+    setCheckoutBusy(true);
+    setError("");
+    setMsg("");
+    const res = await fetch("/api/reservations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        storeId,
+        items: cart.map((l) => ({
+          productId: l.productId,
+          quantity: l.quantity,
+        })),
+      }),
+    });
+    const data = await res.json();
+    setCheckoutBusy(false);
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t, "pos.reserveError"));
+      return;
+    }
+    setCart([]);
+    setMsg(t("pos.reserveDone"));
+    toast(t("pos.reserveDone"));
     await loadCatalog();
   }
 
@@ -388,6 +416,15 @@ export function OwnerDirectPosClient({
                 >
                   {checkoutBusy ? t("common.loading") : t("pos.checkout")}
                 </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={reserveCart}
+                  disabled={checkoutBusy}
+                >
+                  {t("pos.reserve")}
+                </Button>
+                <p className="text-xs text-muted">{t("pos.reserveHint")}</p>
               </div>
             )}
           </Card>

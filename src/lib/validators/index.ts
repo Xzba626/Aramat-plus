@@ -129,6 +129,8 @@ export const saleSchema = z.object({
   storeId: z.string().min(1).optional(),
   paymentMethod: z.string().max(40).optional(),
   discountAmount: z.coerce.number().min(0).optional(),
+  discountRequestId: z.string().min(1).optional(),
+  reservationId: z.string().min(1).optional(),
   notes: z.string().max(500).optional().nullable(),
   items: z
     .array(
@@ -136,6 +138,20 @@ export const saleSchema = z.object({
         productId: z.string().min(1),
         quantity: z.coerce.number().positive(),
         isGift: z.boolean().optional(),
+      })
+    )
+    .min(1),
+});
+
+export const reservationCreateSchema = z.object({
+  storeId: z.string().min(1).optional(),
+  customerNote: z.string().max(500).optional().nullable(),
+  ttlMinutes: z.coerce.number().min(5).max(24 * 60).optional(),
+  items: z
+    .array(
+      z.object({
+        productId: z.string().min(1),
+        quantity: z.coerce.number().positive(),
       })
     )
     .min(1),

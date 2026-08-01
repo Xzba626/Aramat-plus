@@ -75,6 +75,7 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     icon: "sales",
     children: [
       { href: "/returns", labelKey: "nav.salesReturns" },
+      { href: "/reservations", labelKey: "nav.reservations" },
     ],
   },
   {

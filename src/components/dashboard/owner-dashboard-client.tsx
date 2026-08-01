@@ -359,6 +359,29 @@ export function OwnerDashboardClient({
                       {d.products ||
                         (d.productsFallbackKey ? t(d.productsFallbackKey) : "—")}
                     </p>
+                    {d.type === "DISCOUNT" ? (
+                      <p className="mt-1 text-sm font-semibold text-ink">
+                        {formatMoney(d.originalTotal ?? d.amount)} →{" "}
+                        <span className="text-success">
+                          {formatMoney(
+                            "finalTotal" in d && d.finalTotal != null
+                              ? d.finalTotal
+                              : (d.originalTotal ?? 0) - d.amount
+                          )}
+                        </span>
+                        <span className="ml-2 text-xs font-normal text-muted">
+                          (−{formatMoney(d.amount)}
+                          {d.percent != null ? ` · ${d.percent}%` : ""})
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-sm font-semibold text-ink">
+                        {formatMoney(d.amount)}
+                      </p>
+                    )}
+                    {d.reason ? (
+                      <p className="mt-1 text-xs text-muted">{d.reason}</p>
+                    ) : null}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button

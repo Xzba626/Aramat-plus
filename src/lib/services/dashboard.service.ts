@@ -202,13 +202,11 @@ export async function getDashboardPayload(companyId: string) {
     prisma.discountRequest.findMany({
       where: {
         status: "PENDING",
-        OR: [
-          { sale: { store: { companyId } } },
-          { requester: { companyId } },
-        ],
+        companyId,
       },
       include: {
         requester: { select: { id: true, name: true } },
+        store: { select: { id: true, name: true } },
         sale: {
           include: {
             store: { select: { id: true, name: true } },
@@ -243,22 +241,25 @@ export async function getDashboardPayload(companyId: string) {
     ...pendingDiscounts.map((d) => {
       const productNames =
         d.sale?.items.map((i) => i.product.name).join(", ") ?? "";
+      const original = decimalToNumber(d.originalAmount);
+      const discountAmt = decimalToNumber(d.amount);
       return {
         id: d.id,
         type: "DISCOUNT" as const,
         priority: "urgent" as const,
         createdAt: d.createdAt.toISOString(),
-        storeName: d.sale?.store.name ?? "—",
+        storeName: d.store?.name ?? d.sale?.store.name ?? "—",
         actorName: d.requester.name,
         titleKey: "dashboard.decisionDiscount" as const,
-        amount: decimalToNumber(d.amount),
+        amount: discountAmt,
         percent: d.percent != null ? decimalToNumber(d.percent) : null,
         reason: d.reason,
         products: productNames,
         productsFallbackKey: productNames
           ? null
           : ("dashboard.cartOrReceipt" as const),
-        originalTotal: d.sale ? decimalToNumber(d.sale.total) : null,
+        originalTotal: original,
+        finalTotal: Math.round((original - discountAmt) * 100) / 100,
       };
     }),
     ...pendingReturns.map((r) => {
@@ -279,6 +280,7 @@ export async function getDashboardPayload(companyId: string) {
           ? null
           : ("dashboard.cartOrReceipt" as const),
         originalTotal: decimalToNumber(r.sale.total),
+        finalTotal: null as number | null,
       };
     }),
   ].sort(

@@ -107,6 +107,13 @@ enum InventoryStatus {
   CANCELLED
 }
 
+enum ReservationStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
 enum NotificationType {
   LOW_STOCK
   DISCOUNT_REQUEST
@@ -139,6 +146,8 @@ model Company {
   suppliers       Supplier[]
   settings        Setting[]
   giftRules       GiftRule[]
+  reservations    Reservation[]
+  discountRequests DiscountRequest[]
 }
 
 // ─── Purchases (Stage 5) ─────────────────────────────────────────────────────
@@ -195,6 +204,8 @@ model User {
   expenses           Expense[]
   activityLogs       ActivityLog[]
   batchesCreated     Batch[]              @relation("BatchCreator")
+  reservationsCreated Reservation[]       @relation("ReservationCreator")
+  saleDiscountApprovals Sale[]            @relation("SaleDiscountApprover")
 
   @@index([companyId])
   @@index([storeId])
@@ -243,6 +254,8 @@ model Store {
   sales             Sale[]
   inventorySessions InventorySession[]
   expenses          Expense[]
+  reservations      Reservation[]
+  discountRequests  DiscountRequest[]
 
   @@index([companyId])
   @@index([companyId, kind])
@@ -376,6 +389,7 @@ model Product {
   transferItems TransferItem[]
   saleItems     SaleItem[]
   giftRulesAsGift GiftRule[] @relation("GiftProduct")
+  reservationItems ReservationItem[]
 
   @@index([companyId])
   @@index([companyId, name])
@@ -526,14 +540,21 @@ model Sale {
   total          Decimal    @db.Decimal(12, 2)
   paymentMethod  String     @default("CASH")
   notes          String?
+  /// Linked approved discount request (seller cart → owner → sale).
+  discountRequestId   String?   @unique
+  discountApprovedById String?
+  discountApprovedAt   DateTime?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
   store            Store             @relation(fields: [storeId], references: [id])
   seller           User              @relation(fields: [sellerId], references: [id])
   items            SaleItem[]
-  discountRequests DiscountRequest[]
+  discountRequests DiscountRequest[] @relation("DiscountSaleLink")
+  appliedDiscount  DiscountRequest?  @relation("DiscountAppliedToSale", fields: [discountRequestId], references: [id], onDelete: SetNull)
+  discountApprover User?             @relation("SaleDiscountApprover", fields: [discountApprovedById], references: [id], onDelete: SetNull)
   returns          SaleReturn[]
+  reservation      Reservation?
 
   @@index([storeId, createdAt])
   @@index([sellerId])
@@ -557,27 +578,79 @@ model SaleItem {
   @@index([productId])
 }
 
+// ─── Stock reservations (available qty = physical − ACTIVE) ──────────────────
+
+model Reservation {
+  id           String            @id @default(cuid())
+  companyId    String
+  storeId      String
+  locationType LocationType
+  locationId   String
+  status       ReservationStatus @default(ACTIVE)
+  expiresAt    DateTime
+  createdById  String
+  saleId       String?           @unique
+  customerNote String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  store     Store              @relation(fields: [storeId], references: [id])
+  createdBy User               @relation("ReservationCreator", fields: [createdById], references: [id])
+  sale      Sale?              @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  items     ReservationItem[]
+
+  @@index([companyId, status, expiresAt])
+  @@index([storeId, status])
+  @@index([locationType, locationId, status])
+  @@index([createdById])
+}
+
+model ReservationItem {
+  id            String  @id @default(cuid())
+  reservationId String
+  productId     String
+  quantity      Decimal @db.Decimal(14, 3)
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id])
+
+  @@index([reservationId])
+  @@index([productId])
+}
+
 // ─── Discounts & Gifts ───────────────────────────────────────────────────────
 
 model DiscountRequest {
-  id           String                 @id @default(cuid())
-  saleId       String?
-  requesterId  String
-  reviewerId   String?
-  amount       Decimal                @db.Decimal(12, 2)
-  percent      Decimal?               @db.Decimal(5, 2)
-  status       DiscountRequestStatus  @default(PENDING)
-  reason       String?
-  reviewNote   String?
-  createdAt    DateTime               @default(now())
-  reviewedAt   DateTime?
+  id             String                @id @default(cuid())
+  companyId      String
+  storeId        String?
+  saleId         String?
+  requesterId    String
+  reviewerId     String?
+  /// Cart subtotal at request time (before discount).
+  originalAmount Decimal               @db.Decimal(12, 2)
+  amount         Decimal               @db.Decimal(12, 2)
+  percent        Decimal?              @db.Decimal(5, 2)
+  status         DiscountRequestStatus @default(PENDING)
+  reason         String?
+  reviewNote     String?
+  /// Snapshot of cart lines: [{ productId, quantity, salePrice }]
+  cartSnapshot   Json?
+  createdAt      DateTime              @default(now())
+  reviewedAt     DateTime?
 
-  sale      Sale? @relation(fields: [saleId], references: [id], onDelete: SetNull)
-  requester User  @relation("DiscountRequester", fields: [requesterId], references: [id])
-  reviewer  User? @relation("DiscountReviewer", fields: [reviewerId], references: [id])
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  store     Store?  @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  sale      Sale?   @relation("DiscountSaleLink", fields: [saleId], references: [id], onDelete: SetNull)
+  appliedSale Sale? @relation("DiscountAppliedToSale")
+  requester User    @relation("DiscountRequester", fields: [requesterId], references: [id])
+  reviewer  User?   @relation("DiscountReviewer", fields: [reviewerId], references: [id])
 
   @@index([status])
   @@index([requesterId])
+  @@index([companyId, status])
+  @@index([storeId])
 }
 
 model GiftRule {

@@ -32,6 +32,7 @@ const OWNER_TABS: {
     match: (p) =>
       p.startsWith("/warehouse") ||
       p.startsWith("/returns") ||
+      p.startsWith("/reservations") ||
       p.startsWith("/revision"),
   },
   {
