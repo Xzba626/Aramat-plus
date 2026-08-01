@@ -163,7 +163,7 @@ export async function addBatch(
       locationType: params.locationType,
       locationId: params.locationId,
       quantity,
-      originalQuantity: quantity,
+      initialQuantity: quantity,
       costPerUnit,
       receivedAt: params.receivedAt ?? new Date(),
       notes: params.notes,

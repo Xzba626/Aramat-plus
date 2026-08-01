@@ -139,12 +139,12 @@ Done:
 3. ~~Users create-only + store assign/unbind~~  
 3.1 ~~Users ↔ Stores complete~~ (create store + staff; archive/safe-delete; dates; loading ≠ empty)
 4. ~~ProductType → AccountingType~~ (`src/lib/product-accounting.ts`; enforced on POST/PATCH products)
+5. ~~Purchases + Supplier + Warehouse KPI~~ (Supplier; receive flow; purchase history; warehouse financial KPIs)
 
 Next (order preserved; extensions slotted in):
 
 | Stage | Scope | Includes new requirements |
 |-------|--------|---------------------------|
-| **5** | Purchases + Supplier + Warehouse KPI | Supplier entity; receive flow; warehouse financial KPIs |
 | **5.1** | Stores depth | Store card metrics (open date, SKU, sellers/managers, stock, today sales/profit/expenses/net); **full store expenses** categories |
 | **6** | Inventory + Revision | Full revision cycle; chain Warehouse→…→Sale audit |
 | **7** | Packaging + POS + mobile-first | Bottles CRUD/archive/stock; decant sale (oil+bottle); mobile POS |

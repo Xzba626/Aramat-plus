@@ -17,8 +17,7 @@ type PurchaseRow = {
   costPerUnit: number;
   totalCost: number | null;
   notes: string | null;
-  supplier: { id: string; name: string } | null;
-  createdBy: { id: string; name: string } | null;
+  supplier?: { id: string; name: string } | null;
   product: {
     name: string;
     unit?: { symbol: string } | null;
@@ -62,22 +61,15 @@ export default function PurchaseHistoryPage() {
           {rows.map((b) => (
             <Link key={b.id} href={`/warehouse/${b.productId}`}>
               <Card className="mb-2 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <div className="font-semibold text-ink">{b.product.name}</div>
-                    <div className="mt-1 text-xs text-muted">
-                      {formatDate(b.receivedAt)}
-                      {b.supplier ? ` · ${b.supplier.name}` : ` · ${t("purchases.noSupplier")}`}
-                      {` · ${t("purchases.qtyShort")} ${b.quantity}${b.product.unit?.symbol ?? ""}`}
-                      {showFinance
-                        ? ` · ${formatMoney(b.costPerUnit)} · ${t("purchases.total")} ${formatMoney(b.totalCost ?? 0)}`
-                        : ""}
-                    </div>
-                    <div className="mt-1 text-xs text-muted">
-                      {t("purchases.addedBy")}: {b.createdBy?.name ?? t("common.system")}
-                      {b.notes ? ` · ${b.notes}` : ""}
-                    </div>
-                  </div>
+                <div className="font-semibold text-ink">{b.product.name}</div>
+                <div className="mt-1 text-xs text-muted">
+                  {formatDate(b.receivedAt)} · {t("wh.colQty")} {b.quantity}
+                  {b.product.unit?.symbol ?? ""}
+                  {b.supplier ? ` · ${b.supplier.name}` : ""}
+                  {showFinance
+                    ? ` · ${t("warehouse.productCardCost")} ${formatMoney(b.costPerUnit)}`
+                    : ""}
+                  {b.notes ? ` · ${b.notes}` : ""}
                 </div>
               </Card>
             </Link>

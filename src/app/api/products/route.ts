@@ -189,7 +189,6 @@ export async function POST(req: Request) {
           quantity: initialQty,
           costPerUnit,
           notes: "Initial stock",
-          origin: BatchOrigin.INITIAL,
           createdById: user!.id,
         });
       }

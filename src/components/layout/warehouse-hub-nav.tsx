@@ -16,6 +16,8 @@ const HUB_SEGMENTS = new Set([
   "brands",
   "batches",
   "receive",
+  "purchases",
+  "suppliers",
   "transfers",
   "return-in",
   "write-offs",

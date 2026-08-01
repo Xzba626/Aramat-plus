@@ -1,26 +1,26 @@
 import { getSessionUser } from "@/lib/session";
 import { requireOwnerOrManager, canViewWarehouseFinance } from "@/lib/rbac";
 import { jsonOk, handleApiError } from "@/lib/api";
-import { listPurchaseHistory } from "@/lib/services/warehouse.service";
+import { getPurchaseHistory } from "@/lib/services/purchase.service";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const user = await getSessionUser();
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
 
+    const url = new URL(req.url);
+    const limit = Number(url.searchParams.get("limit") || 50);
+    const offset = Number(url.searchParams.get("offset") || 0);
     const showFinance = canViewWarehouseFinance(user!);
-    const data = await listPurchaseHistory(user!.companyId, {
+
+    const data = await getPurchaseHistory(user!.companyId, {
+      limit,
+      offset,
       showFinance,
-      take: 150,
     });
 
-    return jsonOk({
-      showFinance,
-      warehouse: data.warehouse,
-      purchases: data.purchases,
-      batches: data.purchases,
-    });
+    return jsonOk({ showFinance, ...data });
   } catch (err) {
     return handleApiError(err);
   }

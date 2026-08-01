@@ -17,14 +17,21 @@ export default async function WarehouseOverviewPage() {
           : null,
         skuCount: data.skuCount,
         productCount: data.productCount,
+        categoryCount: data.categoryCount,
         unitsTotal: data.unitsTotal,
         batchCount: data.batchCount,
         lowStockCount: data.lowStockCount,
+        outOfStockCount: data.outOfStockCount,
+        totalPurchaseCost: data.totalPurchaseCost,
         totalCost: data.totalCost,
         totalSaleValue: data.totalSaleValue,
+        potentialProfit: data.potentialProfit,
+        lowStockItems: data.lowStockItems,
+        outOfStockItems: data.outOfStockItems,
         recentReceipts: data.recentReceipts,
         recentTransfers: data.recentTransfers,
-        recentReturns: data.recentReturns,
+        recentMovements: data.recentMovements,
+        recentWriteOffs: data.recentWriteOffs,
       }}
     />
   );
