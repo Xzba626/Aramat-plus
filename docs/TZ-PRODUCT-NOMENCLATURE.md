@@ -65,9 +65,14 @@
 
 ---
 
-## Флаконы (этап 2+)
+## Флаконы (обязательная модель)
 
-Справочник объёмов (10/30/50 мл) + стоимость. В POS при разливах: мл + флакон → выручка и прибыль с учётом флакона.
+**Не товар.** См. [packaging-bottle-model.md](packaging-bottle-model.md) · gate: [block-4-packaging-gate.md](block-4-packaging-gate.md).
+
+- `PackagingSku` — готовая упаковочная единица (не `Product`).
+- Accounting `PACKAGING`; склад, FIFO, без POS и выручки.
+- COGS = жидкость + флакон; не Expense.
+- Запрещены SKU `Dior 5ml` / `Dior 10ml` как `Product`.
 
 ## QR (этап 3+)
 
