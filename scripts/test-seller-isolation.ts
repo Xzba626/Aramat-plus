@@ -178,8 +178,10 @@ async function main() {
     );
   } finally {
     await cleanupProduct(product.id);
-    await prisma.store.deleteMany({
+    // Transfers RESTRICT store delete — archive instead of hard delete
+    await prisma.store.updateMany({
       where: { id: { in: [store1.id, store2.id] } },
+      data: { isActive: false, isArchived: true },
     });
   }
 }

@@ -1,14 +1,17 @@
-import { auth } from "@/lib/auth";
+import { getSessionUser } from "@/lib/session";
 import { getDashboardPayload } from "@/lib/services/dashboard.service";
 import { OwnerDashboardClient } from "@/components/dashboard/owner-dashboard-client";
+import { redirect } from "next/navigation";
 
 export default async function DashboardPage() {
-  const session = await auth();
-  const data = await getDashboardPayload(session!.user.companyId);
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  const data = await getDashboardPayload(user.companyId);
   return (
     <OwnerDashboardClient
       initial={data}
-      userName={session!.user.name ?? ""}
+      userName={user.name ?? ""}
+      userRole={user.role}
     />
   );
 }

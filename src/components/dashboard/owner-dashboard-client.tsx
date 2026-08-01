@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { Role } from "@prisma/client";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -109,14 +110,17 @@ type TrafficLevel = "red" | "yellow" | "green";
 export function OwnerDashboardClient({
   initial,
   userName,
+  userRole,
 }: {
   initial: DashboardPayload;
   userName: string;
+  userRole: Role;
 }) {
   const { t, formatMoney, formatDateTime } = useI18n();
   const [data, setData] = useState(initial);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [hour, setHour] = useState(12);
+  const canDecide = userRole === Role.OWNER;
 
   const refreshStats = useCallback(async () => {
     const res = await fetch("/api/dashboard");
@@ -150,6 +154,7 @@ export function OwnerDashboardClient({
       body: JSON.stringify({ decision }),
     });
     setBusyId(null);
+    if (res.status === 403) return;
     if (res.ok) refreshStats();
   }
 
@@ -419,25 +424,27 @@ export function OwnerDashboardClient({
                       <p className="mt-1 text-xs text-muted">{d.reason}</p>
                     ) : null}
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      fullWidth={false}
-                      disabled={busyId === d.id}
-                      onClick={() => decide(d.type, d.id, "APPROVE")}
-                    >
-                      {t("common.approve")}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      fullWidth={false}
-                      disabled={busyId === d.id}
-                      onClick={() => decide(d.type, d.id, "REJECT")}
-                    >
-                      {t("common.reject")}
-                    </Button>
-                  </div>
+                  {canDecide ? (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        fullWidth={false}
+                        disabled={busyId === d.id}
+                        onClick={() => decide(d.type, d.id, "APPROVE")}
+                      >
+                        {t("common.approve")}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        fullWidth={false}
+                        disabled={busyId === d.id}
+                        onClick={() => decide(d.type, d.id, "REJECT")}
+                      >
+                        {t("common.reject")}
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -617,23 +624,27 @@ export function OwnerDashboardClient({
                   >
                     {t("dashboard.openAction")}
                   </Link>
-                  <Button
-                    type="button"
-                    fullWidth={false}
-                    disabled={busyId === d.id}
-                    onClick={() => decide(d.type, d.id, "APPROVE")}
-                  >
-                    {t("common.approve")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    fullWidth={false}
-                    disabled={busyId === d.id}
-                    onClick={() => decide(d.type, d.id, "REJECT")}
-                  >
-                    {t("common.reject")}
-                  </Button>
+                  {canDecide ? (
+                    <>
+                      <Button
+                        type="button"
+                        fullWidth={false}
+                        disabled={busyId === d.id}
+                        onClick={() => decide(d.type, d.id, "APPROVE")}
+                      >
+                        {t("common.approve")}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        fullWidth={false}
+                        disabled={busyId === d.id}
+                        onClick={() => decide(d.type, d.id, "REJECT")}
+                      >
+                        {t("common.reject")}
+                      </Button>
+                    </>
+                  ) : null}
                 </div>
               </li>
             ))}

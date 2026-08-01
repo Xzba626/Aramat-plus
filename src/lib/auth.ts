@@ -87,8 +87,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
         (token as { storeRefreshedAt?: number }).storeRefreshedAt = Date.now();
         if (!dbUser || !dbUser.isActive) {
-          token.storeId = null;
-          return token;
+          // Invalidate JWT after wipe/reseed — layouts + APIs must not trust ghost ids.
+          return { ...token, id: "", sub: "", error: "SessionUserMissing" };
         }
         token.storeId = dbUser.storeId;
         token.role = dbUser.role;

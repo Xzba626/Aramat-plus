@@ -2,12 +2,15 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { Role } from "@prisma/client";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel } from "@/components/ui/card";
 import {
   ModuleSection,
   ModuleWorkspace,
 } from "@/components/ui/module-workspace";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
@@ -42,6 +45,8 @@ type WriteOffRow = {
 export default function WriteOffsPage() {
   const { toast } = useToast();
   const { t, formatDateTime, formatMoney } = useI18n();
+  const { data: session } = useSession();
+  const isOwner = session?.user?.role === Role.OWNER;
   const [rows, setRows] = useState<WriteOffRow[]>([]);
   const [stock, setStock] = useState<StockItem[]>([]);
   const [productId, setProductId] = useState("");
@@ -79,8 +84,9 @@ export default function WriteOffsPage() {
   }, []);
 
   useEffect(() => {
+    if (!isOwner) return;
     reload();
-  }, [reload]);
+  }, [isOwner, reload]);
 
   const filtered = useMemo(() => {
     return rows.filter(
@@ -89,6 +95,17 @@ export default function WriteOffsPage() {
         `${r.reason} ${r.actor}`.toLowerCase().includes(q.toLowerCase())
     );
   }, [rows, q]);
+
+  if (!isOwner) {
+    return (
+      <ModuleWorkspace
+        title={t("wh.writeOffTitle")}
+        subtitle={t("wh.actionWriteOff")}
+      >
+        <EmptyState title={`${t("roles.owner")} only`} />
+      </ModuleWorkspace>
+    );
+  }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();

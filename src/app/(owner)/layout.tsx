@@ -1,16 +1,17 @@
-import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { ReactNode } from "react";
 import { OwnerShell } from "@/components/layout/owner-shell";
 import { Role } from "@prisma/client";
+import { getSessionUser } from "@/lib/session";
 
 export default async function OwnerLayout({ children }: { children: ReactNode }) {
-  const session = await auth();
-  if (!session?.user) redirect("/login");
-  if (session.user.role === Role.SELLER) redirect("/pos");
+  // DB-backed session — JWT alone is stale after wipe/reseed (API 401 + empty dashboards).
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  if (user.role === Role.SELLER) redirect("/pos");
 
   return (
-    <OwnerShell userName={session.user.name} role={session.user.role}>
+    <OwnerShell userName={user.name} role={user.role}>
       {children}
     </OwnerShell>
   );

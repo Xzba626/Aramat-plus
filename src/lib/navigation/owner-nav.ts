@@ -8,6 +8,8 @@ import {
 export type OwnerNavItem = {
   href: string;
   labelKey: string;
+  /** If set, only these roles see the nav item */
+  roles?: Role[];
 };
 
 export type OwnerNavSection = {
@@ -68,7 +70,11 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
       { href: "/warehouse/suppliers", labelKey: "nav.purchasesSuppliers" },
       { href: "/warehouse/transfers", labelKey: "nav.inventoryTransfers" },
       { href: "/warehouse/return-in", labelKey: "nav.inventoryReturnIn" },
-      { href: "/warehouse/write-offs", labelKey: "nav.inventoryWriteOffs" },
+      {
+        href: "/warehouse/write-offs",
+        labelKey: "nav.inventoryWriteOffs",
+        roles: [Role.OWNER],
+      },
       { href: "/revision", labelKey: "nav.inventoryRevision" },
       { href: "/warehouse/history", labelKey: "nav.inventoryHistory" },
       { href: "/warehouse/products", labelKey: "nav.productsCatalog" },
@@ -108,7 +114,11 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     children: [
       { href: "/settings", labelKey: "nav.settings" },
       { href: "/notifications", labelKey: "nav.notifications" },
-      { href: "/settings/wipe", labelKey: "nav.settingsDemo" },
+      {
+        href: "/settings/wipe",
+        labelKey: "nav.settingsDemo",
+        roles: [Role.OWNER],
+      },
       { href: "/settings/company", labelKey: "nav.settingsBackup" },
     ],
   },
@@ -118,7 +128,13 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
 export function filterNavForRole(role: Role): OwnerNavSection[] {
   return OWNER_NAV_SECTIONS.map((section) => {
     if (section.roles && !section.roles.includes(role)) return null;
-    return section;
+    const children = section.children?.filter(
+      (child) => !child.roles || child.roles.includes(role)
+    );
+    return {
+      ...section,
+      children: children?.length ? children : undefined,
+    };
   }).filter(Boolean) as OwnerNavSection[];
 }
 

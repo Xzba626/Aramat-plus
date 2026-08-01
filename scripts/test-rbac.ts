@@ -60,6 +60,13 @@ function middlewareAllows(role: Role, pathname: string): boolean {
   ) {
     return false;
   }
+  if (role === Role.MANAGER) {
+    const blocked =
+      pathname.startsWith("/users") ||
+      pathname.startsWith("/settings/wipe") ||
+      pathname.startsWith("/warehouse/write-offs");
+    if (blocked) return false;
+  }
   return true;
 }
 
@@ -129,6 +136,10 @@ async function main() {
     [Role.MANAGER, "/dashboard", true],
     [Role.MANAGER, "/warehouse", true],
     [Role.MANAGER, "/revision", true],
+    [Role.MANAGER, "/journal", true],
+    [Role.MANAGER, "/users", false],
+    [Role.MANAGER, "/settings/wipe", false],
+    [Role.MANAGER, "/warehouse/write-offs", false],
     [Role.MANAGER, "/pos", false],
     [Role.SELLER, "/pos", true],
     [Role.SELLER, "/dashboard", false],

@@ -5,8 +5,7 @@
 | Роль | Код | Описание |
 |------|-----|----------|
 | Owner | `OWNER` | Полный доступ ко всем модулям |
-| Manager | `MANAGER` | Права по назначению владельца (магазины/склад) |
-| Warehouse | `WAREHOUSE_MANAGER` | Склад, партии, перемещения |
+| Manager | `MANAGER` | Операционный доступ: склад, магазины, продажи — без админки пользователей, CRM wipe, списаний и утверждения скидок/возвратов |
 | Seller | `SELLER` | Только свой магазин (POS); без себестоимости и аналитики |
 
 ## Матрица прав (Milestone 1)
@@ -16,11 +15,18 @@
 | Справочники (CRUD) | ✅ | ✅ | ❌ |
 | Товары / партии | ✅ | ✅ | ❌ |
 | Склад | ✅ | ✅ | ❌ |
-| Магазины | ✅ | ✅ | ❌ |
+| Списания (`/warehouse/write-offs`) | ✅ | ❌ | ❌ |
+| Магазины (просмотр) | ✅ | ✅ | ❌ |
+| Создание / архив магазинов | ✅ | ❌ | ❌ |
 | Перемещения | ✅ | ✅ | ❌ |
-| Пользователи | ✅ | ❌ | ❌ |
+| Пользователи (`/users`) | ✅ | ❌ (UI + middleware) | ❌ |
+| CRM wipe (`/settings/wipe`) | ✅ | ❌ | ❌ |
+| Утверждение скидок / возвратов | ✅ | ❌ (очередь read-only) | ❌ |
+| Журнал (`GET /api/journal`) | ✅ | ✅ | ❌ |
 | Dashboard | ✅ | ✅ | ❌ |
-| POS | ✅ | ✅ | ✅ (stub) |
+| POS | ✅ | ✅ | ✅ |
+
+> **Примечание:** `GET /api/users` может оставаться `OwnerOrManager` на уровне API (например, для назначения персонала), но UI и middleware блокируют `/users` для Manager.
 
 ## Post-login redirect
 
@@ -36,6 +42,7 @@
 
 ## Реализация
 
-- `src/middleware.ts` — route protection
+- `src/middleware.ts` — route protection (Seller → POS; Manager blocked from `/users`, `/settings/wipe`, `/warehouse/write-offs`)
+- `src/lib/navigation/owner-nav.ts` — nav items filtered by role (write-offs, wipe — Owner only)
 - `src/lib/rbac.ts` — `requireRole()`, `hasPermission()`
 - API routes проверяют роль через session

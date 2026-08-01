@@ -65,6 +65,17 @@ export default auth((req) => {
     }
   }
 
+  if (role === "MANAGER") {
+    const managerBlockedPrefixes = [
+      "/users",
+      "/settings/wipe",
+      "/warehouse/write-offs",
+    ];
+    if (managerBlockedPrefixes.some((p) => pathname.startsWith(p))) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+  }
+
   if ((role === "OWNER" || role === "MANAGER") && pathname.startsWith("/pos")) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }

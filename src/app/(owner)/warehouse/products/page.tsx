@@ -58,17 +58,21 @@ export default function WarehouseCatalogPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t, formatMoney } = useI18n();
-  const [filters, setFilters] = usePersistedState<Filters>("warehouse-catalog", {
-    q: "",
-    categoryId: "",
-    brandId: "",
-    status: "active",
-  });
+  const [filters, setFilters, filtersReady] = usePersistedState<Filters>(
+    "warehouse-catalog",
+    {
+      q: "",
+      categoryId: "",
+      brandId: "",
+      status: "active",
+    }
+  );
   const { q, categoryId, brandId, status } = filters;
   const [rows, setRows] = useState<Row[]>([]);
   const [categories, setCategories] = useState<Ref[]>([]);
   const [brands, setBrands] = useState<Ref[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     const fromUrl = searchParams.get("q");
@@ -79,7 +83,9 @@ export default function WarehouseCatalogPage() {
   }, [searchParams]);
 
   const load = useCallback(async () => {
+    if (!filtersReady) return;
     setLoading(true);
+    setLoadError("");
     const params = new URLSearchParams();
     if (q.trim()) params.set("q", q.trim());
     if (categoryId) params.set("categoryId", categoryId);
@@ -87,23 +93,59 @@ export default function WarehouseCatalogPage() {
     if (status) params.set("status", status);
     const res = await fetch(`/api/products?${params}`);
     const data = await res.json();
+    if (!res.ok) {
+      setRows([]);
+      setLoadError(
+        typeof data?.error === "string" ? data.error : "LOAD_FAILED"
+      );
+      setLoading(false);
+      return;
+    }
     setRows(Array.isArray(data) ? data : []);
     setLoading(false);
-  }, [q, categoryId, brandId, status]);
+  }, [q, categoryId, brandId, status, filtersReady]);
 
   useEffect(() => {
-    fetch("/api/categories")
-      .then((r) => r.json())
-      .then((d) => setCategories(Array.isArray(d) ? d : []));
-    fetch("/api/brands")
-      .then((r) => r.json())
-      .then((d) => setBrands(Array.isArray(d) ? d : []));
-  }, []);
+    let cancelled = false;
+    Promise.all([
+      fetch("/api/categories").then(async (r) => ({
+        ok: r.ok,
+        data: await r.json(),
+      })),
+      fetch("/api/brands").then(async (r) => ({
+        ok: r.ok,
+        data: await r.json(),
+      })),
+    ]).then(([cats, brs]) => {
+      if (cancelled) return;
+      const catList = cats.ok && Array.isArray(cats.data) ? cats.data : [];
+      const brandList = brs.ok && Array.isArray(brs.data) ? brs.data : [];
+      setCategories(catList);
+      setBrands(brandList);
+      // After wipe/reseed, sessionStorage may keep deleted category/brand ids
+      setFilters((f) => {
+        const catOk =
+          !f.categoryId || catList.some((c: Ref) => c.id === f.categoryId);
+        const brandOk =
+          !f.brandId || brandList.some((b: Ref) => b.id === f.brandId);
+        if (catOk && brandOk) return f;
+        return {
+          ...f,
+          categoryId: catOk ? f.categoryId : "",
+          brandId: brandOk ? f.brandId : "",
+        };
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [setFilters]);
 
   useEffect(() => {
+    if (!filtersReady) return;
     const timer = setTimeout(load, 200);
     return () => clearTimeout(timer);
-  }, [load]);
+  }, [load, filtersReady]);
 
   function openProduct(id: string) {
     router.push(`/warehouse/${id}`);
@@ -259,8 +301,14 @@ export default function WarehouseCatalogPage() {
         {!loading && rows.length === 0 ? (
           <div className="p-4">
             <EmptyState
-              title={t("wh.emptyCatalog")}
-              description={t("warehouse.productNoBatches")}
+              title={
+                loadError ? t("common.error") : t("wh.emptyCatalog")
+              }
+              description={
+                loadError
+                  ? loadError
+                  : t("warehouse.productNoBatches")
+              }
               actionHref="/warehouse/new"
               actionLabel={t("warehouse.productCreateBtn")}
             />

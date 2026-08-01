@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { Role } from "@prisma/client";
+import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
@@ -41,6 +43,8 @@ type StaffCandidate = {
 
 export default function StoresPage() {
   const { t, formatMoney, formatDateTime } = useI18n();
+  const { data: session } = useSession();
+  const isOwner = session?.user?.role === Role.OWNER;
   const [stores, setStores] = useState<StoreCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -191,13 +195,15 @@ export default function StoresPage() {
             >
               {showArchived ? t("storesPage.showActive") : t("storesPage.showArchive")}
             </Button>
-            <Button
-              type="button"
-              fullWidth={false}
-              onClick={() => setShowForm((v) => !v)}
-            >
-              {showForm ? t("common.cancel") : t("storesPage.addBranch")}
-            </Button>
+            {isOwner ? (
+              <Button
+                type="button"
+                fullWidth={false}
+                onClick={() => setShowForm((v) => !v)}
+              >
+                {showForm ? t("common.cancel") : t("storesPage.addBranch")}
+              </Button>
+            ) : null}
           </div>
         }
       />
@@ -220,7 +226,7 @@ export default function StoresPage() {
         />
       </div>
 
-      {showForm ? (
+      {isOwner && showForm ? (
         <Card className="mb-6 max-w-lg p-4">
           <form onSubmit={createStore} className="space-y-3">
             <div>
@@ -406,35 +412,37 @@ export default function StoresPage() {
                     />
                   </div>
                 </Link>
-                <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
-                  {s.isArchived ? (
+                {isOwner ? (
+                  <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
+                    {s.isArchived ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        fullWidth={false}
+                        onClick={() => archiveStore(s.id, false)}
+                      >
+                        {t("storesPage.restore")}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        fullWidth={false}
+                        onClick={() => archiveStore(s.id, true)}
+                      >
+                        {t("storesPage.archive")}
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="secondary"
                       fullWidth={false}
-                      onClick={() => archiveStore(s.id, false)}
+                      onClick={() => deleteStore(s.id)}
                     >
-                      {t("storesPage.restore")}
+                      {t("storesPage.deleteSafe")}
                     </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      fullWidth={false}
-                      onClick={() => archiveStore(s.id, true)}
-                    >
-                      {t("storesPage.archive")}
-                    </Button>
-                  )}
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    fullWidth={false}
-                    onClick={() => deleteStore(s.id)}
-                  >
-                    {t("storesPage.deleteSafe")}
-                  </Button>
-                </div>
+                  </div>
+                ) : null}
               </Card>
             ))}
           </div>

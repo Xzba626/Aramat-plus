@@ -30,17 +30,34 @@ async function main() {
   });
   assert(warehouse, "warehouse");
   const store = await prisma.store.findFirst({
-    where: { companyId: company.id, kind: StoreKind.BRANCH },
+    where: { companyId: company.id, kind: StoreKind.BRANCH, isActive: true },
+    orderBy: { name: "asc" },
   });
-  assert(store, "branch");
+  assert(store, "active branch");
   const owner = await prisma.user.findFirst({
-    where: { companyId: company.id, role: Role.OWNER },
+    where: { companyId: company.id, role: Role.OWNER, isActive: true },
+    orderBy: { createdAt: "asc" },
   });
   assert(owner, "owner");
-  const seller = await prisma.user.findFirst({
-    where: { companyId: company.id, role: Role.SELLER, storeId: store.id },
+  let seller = await prisma.user.findFirst({
+    where: {
+      companyId: company.id,
+      role: Role.SELLER,
+      storeId: store.id,
+      isActive: true,
+    },
   });
-  assert(seller, "seller assigned to branch");
+  if (!seller) {
+    seller = await prisma.user.findFirst({
+      where: { companyId: company.id, role: Role.SELLER, isActive: true },
+    });
+    assert(seller, "seller exists");
+    await prisma.user.update({
+      where: { id: seller.id },
+      data: { storeId: store.id },
+    });
+    console.log(`0. Bound seller ${seller.email} → ${store.name} for smoke`);
+  }
 
   const product = await prisma.product.create({
     data: {
@@ -52,16 +69,19 @@ async function main() {
     },
   });
 
-  await prisma.$transaction(async (tx) => {
-    await addBatch(tx, {
-      productId: product.id,
-      locationType: LocationType.WAREHOUSE,
-      locationId: warehouse.id,
-      quantity: 100,
-      costPerUnit: 80,
-      notes: "smoke-receive",
-    });
-  });
+  await prisma.$transaction(
+    async (tx) => {
+      await addBatch(tx, {
+        productId: product.id,
+        locationType: LocationType.WAREHOUSE,
+        locationId: warehouse.id,
+        quantity: 100,
+        costPerUnit: 80,
+        notes: "smoke-receive",
+      });
+    },
+    { maxWait: 15_000, timeout: 60_000 }
+  );
   console.log("1. Owner receive 100 → warehouse OK");
 
   await createTransfer({

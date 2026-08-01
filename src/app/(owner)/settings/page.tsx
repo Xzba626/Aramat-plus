@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { Role } from "@prisma/client";
+import { useSession } from "next-auth/react";
 import { Card } from "@/components/ui/card";
 import {
   ModuleSection,
@@ -10,6 +12,8 @@ import { useT } from "@/components/i18n/i18n-provider";
 
 export default function SettingsPage() {
   const t = useT();
+  const { data: session } = useSession();
+  const isOwner = session?.user?.role === Role.OWNER;
 
   const cards = [
     {
@@ -26,6 +30,7 @@ export default function SettingsPage() {
       href: "/users",
       titleKey: "settingsPage.users",
       descKey: "settingsPage.usersDesc",
+      ownerOnly: true,
     },
     {
       href: "/notifications",
@@ -42,8 +47,9 @@ export default function SettingsPage() {
       titleKey: "settingsPage.wipe",
       descKey: "settingsPage.wipeDesc",
       danger: true,
+      ownerOnly: true,
     },
-  ];
+  ].filter((card) => isOwner || !("ownerOnly" in card && card.ownerOnly));
 
   return (
     <ModuleWorkspace
