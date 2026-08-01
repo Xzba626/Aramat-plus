@@ -12,8 +12,8 @@ export default function LoginPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useI18n();
-  const [email, setEmail] = useState("owner@aromat.plus");
-  const [password, setPassword] = useState("owner1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 

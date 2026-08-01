@@ -37,6 +37,12 @@ export default function SettingsPage() {
       titleKey: "settingsPage.company",
       descKey: "settingsPage.companyDesc",
     },
+    {
+      href: "/settings/wipe",
+      titleKey: "settingsPage.wipe",
+      descKey: "settingsPage.wipeDesc",
+      danger: true,
+    },
   ];
 
   return (
@@ -48,7 +54,11 @@ export default function SettingsPage() {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {cards.map((card) => (
             <Link key={card.href} href={card.href}>
-              <Card className="h-full p-5 transition hover:border-brand/30">
+              <Card
+                className={`h-full p-5 transition hover:border-brand/30 ${
+                  "danger" in card && card.danger ? "border-danger/20" : ""
+                }`}
+              >
                 <div className="text-sm font-bold text-ink">{t(card.titleKey)}</div>
                 <p className="mt-2 text-sm text-muted">{t(card.descKey)}</p>
               </Card>
