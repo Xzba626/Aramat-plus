@@ -148,6 +148,7 @@ export async function addBatch(
     receivedAt?: Date;
     notes?: string;
     transferItemId?: string;
+    origin?: BatchOrigin;
     supplierId?: string | null;
     createdById?: string | null;
   }
@@ -167,6 +168,7 @@ export async function addBatch(
       receivedAt: params.receivedAt ?? new Date(),
       notes: params.notes,
       transferItemId: params.transferItemId,
+      origin: params.origin ?? BatchOrigin.PURCHASE,
       supplierId: params.supplierId ?? null,
       createdById: params.createdById ?? null,
     },

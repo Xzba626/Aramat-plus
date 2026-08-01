@@ -273,19 +273,6 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
       userName: r.user?.name ?? "",
       comment: r.comment,
     })),
-    recentWriteOffs: writeOffs.map((w) => ({
-      id: w.id,
-      createdAt: w.createdAt,
-      userName: w.user?.name ?? "",
-      comment: w.comment,
-    })),
-    recentMovements: movements.map((m) => ({
-      id: m.id,
-      createdAt: m.createdAt,
-      userName: m.user?.name ?? "",
-      action: m.action,
-      comment: m.comment,
-    })),
   };
 }
 
@@ -317,7 +304,7 @@ export async function listPurchaseHistory(
   return {
     warehouse,
     purchases: batches.map((b) => {
-      const qty = decimalToNumber(b.originalQuantity ?? b.quantity);
+      const qty = decimalToNumber(b.initialQuantity);
       const cost = decimalToNumber(b.costPerUnit);
       return {
         id: b.id,

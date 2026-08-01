@@ -1,6 +1,5 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager } from "@/lib/rbac";
-import { canViewWarehouseFinance } from "@/lib/rbac";
+import { requireOwnerOrManager, canViewWarehouseFinance } from "@/lib/rbac";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { listPurchaseHistory } from "@/lib/services/warehouse.service";
 
@@ -16,37 +15,11 @@ export async function GET() {
       take: 150,
     });
 
-    const batches = warehouse
-      ? await prisma.batch.findMany({
-          where: {
-            locationType: LocationType.WAREHOUSE,
-            locationId: warehouse.id,
-            quantity: { gt: 0 },
-          },
-          include: {
-            product: { include: { brand: true, unit: true } },
-            supplier: { select: { id: true, name: true } },
-          },
-          orderBy: { receivedAt: "asc" },
-          take: 100,
-        })
-      : [];
-
     return jsonOk({
-      showFinance: canViewWarehouseFinance(user!),
-      batches: batches.map((b) => ({
-        id: b.id,
-        productId: b.productId,
-        receivedAt: b.receivedAt.toISOString(),
-        quantity: decimalToNumber(b.quantity),
-        costPerUnit: decimalToNumber(b.costPerUnit),
-        notes: b.notes,
-        supplier: b.supplier,
-        product: {
-          name: b.product.name,
-          unit: b.product.unit ? { symbol: b.product.unit.symbol } : null,
-        },
-      })),
+      showFinance,
+      warehouse: data.warehouse,
+      purchases: data.purchases,
+      batches: data.purchases,
     });
   } catch (err) {
     return handleApiError(err);

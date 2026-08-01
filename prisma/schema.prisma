@@ -150,29 +150,11 @@ model Company {
   expenseTypes    ExpenseType[]
   products        Product[]
   suppliers       Supplier[]
+  packagingSkus   PackagingSku[]
   settings        Setting[]
   giftRules       GiftRule[]
   reservations    Reservation[]
   discountRequests DiscountRequest[]
-}
-
-// ─── Purchases (Stage 5) ─────────────────────────────────────────────────────
-
-model Supplier {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String?
-  notes     String?
-  isActive  Boolean  @default(true)
-  companyId String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  batches Batch[]
-
-  @@index([companyId])
-  @@index([companyId, isActive])
 }
 
 // ─── Packaging catalog (Block 4) — bottles are NOT aroma products ────────────
@@ -226,12 +208,14 @@ model User {
   priceChanges       PriceHistory[]
   transfers          Transfer[]           @relation("TransferCreator")
   sales              Sale[]
+  saleDiscountApprovals Sale[]            @relation("SaleDiscountApprover")
   discountRequests   DiscountRequest[]    @relation("DiscountRequester")
   discountReviews    DiscountRequest[]    @relation("DiscountReviewer")
   returnRequests     SaleReturn[]         @relation("ReturnRequester")
   returnReviews      SaleReturn[]         @relation("ReturnReviewer")
   inventorySessions  InventorySession[]   @relation("InventoryCreator")
   inventoryApprovals InventorySession[]   @relation("InventoryApprover")
+  reservationsCreated Reservation[]       @relation("ReservationCreator")
   notifications      Notification[]
   expenses           Expense[]
   activityLogs       ActivityLog[]
@@ -510,6 +494,7 @@ model Batch {
   receivedAt      DateTime     @default(now())
   notes           String?
   transferItemId  String?
+  origin          BatchOrigin  @default(PURCHASE)
   supplierId      String?
   createdById     String?
   createdAt       DateTime     @default(now())
@@ -525,6 +510,7 @@ model Batch {
   @@index([locationType, locationId])
   @@index([supplierId])
   @@index([createdById])
+  @@index([origin, receivedAt])
 }
 
 model StockBalance {
