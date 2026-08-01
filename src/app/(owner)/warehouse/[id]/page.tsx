@@ -123,7 +123,10 @@ export default function ProductDetailPage() {
       await fetch(`/api/products/${id}/price`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ salePrice: Number(newSalePrice) }),
+        body: JSON.stringify({
+          salePrice: Number(newSalePrice),
+          reason: "batch_receive_price_update",
+        }),
       });
     }
 

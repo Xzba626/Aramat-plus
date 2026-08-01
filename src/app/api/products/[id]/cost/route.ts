@@ -1,37 +1,38 @@
 import { getSessionUser } from "@/lib/session";
 import { requireOwnerOrManager } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { priceSchema } from "@/lib/validators";
+import { costSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { Prisma } from "@prisma/client";
 
 type Ctx = { params: Promise<{ id: string }> };
 
+/** Update planned/default cost with CostHistory + audit. */
 export async function POST(req: Request, ctx: Ctx) {
   try {
     const user = await getSessionUser();
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
     const { id } = await ctx.params;
-    const body = priceSchema.parse(await req.json());
+    const body = costSchema.parse(await req.json());
 
     const product = await prisma.product.findFirst({
       where: { id, companyId: user!.companyId },
     });
     if (!product) return handleApiError(new Error("PRODUCT_NOT_FOUND"));
 
-    const newPrice = new Prisma.Decimal(body.salePrice);
-    if (product.salePrice.equals(newPrice)) {
-      return jsonOk(product);
-    }
+    const newCost =
+      body.defaultCostPerUnit == null
+        ? null
+        : new Prisma.Decimal(body.defaultCostPerUnit);
 
     const updated = await prisma.$transaction(async (tx) => {
-      await tx.priceHistory.create({
+      await tx.costHistory.create({
         data: {
           productId: id,
-          oldPrice: product.salePrice,
-          newPrice,
+          oldCost: product.defaultCostPerUnit,
+          newCost,
           reason: body.reason.trim(),
           changedById: user!.id,
         },
@@ -39,20 +40,22 @@ export async function POST(req: Request, ctx: Ctx) {
 
       const p = await tx.product.update({
         where: { id },
-        data: { salePrice: newPrice },
+        data: { defaultCostPerUnit: newCost },
       });
 
       await logActivity({
         tx,
         userId: user!.id,
         companyId: user!.companyId,
-        action: "PRICE_CHANGE",
+        action: "COST_CHANGE",
         entityType: "Product",
         entityId: id,
         comment: body.reason.trim(),
         metadata: {
-          before: { salePrice: product.salePrice.toString() },
-          after: { salePrice: newPrice.toString() },
+          before: {
+            defaultCostPerUnit: product.defaultCostPerUnit?.toString() ?? null,
+          },
+          after: { defaultCostPerUnit: newCost?.toString() ?? null },
           reason: body.reason.trim(),
         },
       });

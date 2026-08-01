@@ -61,6 +61,12 @@ export const supplierSchema = z.object({
 
 export const priceSchema = z.object({
   salePrice: z.coerce.number().positive(),
+  reason: z.string().min(1).max(300),
+});
+
+export const costSchema = z.object({
+  defaultCostPerUnit: z.coerce.number().positive().nullable(),
+  reason: z.string().min(1).max(300),
 });
 
 export const storeSchema = z.object({
@@ -95,7 +101,8 @@ export const userUpdateSchema = z.object({
 });
 
 export const transferSchema = z.object({
-  fromWarehouseId: z.string().min(1),
+  fromWarehouseId: z.string().min(1).optional(),
+  fromStoreId: z.string().min(1).optional(),
   toStoreId: z.string().min(1),
   notes: z.string().max(500).optional().nullable(),
   items: z

@@ -286,7 +286,7 @@ export function OwnerDashboardClient({
             vsYesterdayLabel={t("dashboard.vsYesterday")}
           />
           <TodayKpi
-            label={t("dashboard.profitTitle")}
+            label={t("dashboard.netProfit")}
             hintKey="dashboardProfit"
             value={hasSales ? formatMoney(today.profit, { short: true }) : "—"}
             emptyLabel={t("dashboard.noProfitYet")}

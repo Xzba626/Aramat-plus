@@ -160,7 +160,7 @@ export async function POST(req: Request) {
           barcode: body.barcode ?? null,
           description: body.description ?? null,
           companyId: user!.companyId,
-          categoryId: null,
+          categoryId: body.categoryId ?? null,
           brandId: body.brandId ?? null,
           unitId,
           productTypeId: body.productTypeId ?? null,
@@ -170,7 +170,7 @@ export async function POST(req: Request) {
             costPerUnit != null && costPerUnit > 0
               ? new Prisma.Decimal(costPerUnit)
               : null,
-          minStock: new Prisma.Decimal(0),
+          minStock: new Prisma.Decimal(body.minStock ?? 0),
         },
       });
 

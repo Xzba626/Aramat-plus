@@ -1,4 +1,4 @@
-import { Role } from "@prisma/client";
+import { Role, ReturnReasonCode } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
 import { requireOwnerOrManager } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
@@ -11,6 +11,15 @@ import { z } from "zod";
 const createSchema = z.object({
   saleId: z.string().min(1),
   reason: z.string().max(500).optional().nullable(),
+  reasonCode: z.nativeEnum(ReturnReasonCode).optional().nullable(),
+  items: z
+    .array(
+      z.object({
+        saleItemId: z.string().min(1),
+        quantity: z.coerce.number().positive(),
+      })
+    )
+    .optional(),
 });
 
 export async function GET(req: Request) {
@@ -45,11 +54,16 @@ export async function POST(req: Request) {
     }
 
     const body = createSchema.parse(await req.json());
+    if (!body.reasonCode && !body.reason?.trim()) {
+      return handleApiError(new Error("VALIDATION_ERROR"));
+    }
     const row = await createSaleReturn({
       companyId: user.companyId,
       saleId: body.saleId,
       requesterId: user.id,
       reason: body.reason ?? undefined,
+      reasonCode: body.reasonCode ?? undefined,
+      items: body.items,
     });
     return jsonOk(row, 201);
   } catch (err) {

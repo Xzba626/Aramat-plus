@@ -1,4 +1,4 @@
-import { BatchOrigin, LocationType, Prisma } from "@prisma/client";
+﻿import { BatchOrigin, LocationType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { addBatch, deductBatchesFifo } from "@/lib/services/stock.service";
 import { logActivity } from "@/lib/services/activity-log.service";
@@ -16,9 +16,7 @@ export async function createTransfer(params: {
   items: TransferLineInput[];
   notes?: string;
 }) {
-  if (!params.items.length) {
-    throw new Error("EMPTY_CART");
-  }
+  if (!params.items.length) throw new Error("EMPTY_CART");
 
   const warehouse = await prisma.warehouse.findFirst({
     where: { id: params.fromWarehouseId, companyId: params.companyId },
@@ -35,8 +33,6 @@ export async function createTransfer(params: {
   });
   if (!store) throw new Error("TRANSFER_BRANCH_ONLY");
 
-  // Neon/PgBouncer: interactive tx needs a direct (non-pooler) URL and enough time.
-  // P2028 "Transaction not found" = pooler recycled the connection or tx timed out.
   return prisma.$transaction(
     async (tx) => {
       const transfer = await tx.transfer.create({
@@ -49,14 +45,16 @@ export async function createTransfer(params: {
         },
       });
 
-      const createdItems = [];
-
       for (const line of params.items) {
         const qty = new Prisma.Decimal(line.quantity);
         if (qty.lte(0)) throw new Error("QTY_MUST_BE_POSITIVE");
 
         const product = await tx.product.findFirst({
-          where: { id: line.productId, companyId: params.companyId, isActive: true },
+          where: {
+            id: line.productId,
+            companyId: params.companyId,
+            isActive: true,
+          },
         });
         if (!product) throw new Error("PRODUCT_NOT_FOUND");
 
@@ -78,7 +76,6 @@ export async function createTransfer(params: {
             },
           });
 
-          // New batch at store — preserves cost, does NOT merge with existing
           await addBatch(tx, {
             productId: line.productId,
             locationType: LocationType.STORE,
@@ -90,8 +87,6 @@ export async function createTransfer(params: {
             origin: BatchOrigin.TRANSFER,
             createdById: params.createdById,
           });
-
-          createdItems.push(item);
         }
       }
 
@@ -105,10 +100,7 @@ export async function createTransfer(params: {
         comment: `${warehouse.name} → ${store.name}`,
         metadata: {
           itemCount: params.items.length,
-          items: params.items.map((i) => ({
-            productId: i.productId,
-            quantity: i.quantity,
-          })),
+          items: params.items,
           fromWarehouseId: warehouse.id,
           toStoreId: store.id,
         },
@@ -120,6 +112,128 @@ export async function createTransfer(params: {
           items: { include: { product: true } },
           toStore: true,
           fromWarehouse: true,
+          fromStore: true,
+          createdBy: { select: { id: true, name: true } },
+        },
+      });
+    },
+    { maxWait: 15_000, timeout: 60_000 }
+  );
+}
+
+/** Store A → Store B (FIFO cost preserved). */
+export async function createStoreTransfer(params: {
+  companyId: string;
+  fromStoreId: string;
+  toStoreId: string;
+  createdById: string;
+  items: TransferLineInput[];
+  notes?: string;
+}) {
+  if (!params.items.length) throw new Error("EMPTY_CART");
+  if (params.fromStoreId === params.toStoreId) {
+    throw new Error("VALIDATION_ERROR");
+  }
+
+  const [fromStore, toStore] = await Promise.all([
+    prisma.store.findFirst({
+      where: {
+        id: params.fromStoreId,
+        companyId: params.companyId,
+        isActive: true,
+        kind: "BRANCH",
+      },
+    }),
+    prisma.store.findFirst({
+      where: {
+        id: params.toStoreId,
+        companyId: params.companyId,
+        isActive: true,
+        kind: "BRANCH",
+      },
+    }),
+  ]);
+  if (!fromStore || !toStore) throw new Error("STORE_NOT_FOUND");
+
+  return prisma.$transaction(
+    async (tx) => {
+      const transfer = await tx.transfer.create({
+        data: {
+          fromStoreId: fromStore.id,
+          toStoreId: toStore.id,
+          createdById: params.createdById,
+          status: "COMPLETED",
+          notes: params.notes,
+        },
+      });
+
+      for (const line of params.items) {
+        const qty = new Prisma.Decimal(line.quantity);
+        if (qty.lte(0)) throw new Error("QTY_MUST_BE_POSITIVE");
+
+        const product = await tx.product.findFirst({
+          where: {
+            id: line.productId,
+            companyId: params.companyId,
+            isActive: true,
+          },
+        });
+        if (!product) throw new Error("PRODUCT_NOT_FOUND");
+
+        const consumed = await deductBatchesFifo(tx, {
+          productId: line.productId,
+          locationType: LocationType.STORE,
+          locationId: fromStore.id,
+          quantity: qty,
+        });
+
+        for (const slice of consumed) {
+          const item = await tx.transferItem.create({
+            data: {
+              transferId: transfer.id,
+              productId: line.productId,
+              quantity: slice.quantity,
+              sourceBatchId: slice.batchId,
+              costPerUnit: slice.costPerUnit,
+            },
+          });
+
+          await addBatch(tx, {
+            productId: line.productId,
+            locationType: LocationType.STORE,
+            locationId: toStore.id,
+            quantity: slice.quantity,
+            costPerUnit: slice.costPerUnit,
+            notes: `store_transfer:${transfer.id}`,
+            transferItemId: item.id,
+            origin: BatchOrigin.TRANSFER,
+            createdById: params.createdById,
+          });
+        }
+      }
+
+      await logActivity({
+        tx,
+        userId: params.createdById,
+        companyId: params.companyId,
+        action: "STORE_TRANSFER_CREATE",
+        entityType: "Transfer",
+        entityId: transfer.id,
+        comment: `${fromStore.name} → ${toStore.name}`,
+        metadata: {
+          fromStoreId: fromStore.id,
+          toStoreId: toStore.id,
+          items: params.items,
+        },
+      });
+
+      return tx.transfer.findUniqueOrThrow({
+        where: { id: transfer.id },
+        include: {
+          items: { include: { product: true } },
+          toStore: true,
+          fromWarehouse: true,
+          fromStore: true,
           createdBy: { select: { id: true, name: true } },
         },
       });
@@ -131,11 +245,16 @@ export async function createTransfer(params: {
 export async function listTransfers(companyId: string) {
   return prisma.transfer.findMany({
     where: {
-      fromWarehouse: { companyId },
+      OR: [
+        { fromWarehouse: { companyId } },
+        { fromStore: { companyId } },
+        { toStore: { companyId } },
+      ],
     },
     include: {
       toStore: true,
       fromWarehouse: true,
+      fromStore: true,
       createdBy: { select: { id: true, name: true } },
       items: { include: { product: true } },
     },

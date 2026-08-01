@@ -1,4 +1,11 @@
-import { BatchOrigin, LocationType, Prisma, StoreKind } from "@prisma/client";
+import {
+  BatchOrigin,
+  LocationType,
+  Prisma,
+  ReturnReasonCode,
+  SaleStatus,
+  StoreKind,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { addBatch } from "@/lib/services/stock.service";
 import { logActivity } from "@/lib/services/activity-log.service";
@@ -8,18 +15,25 @@ import {
 } from "@/lib/services/notification.service";
 import { decimalToNumber } from "@/lib/utils";
 
-/** Seller/owner requests a return of a completed sale. */
+export type ReturnLineInput = {
+  saleItemId: string;
+  quantity: number;
+};
+
+/** Seller/owner requests a return (full sale or selected lines/qty). */
 export async function createSaleReturn(params: {
   companyId: string;
   saleId: string;
   requesterId: string;
   reason?: string;
+  reasonCode?: ReturnReasonCode;
+  items?: ReturnLineInput[];
 }) {
   const sale = await prisma.sale.findFirst({
     where: {
       id: params.saleId,
       store: { companyId: params.companyId },
-      status: "COMPLETED",
+      status: { in: [SaleStatus.COMPLETED, SaleStatus.PARTIAL_RETURN] },
     },
     include: {
       store: { select: { id: true, name: true, companyId: true } },
@@ -44,12 +58,83 @@ export async function createSaleReturn(params: {
   });
   if (existing) throw new Error("RETURN_ALREADY_PENDING");
 
+  // Previously approved return lines for this sale (remaining capacity)
+  const priorApproved = await prisma.saleReturnItem.findMany({
+    where: {
+      return: { saleId: sale.id, status: "APPROVED" },
+    },
+  });
+  const returnedQtyByItem = new Map<string, Prisma.Decimal>();
+  for (const row of priorApproved) {
+    const prev = returnedQtyByItem.get(row.saleItemId) ?? new Prisma.Decimal(0);
+    returnedQtyByItem.set(row.saleItemId, prev.add(row.quantity));
+  }
+
+  let lines: Array<{
+    saleItemId: string;
+    productId: string;
+    quantity: Prisma.Decimal;
+    costPerUnit: Prisma.Decimal;
+    salePrice: Prisma.Decimal;
+  }>;
+
+  if (params.items?.length) {
+    lines = [];
+    for (const input of params.items) {
+      const saleItem = sale.items.find((i) => i.id === input.saleItemId);
+      if (!saleItem) throw new Error("NOT_FOUND");
+      const qty = new Prisma.Decimal(input.quantity);
+      if (qty.lte(0)) throw new Error("VALIDATION_ERROR");
+      const already = returnedQtyByItem.get(saleItem.id) ?? new Prisma.Decimal(0);
+      const remaining = saleItem.quantity.sub(already);
+      if (qty.gt(remaining)) throw new Error("RETURN_QTY_EXCEEDS");
+      lines.push({
+        saleItemId: saleItem.id,
+        productId: saleItem.productId,
+        quantity: qty,
+        costPerUnit: saleItem.costPerUnit,
+        salePrice: saleItem.salePrice,
+      });
+    }
+  } else {
+    // Full remaining return
+    lines = sale.items
+      .map((saleItem) => {
+        const already =
+          returnedQtyByItem.get(saleItem.id) ?? new Prisma.Decimal(0);
+        const remaining = saleItem.quantity.sub(already);
+        if (remaining.lte(0)) return null;
+        return {
+          saleItemId: saleItem.id,
+          productId: saleItem.productId,
+          quantity: remaining,
+          costPerUnit: saleItem.costPerUnit,
+          salePrice: saleItem.salePrice,
+        };
+      })
+      .filter(Boolean) as typeof lines;
+  }
+
+  if (!lines.length) throw new Error("RETURN_ITEMS_REQUIRED");
+
+  const reasonCode = params.reasonCode ?? null;
+
   const ret = await prisma.saleReturn.create({
     data: {
       saleId: sale.id,
       requesterId: params.requesterId,
-      reason: params.reason?.trim() || null,
+      reason: params.reason?.trim() || reasonCode || null,
+      reasonCode,
       status: "PENDING",
+      items: {
+        create: lines.map((l) => ({
+          saleItemId: l.saleItemId,
+          productId: l.productId,
+          quantity: l.quantity,
+          costPerUnit: l.costPerUnit,
+          salePrice: l.salePrice,
+        })),
+      },
     },
   });
 
@@ -59,8 +144,17 @@ export async function createSaleReturn(params: {
     action: "RETURN_REQUEST",
     entityType: "SaleReturn",
     entityId: ret.id,
-    comment: params.reason ?? undefined,
-    metadata: { saleId: sale.id, storeId: sale.storeId },
+    comment: params.reason ?? reasonCode ?? undefined,
+    metadata: {
+      saleId: sale.id,
+      storeId: sale.storeId,
+      reasonCode,
+      lines: lines.map((l) => ({
+        saleItemId: l.saleItemId,
+        productId: l.productId,
+        quantity: decimalToNumber(l.quantity),
+      })),
+    },
   });
 
   const productNames = sale.items.map((i) => i.product.name).join(", ");
@@ -90,6 +184,7 @@ export async function decideSaleReturn(params: {
       sale: { store: { companyId: params.companyId } },
     },
     include: {
+      items: true,
       sale: {
         include: {
           items: true,
@@ -133,7 +228,6 @@ export async function decideSaleReturn(params: {
     return updated;
   }
 
-  // APPROVE — restore stock to the location that was deducted at sale time
   const store = existing.sale.store;
   let locationType: LocationType;
   let locationId: string;
@@ -150,9 +244,21 @@ export async function decideSaleReturn(params: {
     locationId = store.id;
   }
 
+  // Lines to restore: explicit SaleReturnItem or legacy full sale.items
+  const restoreLines =
+    existing.items.length > 0
+      ? existing.items
+      : existing.sale.items.map((i) => ({
+          saleItemId: i.id,
+          productId: i.productId,
+          quantity: i.quantity,
+          costPerUnit: i.costPerUnit,
+          salePrice: i.salePrice,
+        }));
+
   const updated = await prisma.$transaction(
     async (tx) => {
-      for (const item of existing.sale.items) {
+      for (const item of restoreLines) {
         await addBatch(tx, {
           productId: item.productId,
           locationType,
@@ -165,9 +271,47 @@ export async function decideSaleReturn(params: {
         });
       }
 
+      // Determine if entire sale is now returned
+      const allApproved = await tx.saleReturnItem.findMany({
+        where: {
+          return: {
+            saleId: existing.saleId,
+            status: { in: ["APPROVED"] },
+          },
+        },
+      });
+      // Include current lines (not yet marked approved in DB until we update)
+      const qtyMap = new Map<string, Prisma.Decimal>();
+      for (const row of allApproved) {
+        qtyMap.set(
+          row.saleItemId,
+          (qtyMap.get(row.saleItemId) ?? new Prisma.Decimal(0)).add(row.quantity)
+        );
+      }
+      for (const row of restoreLines) {
+        const key = row.saleItemId;
+        qtyMap.set(
+          key,
+          (qtyMap.get(key) ?? new Prisma.Decimal(0)).add(row.quantity)
+        );
+      }
+
+      let fullyReturned = true;
+      for (const saleItem of existing.sale.items) {
+        const retQty = qtyMap.get(saleItem.id) ?? new Prisma.Decimal(0);
+        if (retQty.lt(saleItem.quantity)) {
+          fullyReturned = false;
+          break;
+        }
+      }
+
       await tx.sale.update({
         where: { id: existing.saleId },
-        data: { status: "RETURNED" },
+        data: {
+          status: fullyReturned
+            ? SaleStatus.RETURNED
+            : SaleStatus.PARTIAL_RETURN,
+        },
       });
 
       return tx.saleReturn.update({
@@ -194,7 +338,11 @@ export async function decideSaleReturn(params: {
       saleId: existing.saleId,
       locationType,
       locationId,
-      restoredItems: existing.sale.items.length,
+      reasonCode: existing.reasonCode,
+      restoredItems: restoreLines.map((l) => ({
+        productId: l.productId,
+        quantity: decimalToNumber(l.quantity),
+      })),
     },
   });
 
@@ -219,6 +367,7 @@ export async function listSaleReturns(companyId: string, limit = 100) {
     include: {
       requester: { select: { id: true, name: true } },
       reviewer: { select: { id: true, name: true } },
+      items: true,
       sale: {
         include: {
           store: { select: { id: true, name: true } },
@@ -233,17 +382,29 @@ export async function listSaleReturns(companyId: string, limit = 100) {
     take: limit,
   });
 
-  return rows.map((r) => ({
-    id: r.id,
-    createdAt: r.createdAt.toISOString(),
-    reviewedAt: r.reviewedAt?.toISOString() ?? null,
-    status: r.status,
-    reason: r.reason,
-    reviewNote: r.reviewNote,
-    store: r.sale.store.name,
-    seller: r.requester.name,
-    product: r.sale.items.map((i) => i.product.name).join(", ") || "—",
-    amount: decimalToNumber(r.sale.total),
-    saleId: r.saleId,
-  }));
+  return rows.map((r) => {
+    const amount =
+      r.items.length > 0
+        ? r.items.reduce(
+            (s, i) =>
+              s + decimalToNumber(i.salePrice) * decimalToNumber(i.quantity),
+            0
+          )
+        : decimalToNumber(r.sale.total);
+    return {
+      id: r.id,
+      createdAt: r.createdAt.toISOString(),
+      reviewedAt: r.reviewedAt?.toISOString() ?? null,
+      status: r.status,
+      reason: r.reason,
+      reasonCode: r.reasonCode,
+      reviewNote: r.reviewNote,
+      store: r.sale.store.name,
+      seller: r.requester.name,
+      product: r.sale.items.map((i) => i.product.name).join(", ") || "—",
+      amount,
+      saleId: r.saleId,
+      partial: r.items.length > 0,
+    };
+  });
 }

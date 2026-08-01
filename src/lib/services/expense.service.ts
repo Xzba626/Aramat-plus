@@ -1,7 +1,160 @@
-import { Prisma } from "@prisma/client";
+import { ExpensePeriodicity, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { decimalToNumber } from "@/lib/utils";
+
+export type ExpensePeriodicityValue = ExpensePeriodicity;
+
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function endOfDay(d: Date) {
+  const x = startOfDay(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
+function daysInMonth(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+}
+
+function sameCalendarDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+/** Daily share of one expense record for calendar day `day`. */
+export function dailyShareForExpense(
+  expense: {
+    amount: Prisma.Decimal | number | string;
+    periodicity: ExpensePeriodicity;
+    startsAt: Date;
+    endsAt: Date | null;
+    incurredAt: Date;
+  },
+  day: Date
+): number {
+  const dayStart = startOfDay(day);
+  const amount = decimalToNumber(expense.amount);
+  const starts = startOfDay(expense.startsAt);
+  const ends = expense.endsAt ? endOfDay(expense.endsAt) : null;
+
+  if (dayStart < starts) return 0;
+  if (ends && dayStart > ends) return 0;
+
+  switch (expense.periodicity) {
+    case ExpensePeriodicity.ONCE:
+      return sameCalendarDay(expense.incurredAt, dayStart) ||
+        sameCalendarDay(expense.startsAt, dayStart)
+        ? amount
+        : 0;
+    case ExpensePeriodicity.DAILY:
+      return amount;
+    case ExpensePeriodicity.WEEKLY:
+      return amount / 7;
+    case ExpensePeriodicity.MONTHLY:
+      return amount / daysInMonth(dayStart);
+    default:
+      return 0;
+  }
+}
+
+type ExpenseRow = {
+  id: string;
+  amount: Prisma.Decimal;
+  periodicity: ExpensePeriodicity;
+  startsAt: Date;
+  endsAt: Date | null;
+  incurredAt: Date;
+  storeId: string | null;
+};
+
+async function loadActiveExpenses(
+  companyId: string,
+  rangeStart: Date,
+  rangeEnd: Date,
+  storeId?: string | null
+): Promise<ExpenseRow[]> {
+  return prisma.expense.findMany({
+    where: {
+      startsAt: { lte: endOfDay(rangeEnd) },
+      AND: [
+        {
+          OR: [{ endsAt: null }, { endsAt: { gte: startOfDay(rangeStart) } }],
+        },
+        storeId
+          ? { storeId, store: { companyId } }
+          : {
+              OR: [
+                { store: { companyId } },
+                { createdBy: { companyId }, storeId: null },
+              ],
+            },
+      ],
+    },
+    select: {
+      id: true,
+      amount: true,
+      periodicity: true,
+      startsAt: true,
+      endsAt: true,
+      incurredAt: true,
+      storeId: true,
+    },
+  });
+}
+
+/** Sum of daily-allocated expenses for [from, to] inclusive calendar days. */
+export async function sumAllocatedExpenses(params: {
+  companyId: string;
+  from: Date;
+  to: Date;
+  storeId?: string | null;
+}): Promise<{
+  total: number;
+  byStore: Map<string | null, number>;
+  byDay: Map<string, number>;
+}> {
+  const from = startOfDay(params.from);
+  const to = startOfDay(params.to);
+  const rows = await loadActiveExpenses(
+    params.companyId,
+    from,
+    to,
+    params.storeId
+  );
+
+  const byStore = new Map<string | null, number>();
+  const byDay = new Map<string, number>();
+  let total = 0;
+
+  for (let t = from.getTime(); t <= to.getTime(); t += 86400000) {
+    const day = new Date(t);
+    const key = day.toISOString().slice(0, 10);
+    let daySum = 0;
+    for (const e of rows) {
+      if (params.storeId != null && e.storeId !== params.storeId) continue;
+      const share = dailyShareForExpense(e, day);
+      if (share <= 0) continue;
+      daySum += share;
+      byStore.set(e.storeId, (byStore.get(e.storeId) ?? 0) + share);
+    }
+    byDay.set(key, Math.round(daySum * 100) / 100);
+    total += daySum;
+  }
+
+  return {
+    total: Math.round(total * 100) / 100,
+    byStore,
+    byDay,
+  };
+}
 
 export async function createExpense(params: {
   companyId: string;
@@ -11,8 +164,17 @@ export async function createExpense(params: {
   storeId?: string | null;
   description?: string;
   incurredAt?: Date;
+  periodicity?: ExpensePeriodicity;
+  startsAt?: Date;
+  endsAt?: Date | null;
+  /** When changing a monthly rate: close previous open expense of same type+store. */
+  replacesExpenseId?: string | null;
 }) {
   if (params.amount <= 0) throw new Error("VALIDATION_ERROR");
+
+  const periodicity = params.periodicity ?? ExpensePeriodicity.ONCE;
+  const startsAt = startOfDay(params.startsAt ?? params.incurredAt ?? new Date());
+  const incurredAt = params.incurredAt ?? startsAt;
 
   const type = await prisma.expenseType.findFirst({
     where: { id: params.expenseTypeId, companyId: params.companyId },
@@ -26,20 +188,68 @@ export async function createExpense(params: {
     if (!store) throw new Error("STORE_NOT_FOUND");
   }
 
-  const row = await prisma.expense.create({
-    data: {
-      expenseTypeId: params.expenseTypeId,
-      amount: new Prisma.Decimal(params.amount),
-      storeId: params.storeId ?? null,
-      description: params.description?.trim() || null,
-      createdById: params.createdById,
-      incurredAt: params.incurredAt ?? new Date(),
+  if (periodicity !== ExpensePeriodicity.ONCE && !params.storeId) {
+    throw new Error("STORE_REQUIRED_FOR_RECURRING");
+  }
+
+  const row = await prisma.$transaction(
+    async (tx) => {
+      if (params.replacesExpenseId) {
+        const prev = await tx.expense.findFirst({
+          where: {
+            id: params.replacesExpenseId,
+            OR: [
+              { store: { companyId: params.companyId } },
+              { createdBy: { companyId: params.companyId } },
+            ],
+          },
+        });
+        if (prev && !prev.endsAt) {
+          const closeDay = new Date(startsAt.getTime() - 86400000);
+          await tx.expense.update({
+            where: { id: prev.id },
+            data: { endsAt: endOfDay(closeDay) },
+          });
+        }
+      } else if (periodicity !== ExpensePeriodicity.ONCE && params.storeId) {
+        const open = await tx.expense.findMany({
+          where: {
+            storeId: params.storeId,
+            expenseTypeId: params.expenseTypeId,
+            periodicity,
+            endsAt: null,
+            startsAt: { lt: startsAt },
+          },
+        });
+        const closeDay = new Date(startsAt.getTime() - 86400000);
+        for (const prev of open) {
+          await tx.expense.update({
+            where: { id: prev.id },
+            data: { endsAt: endOfDay(closeDay) },
+          });
+        }
+      }
+
+      return tx.expense.create({
+        data: {
+          expenseTypeId: params.expenseTypeId,
+          amount: new Prisma.Decimal(params.amount),
+          storeId: params.storeId ?? null,
+          description: params.description?.trim() || null,
+          createdById: params.createdById,
+          incurredAt,
+          periodicity,
+          startsAt,
+          endsAt: params.endsAt ? endOfDay(params.endsAt) : null,
+        },
+        include: {
+          expenseType: { select: { id: true, name: true } },
+          store: { select: { id: true, name: true } },
+        },
+      });
     },
-    include: {
-      expenseType: { select: { id: true, name: true } },
-      store: { select: { id: true, name: true } },
-    },
-  });
+    { timeout: 20000 }
+  );
 
   await logActivity({
     userId: params.createdById,
@@ -47,10 +257,13 @@ export async function createExpense(params: {
     action: "EXPENSE_CREATE",
     entityType: "Expense",
     entityId: row.id,
-    comment: `${type.name} · ${params.amount}`,
+    comment: `${type.name} · ${params.amount} · ${periodicity}`,
     metadata: {
       storeId: params.storeId ?? null,
       amount: params.amount,
+      periodicity,
+      startsAt: startsAt.toISOString(),
+      endsAt: params.endsAt?.toISOString() ?? null,
     },
   });
 
@@ -59,6 +272,9 @@ export async function createExpense(params: {
     amount: decimalToNumber(row.amount),
     description: row.description,
     incurredAt: row.incurredAt.toISOString(),
+    periodicity: row.periodicity,
+    startsAt: row.startsAt.toISOString(),
+    endsAt: row.endsAt?.toISOString() ?? null,
     expenseType: row.expenseType,
     store: row.store,
   };
@@ -84,7 +300,7 @@ export async function listExpenses(
       store: { select: { id: true, name: true } },
       createdBy: { select: { name: true } },
     },
-    orderBy: { incurredAt: "desc" },
+    orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }],
     take: opts?.limit ?? 100,
   });
 
@@ -93,6 +309,9 @@ export async function listExpenses(
     amount: decimalToNumber(r.amount),
     description: r.description,
     incurredAt: r.incurredAt.toISOString(),
+    periodicity: r.periodicity,
+    startsAt: r.startsAt.toISOString(),
+    endsAt: r.endsAt?.toISOString() ?? null,
     expenseType: r.expenseType,
     store: r.store,
     createdBy: r.createdBy.name,

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import {
   ModuleSection,
@@ -10,15 +10,24 @@ import {
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
 
+type Network = {
+  revenue: number;
+  cogs: number;
+  grossProfit: number;
+  expenses: number;
+  netProfit: number;
+  salesCount: number;
+  itemsSold: number;
+};
+
 type StoreRow = {
   id: string;
   name: string;
-  kind: string;
-  todayRevenue: number;
-  todayProfit: number;
-  todaySalesCount: number;
-  monthRevenue: number;
-  monthProfit: number;
+  revenue: number;
+  grossProfit: number;
+  expenses: number;
+  netProfit: number;
+  checks: number;
 };
 
 type ProductRow = {
@@ -33,6 +42,7 @@ type SellerRow = {
   store: string;
   checks: number;
   revenue: number;
+  profit?: number;
 };
 
 type ExpenseRow = {
@@ -41,51 +51,65 @@ type ExpenseRow = {
   type: string;
   store: string | null;
   description: string | null;
+  periodicity?: string;
   incurredAt: string;
 };
 
-type Tab = "network" | "stores" | "products" | "sellers" | "expenses";
+type NamedAgg = {
+  name: string;
+  sold: number;
+  revenue: number;
+  profit: number;
+};
+
+type Tab =
+  | "network"
+  | "stores"
+  | "products"
+  | "sellers"
+  | "expenses"
+  | "categories"
+  | "types";
+
+type Period = "today" | "week" | "month";
 
 export default function AnalyticsPage() {
   const { t, formatMoney, formatDate } = useI18n();
   const [tab, setTab] = useState<Tab>("network");
+  const [period, setPeriod] = useState<Period>("month");
+  const [network, setNetwork] = useState<Network | null>(null);
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
+  const [topUnsold, setTopUnsold] = useState<ProductRow[]>([]);
   const [sellers, setSellers] = useState<SellerRow[]>([]);
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
   const [expenseTotal, setExpenseTotal] = useState(0);
+  const [categories, setCategories] = useState<NamedAgg[]>([]);
+  const [productTypes, setProductTypes] = useState<NamedAgg[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
 
-  useEffect(() => {
-    let alive = true;
-    async function load() {
-      const [storesRes, analyticsRes] = await Promise.all([
-        fetch("/api/stores"),
-        fetch("/api/analytics"),
-      ]);
-      const storesData = await storesRes.json();
-      const analyticsData = await analyticsRes.json();
-      if (!alive) return;
-      if (storesRes.ok && Array.isArray(storesData)) setStores(storesData);
-      if (analyticsRes.ok) {
-        setProducts(analyticsData.products ?? []);
-        setSellers(analyticsData.sellers ?? []);
-        setExpenses(analyticsData.expenses?.items ?? []);
-        setExpenseTotal(analyticsData.expenses?.total ?? 0);
-      }
-      setLoading(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    const analyticsRes = await fetch(`/api/analytics?period=${period}`);
+    const analyticsData = await analyticsRes.json();
+    if (analyticsRes.ok) {
+      setNetwork(analyticsData.network ?? null);
+      setStores(analyticsData.stores ?? []);
+      setProducts(analyticsData.products ?? []);
+      setTopUnsold(analyticsData.topUnsold ?? []);
+      setSellers(analyticsData.sellers ?? []);
+      setExpenses(analyticsData.expenses?.items ?? []);
+      setExpenseTotal(analyticsData.expenses?.total ?? 0);
+      setCategories(analyticsData.categories ?? []);
+      setProductTypes(analyticsData.productTypes ?? []);
     }
-    load();
-    return () => {
-      alive = false;
-    };
-  }, []);
+    setLoading(false);
+  }, [period]);
 
-  const networkRevenue = stores.reduce((s, x) => s + x.todayRevenue, 0);
-  const networkProfit = stores.reduce((s, x) => s + x.todayProfit, 0);
-  const networkSales = stores.reduce((s, x) => s + x.todaySalesCount, 0);
-  const monthRevenue = stores.reduce((s, x) => s + x.monthRevenue, 0);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const filteredProducts = useMemo(
     () =>
@@ -109,6 +133,8 @@ export default function AnalyticsPage() {
     { id: "stores", labelKey: "analyticsPage.tabStores" },
     { id: "products", labelKey: "analyticsPage.tabProducts" },
     { id: "sellers", labelKey: "analyticsPage.tabSellers" },
+    { id: "categories", labelKey: "analyticsPage.tabCategories" },
+    { id: "types", labelKey: "analyticsPage.tabTypes" },
     { id: "expenses", labelKey: "analyticsPage.tabExpenses" },
   ];
 
@@ -118,278 +144,235 @@ export default function AnalyticsPage() {
       subtitle={t("analyticsPage.subtitle")}
       kpis={[
         {
-          label: t("analyticsPage.salesToday"),
-          value: loading ? "…" : formatMoney(networkRevenue, { short: true }),
+          label: t("analyticsPage.revenue"),
+          value: loading
+            ? "…"
+            : formatMoney(network?.revenue ?? 0, { short: true }),
         },
         {
-          label: t("analyticsPage.profitToday"),
-          value: loading ? "…" : formatMoney(networkProfit, { short: true }),
+          label: t("dashboard.netProfit"),
+          value: loading
+            ? "…"
+            : formatMoney(network?.netProfit ?? 0, { short: true }),
         },
         {
-          label: t("analyticsPage.checksToday"),
-          value: loading ? "…" : String(networkSales),
+          label: t("dashboard.grossProfitLabel"),
+          value: loading
+            ? "…"
+            : formatMoney(network?.grossProfit ?? 0, { short: true }),
         },
         {
-          label: t("analyticsPage.monthRevenue"),
-          value: loading ? "…" : formatMoney(monthRevenue, { short: true }),
+          label: t("analyticsPage.expensesTitle"),
+          value: loading
+            ? "…"
+            : formatMoney(network?.expenses ?? expenseTotal, { short: true }),
         },
       ]}
     >
-      <div className="mb-5 flex flex-wrap gap-1.5 border-b border-border pb-3">
-        {tabs.map((item) => (
+      <div className="mb-4 flex flex-wrap gap-2">
+        {(["today", "week", "month"] as Period[]).map((p) => (
           <button
-            key={item.id}
+            key={p}
             type="button"
-            onClick={() => setTab(item.id)}
+            onClick={() => setPeriod(p)}
             className={cn(
-              "rounded-xl px-3.5 py-2 text-sm font-semibold transition",
-              tab === item.id
+              "rounded-full px-3 py-1.5 text-sm font-medium",
+              period === p
                 ? "bg-brand text-white"
-                : "bg-card text-muted ring-1 ring-border hover:text-ink"
+                : "bg-card text-muted ring-1 ring-border"
             )}
           >
-            {t(item.labelKey)}
+            {t(`analyticsPage.period.${p}`)}
           </button>
         ))}
       </div>
 
-      {(tab === "products" || tab === "sellers") && (
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t("common.search")}
-          className="mb-4 w-full max-w-md rounded-xl border border-border bg-card px-3 py-2 text-sm"
-        />
-      )}
+      <div className="mb-4 flex flex-wrap gap-1.5">
+        {tabs.map((tabItem) => (
+          <button
+            key={tabItem.id}
+            type="button"
+            onClick={() => setTab(tabItem.id)}
+            className={cn(
+              "rounded-full px-3 py-1.5 text-sm font-medium",
+              tab === tabItem.id
+                ? "bg-brand text-white"
+                : "bg-card text-muted ring-1 ring-border"
+            )}
+          >
+            {t(tabItem.labelKey)}
+          </button>
+        ))}
+      </div>
 
       {tab === "network" ? (
-        <ModuleSection title={t("analyticsPage.storesToday")}>
-          {loading ? (
-            <Card className="p-5 text-sm text-muted">{t("common.loading")}</Card>
-          ) : (
-            <div className="space-y-2">
-              {stores.map((s) => (
-                <Link key={s.id} href={`/stores/${s.id}`}>
-                  <Card className="mb-2 flex flex-wrap items-center justify-between gap-3 p-4 transition hover:border-brand/30">
-                    <div>
-                      <div className="font-semibold text-ink">
-                        {s.kind === "OWNER_DIRECT"
-                          ? t("nav.storesOwnerDirect")
-                          : s.name}
-                      </div>
-                      <div className="text-xs text-muted">
-                        {s.kind === "OWNER_DIRECT"
-                          ? t("storesPage.ownerDirectHint")
-                          : t("analyticsPage.salesTodayCount", {
-                              n: s.todaySalesCount,
-                            })}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-bold text-ink">
-                        {formatMoney(s.todayRevenue, { short: true })}
-                      </div>
-                      <div className="text-xs font-semibold text-success">
-                        {formatMoney(s.todayProfit, { short: true })}
-                      </div>
-                    </div>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          )}
+        <ModuleSection title={t("analyticsPage.tabNetwork")}>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              ["revenue", network?.revenue],
+              ["cogs", network?.cogs],
+              ["gross", network?.grossProfit],
+              ["expenses", network?.expenses],
+              ["net", network?.netProfit],
+              ["sales", network?.salesCount],
+            ].map(([key, val]) => (
+              <Card key={String(key)} className="p-4">
+                <div className="text-xs text-muted">
+                  {key === "revenue"
+                    ? t("dashboard.revenueLabel")
+                    : key === "cogs"
+                      ? t("dashboard.costLabel")
+                      : key === "gross"
+                        ? t("dashboard.grossProfitLabel")
+                        : key === "expenses"
+                          ? t("dashboard.expensesLabel")
+                          : key === "net"
+                            ? t("dashboard.netProfit")
+                            : t("analyticsPage.colChecks")}
+                </div>
+                <div className="mt-1 text-xl font-bold text-ink">
+                  {key === "sales"
+                    ? String(val ?? 0)
+                    : formatMoney(Number(val ?? 0), { short: true })}
+                </div>
+              </Card>
+            ))}
+          </div>
         </ModuleSection>
       ) : null}
 
       {tab === "stores" ? (
-        <ModuleSection title={t("analyticsPage.storesMonth")}>
-          {loading ? (
-            <Card className="p-5 text-sm text-muted">{t("common.loading")}</Card>
-          ) : (
-            <div className="space-y-2">
-              {[...stores]
-                .sort((a, b) => b.monthRevenue - a.monthRevenue)
-                .map((s) => (
-                  <Link key={s.id} href={`/stores/${s.id}`}>
-                    <Card className="mb-2 flex flex-wrap items-center justify-between gap-3 p-4 transition hover:border-brand/30">
-                      <div>
-                        <div className="font-semibold text-ink">
-                          {s.kind === "OWNER_DIRECT"
-                            ? t("nav.storesOwnerDirect")
-                            : s.name}
-                        </div>
-                        <div className="text-xs text-muted">
-                          {t("analyticsPage.monthRevenueShort", {
-                            amount: formatMoney(s.monthRevenue, {
-                              short: true,
-                            }),
-                          })}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-bold text-ink">
-                          {formatMoney(s.monthRevenue, { short: true })}
-                        </div>
-                        <div className="text-xs font-semibold text-success">
-                          {formatMoney(s.monthProfit, { short: true })}
-                        </div>
-                      </div>
-                    </Card>
-                  </Link>
-                ))}
-            </div>
-          )}
+        <ModuleSection title={t("analyticsPage.tabStores")}>
+          <div className="space-y-2">
+            {stores.map((s) => (
+              <Link key={s.id} href={`/stores/${s.id}`}>
+                <Card className="flex flex-wrap items-center justify-between gap-2 p-4">
+                  <div className="font-semibold text-ink">{s.name}</div>
+                  <div className="text-sm text-muted">
+                    {formatMoney(s.revenue, { short: true })} ·{" "}
+                    {t("dashboard.netProfit")}{" "}
+                    {formatMoney(s.netProfit, { short: true })}
+                  </div>
+                </Card>
+              </Link>
+            ))}
+          </div>
         </ModuleSection>
       ) : null}
 
       {tab === "products" ? (
-        <ModuleSection title={t("analyticsPage.topProducts")}>
-          <Card className="overflow-hidden p-0">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-border bg-page/80 text-xs uppercase tracking-wide text-muted">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">
-                    {t("analyticsPage.colProduct")}
-                  </th>
-                  <th className="px-4 py-3 font-semibold">
-                    {t("analyticsPage.colSold")}
-                  </th>
-                  <th className="px-4 py-3 font-semibold">
-                    {t("analyticsPage.colRevenue")}
-                  </th>
-                  <th className="px-4 py-3 font-semibold">
-                    {t("analyticsPage.colProfit")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProducts.map((p) => (
-                  <tr
-                    key={p.name}
-                    className="border-b border-border last:border-0"
-                  >
-                    <td className="px-4 py-3 font-semibold text-ink">{p.name}</td>
-                    <td className="px-4 py-3 text-muted">{p.sold}</td>
-                    <td className="px-4 py-3">
-                      {formatMoney(p.revenue, { short: true })}
-                    </td>
-                    <td className="px-4 py-3 text-success">
-                      {formatMoney(p.profit, { short: true })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {!loading && filteredProducts.length === 0 ? (
-              <div className="px-4 py-10 text-center text-sm text-muted">
-                {t("journalPage.empty")}
-              </div>
-            ) : null}
-          </Card>
+        <ModuleSection title={t("analyticsPage.tabProducts")}>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={t("common.search")}
+            className="mb-3 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+          />
+          <div className="mb-4 space-y-2">
+            <div className="text-xs font-semibold uppercase text-muted">
+              {t("analyticsPage.topSelling")}
+            </div>
+            {filteredProducts.map((p) => (
+              <Card
+                key={p.name}
+                className="flex flex-wrap justify-between gap-2 p-3 text-sm"
+              >
+                <span className="font-medium text-ink">{p.name}</span>
+                <span className="text-muted">
+                  {p.sold} · {formatMoney(p.revenue, { short: true })} ·{" "}
+                  {formatMoney(p.profit, { short: true })}
+                </span>
+              </Card>
+            ))}
+          </div>
+          <div className="space-y-2">
+            <div className="text-xs font-semibold uppercase text-muted">
+              {t("analyticsPage.topUnsold")}
+            </div>
+            {topUnsold.map((p) => (
+              <Card
+                key={`u-${p.name}`}
+                className="flex flex-wrap justify-between gap-2 p-3 text-sm"
+              >
+                <span className="font-medium text-ink">{p.name}</span>
+                <span className="text-muted">{p.sold}</span>
+              </Card>
+            ))}
+          </div>
         </ModuleSection>
       ) : null}
 
       {tab === "sellers" ? (
-        <ModuleSection title={t("analyticsPage.topSellers")}>
-          <Card className="overflow-hidden p-0">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-border bg-page/80 text-xs uppercase tracking-wide text-muted">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">
-                    {t("analyticsPage.colSeller")}
-                  </th>
-                  <th className="px-4 py-3 font-semibold">
-                    {t("analyticsPage.colStore")}
-                  </th>
-                  <th className="px-4 py-3 font-semibold">
-                    {t("analyticsPage.colChecks")}
-                  </th>
-                  <th className="px-4 py-3 font-semibold">
-                    {t("analyticsPage.colRevenue")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSellers.map((s) => (
-                  <tr
-                    key={`${s.name}-${s.store}`}
-                    className="border-b border-border last:border-0"
-                  >
-                    <td className="px-4 py-3 font-semibold text-ink">{s.name}</td>
-                    <td className="px-4 py-3 text-muted">{s.store}</td>
-                    <td className="px-4 py-3">{s.checks}</td>
-                    <td className="px-4 py-3">
-                      {formatMoney(s.revenue, { short: true })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {!loading && filteredSellers.length === 0 ? (
-              <div className="px-4 py-10 text-center text-sm text-muted">
-                {t("journalPage.empty")}
-              </div>
-            ) : null}
-          </Card>
+        <ModuleSection title={t("analyticsPage.tabSellers")}>
+          {filteredSellers.map((s) => (
+            <Card
+              key={`${s.name}-${s.store}`}
+              className="mb-2 flex flex-wrap justify-between gap-2 p-3 text-sm"
+            >
+              <span>
+                {s.name} · {s.store}
+              </span>
+              <span className="text-muted">
+                {s.checks} · {formatMoney(s.revenue, { short: true })}
+              </span>
+            </Card>
+          ))}
+        </ModuleSection>
+      ) : null}
+
+      {tab === "categories" ? (
+        <ModuleSection title={t("analyticsPage.tabCategories")}>
+          {categories.map((c) => (
+            <Card
+              key={c.name}
+              className="mb-2 flex justify-between p-3 text-sm"
+            >
+              <span>{c.name}</span>
+              <span className="text-muted">
+                {formatMoney(c.revenue, { short: true })} ·{" "}
+                {formatMoney(c.profit, { short: true })}
+              </span>
+            </Card>
+          ))}
+        </ModuleSection>
+      ) : null}
+
+      {tab === "types" ? (
+        <ModuleSection title={t("analyticsPage.tabTypes")}>
+          {productTypes.map((c) => (
+            <Card
+              key={c.name}
+              className="mb-2 flex justify-between p-3 text-sm"
+            >
+              <span>{c.name}</span>
+              <span className="text-muted">
+                {formatMoney(c.revenue, { short: true })} ·{" "}
+                {formatMoney(c.profit, { short: true })}
+              </span>
+            </Card>
+          ))}
         </ModuleSection>
       ) : null}
 
       {tab === "expenses" ? (
         <ModuleSection title={t("analyticsPage.expensesTitle")}>
-          <Card className="mb-3 p-4 text-sm">
-            <span className="text-muted">{t("analyticsPage.expensesHint")}</span>
-            <div className="mt-2 text-lg font-bold text-ink">
-              {formatMoney(expenseTotal, { short: true })}
-            </div>
-          </Card>
-          {expenses.length > 0 ? (
-            <Card className="mb-3 overflow-hidden p-0">
-              <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-border bg-page/80 text-xs uppercase text-muted">
-                  <tr>
-                    <th className="px-4 py-3">{t("journalPage.colDate")}</th>
-                    <th className="px-4 py-3">{t("analyticsPage.colStore")}</th>
-                    <th className="px-4 py-3">{t("analyticsPage.colRevenue")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {expenses.map((e) => (
-                    <tr key={e.id} className="border-b border-border last:border-0">
-                      <td className="px-4 py-3 text-muted">
-                        {formatDate(e.incurredAt)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-ink">
-                          {e.type}
-                        </div>
-                        <div className="text-xs text-muted">
-                          {e.store ?? "—"}
-                          {e.description ? ` · ${e.description}` : ""}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        {formatMoney(e.amount, { short: true })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
-          ) : null}
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {stores
-              .filter((s) => s.kind !== "OWNER_DIRECT")
-              .map((s) => (
-                <Link key={s.id} href={`/stores/${s.id}?tab=expenses`}>
-                  <Card className="p-4 transition hover:border-brand/30">
-                    <div className="font-semibold text-ink">{s.name}</div>
-                    <div className="mt-1 text-sm text-brand">
-                      {t("analyticsPage.openExpenses")}
-                    </div>
-                  </Card>
-                </Link>
-              ))}
+          <div className="mb-3 text-sm text-muted">
+            {t("analyticsPage.expensesHint")} ·{" "}
+            {formatMoney(expenseTotal, { short: true })}
           </div>
+          {expenses.map((e) => (
+            <Card
+              key={e.id}
+              className="mb-2 flex flex-wrap justify-between gap-2 p-3 text-sm"
+            >
+              <span>
+                {e.type} · {e.store ?? "—"} · {e.periodicity ?? "ONCE"}
+              </span>
+              <span>
+                {formatMoney(e.amount)} · {formatDate(e.incurredAt)}
+              </span>
+            </Card>
+          ))}
         </ModuleSection>
       ) : null}
     </ModuleWorkspace>

@@ -1,14 +1,24 @@
 import { getSessionUser } from "@/lib/session";
 import { requireOwnerOrManager } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
-import { getAnalyticsBreakdown } from "@/lib/services/analytics.service";
+import {
+  getAnalyticsBreakdown,
+  type AnalyticsPeriod,
+} from "@/lib/services/analytics.service";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const user = await getSessionUser();
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
-    return jsonOk(await getAnalyticsBreakdown(user!.companyId));
+    const periodParam =
+      new URL(req.url).searchParams.get("period") ?? "month";
+    const period = (
+      ["today", "week", "month"].includes(periodParam)
+        ? periodParam
+        : "month"
+    ) as AnalyticsPeriod;
+    return jsonOk(await getAnalyticsBreakdown(user!.companyId, period));
   } catch (err) {
     return handleApiError(err);
   }
