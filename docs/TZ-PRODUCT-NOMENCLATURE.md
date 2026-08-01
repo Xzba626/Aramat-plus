@@ -67,9 +67,10 @@
 
 ## Флаконы (обязательная модель)
 
-**Не товар.** См. [packaging-bottle-model.md](packaging-bottle-model.md).
+**Не товар.** См. [packaging-bottle-model.md](packaging-bottle-model.md) · gate: [block-4-packaging-gate.md](block-4-packaging-gate.md).
 
-- `PackagingMaterial` — отдельный склад, FIFO, без POS и выручки.
+- `PackagingSku` — готовая упаковочная единица (не `Product`).
+- Accounting `PACKAGING`; склад, FIFO, без POS и выручки.
 - COGS = жидкость + флакон; не Expense.
 - Запрещены SKU `Dior 5ml` / `Dior 10ml` как `Product`.
 

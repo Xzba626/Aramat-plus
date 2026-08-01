@@ -149,7 +149,8 @@ ARAMAT PLUS
 
 POS WEIGHT: выбор аромата → ввод мл → выбор флакона → проверка наличия → продажа.
 
-Полная спецификация: [packaging-bottle-model.md](packaging-bottle-model.md).
+Полная спецификация: [packaging-bottle-model.md](packaging-bottle-model.md).  
+Gate перед кодом: [block-4-packaging-gate.md](block-4-packaging-gate.md).
 
 ### Изоляция продавца (остатки)
 
@@ -418,6 +419,7 @@ POS WEIGHT: выбор аромата → ввод мл → выбор флак�
 | 16 | [Центральный склад](warehouse-central.md) | Готов / в разработке |
 | 17 | [Owner Direct Sales](owner-direct-sales.md) | Готов |
 | 18 | **[Packaging / Bottle Model](packaging-bottle-model.md)** | **Обязательно** |
+| 19 | **[Block 4 Gate](block-4-packaging-gate.md)** | **Gate до реализации** |
 | — | Business Process Specification (BPS) | Рекомендуется |
 | — | Architecture (кратко) | `docs/architecture.md` |
 | — | Database notes | `docs/database-schema.md` |

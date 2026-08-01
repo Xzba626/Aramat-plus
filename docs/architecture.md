@@ -46,7 +46,7 @@ Navigation reflects modules; **URLs still use legacy `/warehouse/*` paths** unti
 | **Products** | Nomenclature, brands, categories, types, accounting rules | `/warehouse/products`, `/categories`, `/brands`, `/new`, `/[id]` |
 | **Purchases** | Receipts, batches, suppliers | `/warehouse/receive`, `/batches` |
 | **Inventory** | Balances, transfers, write-offs, revision, history | `/warehouse`, `/stock`, `/transfers`, `/return-in`, `/write-offs`, `/history`, `/revision` |
-| **Packaging** | Bottles (not products) — Stage 7 | TBD (`/warehouse/packaging` or `/products/packaging`) |
+| **Packaging** | `PackagingSku` — bottles (not products), Stage 4 | Gate: [block-4-packaging-gate.md](block-4-packaging-gate.md) |
 | **Sales** | Returns queue; seller POS shell | `/returns`; seller `/pos/*` |
 | **Stores** | Branches, OWNER_DIRECT, expenses, staff **assign** (no user create) | `/stores`, `/stores/[id]` |
 | **Users** | Create/archive employees; optional store on create | `/users` |
