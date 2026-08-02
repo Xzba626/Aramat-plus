@@ -1,5 +1,5 @@
 /**
- * Mobile hamburger visibility check for owner shell (< lg = 1024px).
+ * Prove hamburger toggle on mobile + desktop.
  * Run: npx tsx scripts/zt-owner-hamburger-proof.ts
  */
 import fs from "node:fs";
@@ -8,6 +8,10 @@ import { chromium } from "playwright-core";
 
 const BASE = process.env.ZT_BASE_URL ?? "http://127.0.0.1:3000";
 const OUT = path.join(process.cwd(), "tmp", "owner-hamburger");
+const PASSWORDS = [
+  process.env.ZT_OWNER_PASSWORD,
+  "owner1234",
+].filter(Boolean) as string[];
 
 type Jar = Map<string, string>;
 
@@ -22,7 +26,7 @@ function cookieHeader(jar: Jar) {
   return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
 }
 
-async function login() {
+async function login(password: string): Promise<Jar | null> {
   const jar: Jar = new Map();
   const csrfRes = await fetch(`${BASE}/api/auth/csrf`);
   storeCookies(jar, csrfRes);
@@ -36,68 +40,96 @@ async function login() {
     body: new URLSearchParams({
       csrfToken: csrf,
       email: "owner@aromat.plus",
-      password: "owner1234",
+      password,
       callbackUrl: `${BASE}/dashboard`,
       json: "true",
     }),
     redirect: "manual",
   });
   storeCookies(jar, res);
-  return jar;
+  const session = await fetch(`${BASE}/api/auth/session`, {
+    headers: { cookie: cookieHeader(jar) },
+  });
+  const json = (await session.json()) as { user?: { email?: string } };
+  return json?.user?.email ? jar : null;
 }
 
 async function main() {
   fs.mkdirSync(OUT, { recursive: true });
-  const jar = await login();
+  let jar: Jar | null = null;
+  for (const p of PASSWORDS) {
+    jar = await login(p);
+    if (jar) break;
+  }
+  if (!jar) throw new Error("Owner login failed — set ZT_OWNER_PASSWORD");
+
   const browser = await chromium.launch({ headless: true, channel: "chrome" });
-  const context = await browser.newContext({
-    viewport: { width: 390, height: 844 },
-  });
   const url = new URL(BASE);
-  await context.addCookies(
-    [...jar.entries()].map(([name, value]) => ({
-      name,
-      value,
-      domain: url.hostname,
-      path: "/",
-      httpOnly: true,
-      secure: false,
-      sameSite: "Lax" as const,
-    }))
-  );
-  const page = await context.newPage();
-  await page.goto(`${BASE}/dashboard`, { waitUntil: "domcontentloaded", timeout: 60000 });
-  await page.waitForTimeout(2500);
 
-  const menu = page.locator("[data-owner-menu]");
-  const visible = await menu.isVisible();
-  console.log("hamburger visible @390px:", visible);
-  await page.screenshot({
-    path: path.join(OUT, "01-mobile-closed.png"),
-    fullPage: false,
-  });
+  async function shot(viewport: { width: number; height: number }, tag: string) {
+    const context = await browser.newContext({ viewport });
+    await context.addCookies(
+      [...jar!.entries()].map(([name, value]) => ({
+        name,
+        value,
+        domain: url.hostname,
+        path: "/",
+      }))
+    );
+    const page = await context.newPage();
+    await page.goto(`${BASE}/dashboard`, {
+      waitUntil: "domcontentloaded",
+      timeout: 60000,
+    });
+    await page.waitForTimeout(2000);
 
-  if (!visible) {
-    await browser.close();
-    console.error("FAIL — hamburger not visible under lg");
-    process.exit(1);
+    const menu = page.locator("[data-owner-menu]");
+    const visible = await menu.isVisible();
+    const openAttr = await menu.getAttribute("data-owner-menu-open");
+    console.log(`${tag}: hamburger visible=${visible} open=${openAttr}`);
+    if (!visible) {
+      await page.screenshot({
+        path: path.join(OUT, `${tag}-FAIL-no-menu.png`),
+      });
+      throw new Error(`${tag}: hamburger not visible`);
+    }
+
+    await page.screenshot({
+      path: path.join(OUT, `${tag}-01-initial.png`),
+      fullPage: false,
+    });
+
+    // Toggle closed if open, then open again — prove Menu ↔ X
+    if (openAttr === "1") {
+      await menu.click();
+      await page.waitForTimeout(500);
+      const afterClose = await menu.getAttribute("data-owner-menu-open");
+      console.log(`${tag}: after close open=${afterClose}`);
+      if (afterClose !== "0") throw new Error(`${tag}: did not close`);
+      await page.screenshot({
+        path: path.join(OUT, `${tag}-02-closed.png`),
+        fullPage: false,
+      });
+    }
+
+    await menu.click();
+    await page.waitForTimeout(500);
+    const afterOpen = await menu.getAttribute("data-owner-menu-open");
+    console.log(`${tag}: after open open=${afterOpen}`);
+    if (afterOpen !== "1") throw new Error(`${tag}: did not open`);
+    await page.screenshot({
+      path: path.join(OUT, `${tag}-03-open.png`),
+      fullPage: false,
+    });
+
+    await context.close();
   }
 
-  await menu.click();
-  await page.waitForTimeout(600);
-  await page.screenshot({
-    path: path.join(OUT, "02-mobile-drawer-open.png"),
-    fullPage: false,
-  });
-  const drawerOpen = await page
-    .locator("nav, aside, [data-owner-sidebar]")
-    .first()
-    .isVisible()
-    .catch(() => true);
-  console.log("drawer interaction ok:", drawerOpen);
-  console.log("screenshots →", OUT);
+  await shot({ width: 390, height: 844 }, "mobile");
+  await shot({ width: 1440, height: 900 }, "desktop");
+
   await browser.close();
-  console.log("PASS — owner hamburger");
+  console.log("PASS — hamburger mobile + desktop →", OUT);
 }
 
 main().catch((e) => {

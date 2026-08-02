@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { OwnerSidebar } from "@/components/layout/owner-sidebar";
 import { OwnerTopBar } from "@/components/layout/owner-top-bar";
@@ -8,10 +8,13 @@ import { RightPanel, RightPanelProvider } from "@/components/layout/right-panel"
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { breadcrumbsForPath } from "@/lib/navigation/owner-nav";
 import { useOwnerHotkeys } from "@/lib/hooks/use-owner-hotkeys";
+import { cn } from "@/lib/utils";
+
+const DESKTOP_MIN = 1024;
 
 /**
  * One shell for all viewports: same sidebar tree + workspace.
- * Mobile-only difference: hamburger toggles the left sidebar drawer.
+ * Hamburger toggles sidebar on every width (Menu ↔ ✕).
  */
 export function OwnerShell({
   children,
@@ -25,14 +28,24 @@ export function OwnerShell({
   const pathname = usePathname();
   const crumbs = breadcrumbsForPath(pathname);
   useOwnerHotkeys();
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(true);
 
-  function openDrawer() {
-    setDrawerOpen(true);
+  useEffect(() => {
+    setNavOpen(window.innerWidth >= DESKTOP_MIN);
+  }, []);
+
+  function toggleNav() {
+    setNavOpen((v) => !v);
   }
 
-  function closeDrawer() {
-    setDrawerOpen(false);
+  function closeNav() {
+    setNavOpen(false);
+  }
+
+  /** Link click closes drawer on mobile only — keep desktop sidebar open while navigating. */
+  function onNavNavigate() {
+    if (typeof window !== "undefined" && window.innerWidth >= DESKTOP_MIN) return;
+    setNavOpen(false);
   }
 
   return (
@@ -40,15 +53,22 @@ export function OwnerShell({
       <div className="min-h-screen bg-page">
         <OwnerSidebar
           role={role}
-          open={drawerOpen}
-          onClose={closeDrawer}
+          open={navOpen}
+          onClose={closeNav}
+          onNavigate={onNavNavigate}
         />
 
-        <div className="flex min-h-screen flex-col lg:pl-[260px]">
+        <div
+          className={cn(
+            "flex min-h-screen flex-col transition-[padding] duration-200",
+            navOpen && "lg:pl-[260px]"
+          )}
+        >
           <OwnerTopBar
             userName={userName}
             role={role}
-            onMenu={openDrawer}
+            menuOpen={navOpen}
+            onMenu={toggleNav}
           />
 
           <div className="flex flex-1 overflow-hidden">

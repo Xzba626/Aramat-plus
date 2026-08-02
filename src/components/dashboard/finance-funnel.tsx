@@ -77,26 +77,41 @@ function AbsCompare({
   );
 }
 
+function profitTone(n: number): "positive" | "negative" | "neutral" {
+  if (n > 0) return "positive";
+  if (n < 0) return "negative";
+  return "neutral";
+}
+
 function FunnelCard({
   step,
   label,
   hintKey,
   value,
   children,
-  emphasis,
+  tone = "neutral",
+  emphasize,
 }: {
   step: number;
   label: string;
   hintKey: string;
   value: string;
   children?: React.ReactNode;
-  emphasis?: boolean;
+  tone?: "positive" | "negative" | "neutral";
+  emphasize?: boolean;
 }) {
   return (
     <div
       className={cn(
         "min-w-0 flex-1 rounded-[18px] border bg-card p-4 shadow-[var(--shadow-card)]",
-        emphasis ? "border-brand/35 ring-1 ring-brand/15" : "border-border"
+        emphasize &&
+          tone === "positive" &&
+          "border-zone-money/40 ring-1 ring-zone-money/20",
+        emphasize &&
+          tone === "negative" &&
+          "border-danger/40 ring-1 ring-danger/15",
+        emphasize && tone === "neutral" && "border-border",
+        !emphasize && "border-border"
       )}
     >
       <HelpTip hintKey={hintKey}>
@@ -110,7 +125,9 @@ function FunnelCard({
       <p
         className={cn(
           "mt-3 text-2xl font-bold tabular-nums tracking-tight sm:text-[1.65rem]",
-          emphasis ? "text-brand" : "text-ink"
+          tone === "positive" && "text-zone-money-deep",
+          tone === "negative" && "text-danger",
+          tone === "neutral" && "text-ink"
         )}
       >
         {value}
@@ -145,6 +162,7 @@ export function FinanceFunnel({
   const packaging = expenseLayers?.packaging ?? 0;
   const operational = expenseLayers?.operational ?? 0;
   const showLayers = packaging > 0 || operational > 0;
+  const netTone = profitTone(netProfit);
 
   return (
     <div className={cn("space-y-3", className)}>
@@ -246,7 +264,8 @@ export function FinanceFunnel({
           label={t("dashboard.funnelNet")}
           hintKey={scope === "network" ? "funnelNet" : "funnelNetStore"}
           value={formatMoney(netProfit, { short: true })}
-          emphasis
+          tone={netTone}
+          emphasize
         >
           <AbsCompare comparison={netComparison} />
         </FunnelCard>
@@ -321,7 +340,9 @@ export function StoresProfitTable({
               <td
                 className={cn(
                   "px-4 py-3 text-right font-bold tabular-nums",
-                  s.netProfit < 0 ? "text-danger" : "text-ink"
+                  s.netProfit > 0 && "text-zone-money-deep",
+                  s.netProfit < 0 && "text-danger",
+                  s.netProfit === 0 && "text-ink"
                 )}
               >
                 {formatMoney(s.netProfit, { short: true })}
@@ -344,7 +365,9 @@ export function StoresProfitTable({
             <td
               className={cn(
                 "px-4 py-3 text-right tabular-nums",
-                totals.netProfit < 0 ? "text-danger" : "text-brand"
+                totals.netProfit > 0 && "text-zone-money-deep",
+                totals.netProfit < 0 && "text-danger",
+                totals.netProfit === 0 && "text-ink"
               )}
             >
               {formatMoney(totals.netProfit, { short: true })}

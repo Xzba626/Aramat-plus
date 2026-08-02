@@ -53,18 +53,18 @@ function NavIcon({ name }: { name: string }) {
 function SubNavLink({
   item,
   pathname,
-  onClose,
+  onNavigate,
 }: {
   item: OwnerNavItem;
   pathname: string;
-  onClose?: () => void;
+  onNavigate?: () => void;
 }) {
   const t = useT();
   const active = isPathActive(pathname, item.href);
   return (
     <Link
       href={item.href}
-      onClick={onClose}
+      onClick={onNavigate}
       className={cn(
         "flex items-center rounded-lg py-1.5 pl-10 pr-3 text-[13px] transition",
         active
@@ -82,13 +82,13 @@ function SectionLink({
   pathname,
   expanded,
   onToggle,
-  onClose,
+  onNavigate,
 }: {
   section: OwnerNavSection;
   pathname: string;
   expanded: boolean;
   onToggle: () => void;
-  onClose?: () => void;
+  onNavigate?: () => void;
 }) {
   const t = useT();
   const hasChildren = Boolean(section.children?.length);
@@ -99,7 +99,7 @@ function SectionLink({
     return (
       <Link
         href={section.href}
-        onClick={onClose}
+        onClick={onNavigate}
         className={cn(
           "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition",
           active
@@ -118,7 +118,7 @@ function SectionLink({
       <div className="flex items-center gap-0.5">
         <Link
           href={section.href}
-          onClick={onClose}
+          onClick={onNavigate}
           className={cn(
             "flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition",
             active
@@ -146,7 +146,7 @@ function SectionLink({
               key={item.href + item.labelKey}
               item={item}
               pathname={pathname}
-              onClose={onClose}
+              onNavigate={onNavigate}
             />
           ))}
         </div>
@@ -159,10 +159,13 @@ export function OwnerSidebar({
   role,
   open,
   onClose,
+  onNavigate,
 }: {
   role: string;
   open?: boolean;
   onClose?: () => void;
+  /** Called when a nav link is clicked (mobile: closes drawer). */
+  onNavigate?: () => void;
 }) {
   const t = useT();
   const pathname = usePathname();
@@ -191,13 +194,12 @@ export function OwnerSidebar({
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-sidebar text-sidebar-text transition-transform duration-200",
-          open ? "translate-x-0" : "-translate-x-full",
-          "lg:translate-x-0"
+          open ? "translate-x-0" : "-translate-x-full"
         )}
         data-drawer-open={open ? "1" : "0"}
       >
         <div className="border-b border-white/8 px-4 py-4">
-          <Link href="/dashboard" className="flex items-center gap-3" onClick={onClose}>
+          <Link href="/dashboard" className="flex items-center gap-3" onClick={onNavigate}>
             <Image
               src="/logo-aramat-plus.png"
               alt=""
@@ -228,7 +230,7 @@ export function OwnerSidebar({
                   onToggle={() =>
                     setExpandedId((cur) => (cur === section.id ? null : section.id))
                   }
-                  onClose={onClose}
+                  onNavigate={onNavigate}
                 />
               </li>
             ))}

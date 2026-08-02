@@ -392,7 +392,9 @@ export function OwnerDashboardClient({
                     <span
                       className={cn(
                         "text-center text-[10px] font-semibold tabular-nums sm:text-xs",
-                        val >= 0 ? "text-zone-money-deep" : "text-danger"
+                        val > 0 && "text-zone-money-deep",
+                        val < 0 && "text-danger",
+                        val === 0 && "text-muted"
                       )}
                     >
                       {chartRange === "7d" || i % 3 === 0
@@ -409,7 +411,9 @@ export function OwnerDashboardClient({
                         className={cn(
                           "w-full rounded-t-md",
                           chartRange === "7d" && "max-w-[40px] sm:max-w-[48px]",
-                          val >= 0 ? "bg-brand/80" : "bg-danger/65"
+                          val > 0 && "bg-zone-money/80",
+                          val < 0 && "bg-danger/65",
+                          val === 0 && "bg-border"
                         )}
                         style={{ height: `${barPct}%` }}
                         title={`${weekday}: ${formatMoney(val, { short: true })}`}
@@ -698,7 +702,9 @@ export function OwnerDashboardClient({
                   <p
                     className={cn(
                       "text-base font-bold tabular-nums",
-                      net < 0 ? "text-danger" : "text-zone-money-deep"
+                      net > 0 && "text-zone-money-deep",
+                      net < 0 && "text-danger",
+                      net === 0 && "text-ink"
                     )}
                   >
                     {net > 0 ? "+" : net < 0 ? "−" : ""}

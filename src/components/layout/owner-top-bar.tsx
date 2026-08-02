@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { Bell, Menu, Search } from "lucide-react";
+import { Bell, Menu, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sectionTitleKeyForPath } from "@/lib/navigation/owner-nav";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
@@ -24,10 +24,12 @@ export function OwnerTopBar({
   userName,
   role,
   onMenu,
+  menuOpen = false,
 }: {
   userName: string;
   role: string;
   onMenu?: () => void;
+  menuOpen?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -65,17 +67,22 @@ export function OwnerTopBar({
   const timeLabel = now ? formatTime(now) : "--:--";
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
+    <header className="sticky top-0 z-[60] border-b border-border bg-card/95 backdrop-blur">
       <div className="flex h-14 items-center gap-2.5 px-4 sm:gap-3 sm:px-6 lg:px-8">
-        {/* Mobile: hamburger + brand */}
         <button
           type="button"
           onClick={() => onMenu?.()}
-          className="rounded-xl p-2 text-muted hover:bg-page hover:text-ink lg:hidden"
-          aria-label={t("common.menu")}
+          className="rounded-xl p-2 text-muted hover:bg-page hover:text-ink"
+          aria-label={menuOpen ? t("common.close") : t("common.menu")}
+          aria-expanded={menuOpen}
           data-owner-menu
+          data-owner-menu-open={menuOpen ? "1" : "0"}
         >
-          <Menu className="h-5 w-5" strokeWidth={1.75} />
+          {menuOpen ? (
+            <X className="h-5 w-5" strokeWidth={1.75} />
+          ) : (
+            <Menu className="h-5 w-5" strokeWidth={1.75} />
+          )}
         </button>
         <Link
           href="/dashboard"
@@ -91,7 +98,7 @@ export function OwnerTopBar({
           />
         </Link>
 
-        {/* Desktop: full brand */}
+        {/* Desktop brand (when sidebar may be collapsed) */}
         <Link
           href="/dashboard"
           className="hidden items-center gap-2 lg:flex"
