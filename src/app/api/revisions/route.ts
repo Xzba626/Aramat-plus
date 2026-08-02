@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { Role } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager } from "@/lib/rbac";
+import { requireOwner, requireOwnerOrManager } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
@@ -43,9 +44,16 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (id) {
-      return jsonOk(await getInventorySessionDetail(user!.companyId, id));
+      return jsonOk(
+        await getInventorySessionDetail(
+          user!.companyId,
+          id,
+          user!.role as Role
+        )
+      );
     }
 
+    const isOwner = user!.role === Role.OWNER;
     const sessions = await prisma.inventorySession.findMany({
       where: { store: { companyId: user!.companyId } },
       include: {
@@ -73,7 +81,8 @@ export async function GET(req: Request) {
           createdAt: s.createdAt.toISOString(),
           completedAt: s.completedAt?.toISOString() ?? null,
           itemCount: s.items.length,
-          varianceAbs: Math.round(variance * 1000) / 1000,
+          // Absolute variance leaks expected vs fact — Owner only.
+          varianceAbs: isOwner ? Math.round(variance * 1000) / 1000 : 0,
           comment: s.comment,
         };
       })
@@ -115,6 +124,8 @@ export async function PATCH(req: Request) {
     if (raw.decision) {
       const body = decideSchema.parse(raw);
       if (body.decision === "APPROVE") {
+        const ownerOnly = requireOwner(user);
+        if (ownerOnly) return ownerOnly;
         return jsonOk(
           await approveInventorySession({
             companyId: user!.companyId,

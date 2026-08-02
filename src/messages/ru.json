@@ -588,6 +588,7 @@
     "color": "Цвет",
     "cap": "Крышка",
     "stock": "На складе",
+    "warehouseStock": "Склад",
     "planCost": "Стоимость",
     "receive": "Принять",
     "receiveBottles": "Приёмка флаконов",

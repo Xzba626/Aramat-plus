@@ -87,9 +87,16 @@ export async function listPackagingSkus(
   companyId: string,
   opts?: { includeInactive?: boolean }
 ) {
-  const warehouse = await prisma.warehouse.findFirst({
-    where: { companyId, isActive: true },
-  });
+  const [warehouse, branches] = await Promise.all([
+    prisma.warehouse.findFirst({
+      where: { companyId, isActive: true },
+    }),
+    prisma.store.findMany({
+      where: { companyId, kind: "BRANCH", isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
   const skus = await prisma.packagingSku.findMany({
     where: {
       companyId,
@@ -99,14 +106,24 @@ export async function listPackagingSkus(
       products: {
         where: { kind: ProductKind.PACKAGING, isActive: true },
         include: {
-          stockBalances: warehouse
-            ? {
-                where: {
-                  locationType: LocationType.WAREHOUSE,
-                  locationId: warehouse.id,
+          stockBalances: {
+            where: {
+              OR: [
+                ...(warehouse
+                  ? [
+                      {
+                        locationType: LocationType.WAREHOUSE,
+                        locationId: warehouse.id,
+                      },
+                    ]
+                  : []),
+                {
+                  locationType: LocationType.STORE,
+                  locationId: { in: branches.map((b) => b.id) },
                 },
-              }
-            : true,
+              ],
+            },
+          },
         },
         take: 1,
       },
@@ -114,11 +131,33 @@ export async function listPackagingSkus(
     orderBy: [{ volumeMl: "asc" }, { name: "asc" }],
   });
 
+  const storeName = new Map(branches.map((b) => [b.id, b.name]));
+
   return skus.map((s) => {
     const product = s.products[0] ?? null;
-    const qty = product
-      ? product.stockBalances.reduce((a, b) => a + decimalToNumber(b.quantity), 0)
-      : 0;
+    const balances = product?.stockBalances ?? [];
+    const warehouseQty = balances
+      .filter(
+        (b) =>
+          b.locationType === LocationType.WAREHOUSE &&
+          warehouse &&
+          b.locationId === warehouse.id
+      )
+      .reduce((a, b) => a + decimalToNumber(b.quantity), 0);
+
+    const byStore = new Map<string, number>();
+    for (const b of balances) {
+      if (b.locationType !== LocationType.STORE) continue;
+      const q = decimalToNumber(b.quantity);
+      if (q <= 0) continue;
+      byStore.set(b.locationId, (byStore.get(b.locationId) ?? 0) + q);
+    }
+    const storeQtys = branches.map((br) => ({
+      storeId: br.id,
+      storeName: storeName.get(br.id) ?? br.name,
+      qty: Math.round((byStore.get(br.id) ?? 0) * 1000) / 1000,
+    }));
+
     return {
       id: s.id,
       name: s.name,
@@ -132,7 +171,8 @@ export async function listPackagingSkus(
       isDefaultForVolume: s.isDefaultForVolume,
       isActive: s.isActive,
       productId: product?.id ?? null,
-      warehouseQty: Math.round(qty * 1000) / 1000,
+      warehouseQty: Math.round(warehouseQty * 1000) / 1000,
+      storeQtys,
       createdAt: s.createdAt.toISOString(),
     };
   });

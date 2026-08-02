@@ -389,7 +389,7 @@ export async function createSale(params: {
     { maxWait: 8000, timeout: 20000 }
   );
 
-  // Low bottle stock alerts (post-commit)
+  // Low bottle stock alerts (post-commit) — must await so notify is durable
   if (locationType === LocationType.STORE) {
     const bottleIds = [
       ...new Set(
@@ -403,16 +403,18 @@ export async function createSale(params: {
       });
       if (!packaging) continue;
       const qtyAfter = await getPackagingQtyAtStore(pid, store.id);
-      void maybeNotifyLowBottleStock({
-        companyId: params.companyId,
-        storeId: store.id,
-        storeName: store.name,
-        packagingProductId: pid,
-        skuName: packaging.name,
-        qtyAfter,
-      }).catch((err) =>
-        console.error("[createSale] bottle low-stock notify failed", err)
-      );
+      try {
+        await maybeNotifyLowBottleStock({
+          companyId: params.companyId,
+          storeId: store.id,
+          storeName: store.name,
+          packagingProductId: pid,
+          skuName: packaging.name,
+          qtyAfter,
+        });
+      } catch (err) {
+        console.error("[createSale] bottle low-stock notify failed", err);
+      }
     }
   }
 

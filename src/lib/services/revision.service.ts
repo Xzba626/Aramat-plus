@@ -1,4 +1,10 @@
-import { BatchOrigin, InventoryStatus, LocationType, Prisma } from "@prisma/client";
+import {
+  BatchOrigin,
+  InventoryStatus,
+  LocationType,
+  Prisma,
+  Role,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { addBatch, deductBatchesFifo } from "@/lib/services/stock.service";
 import { logActivity } from "@/lib/services/activity-log.service";
@@ -320,7 +326,8 @@ export async function cancelInventorySession(params: {
 
 export async function getInventorySessionDetail(
   companyId: string,
-  sessionId: string
+  sessionId: string,
+  role: Role = Role.OWNER
 ) {
   const session = await prisma.inventorySession.findFirst({
     where: { id: sessionId, store: { companyId } },
@@ -344,7 +351,7 @@ export async function getInventorySessionDetail(
   });
   const nameMap = new Map(products.map((p) => [p.id, p]));
 
-  return {
+  const base = {
     id: session.id,
     storeId: session.store.id,
     store: session.store.name,
@@ -354,6 +361,26 @@ export async function getInventorySessionDetail(
     createdAt: session.createdAt.toISOString(),
     completedAt: session.completedAt?.toISOString() ?? null,
     comment: session.comment,
+  };
+
+  // Manager / Seller must never receive expected system qty (blind count).
+  if (role !== Role.OWNER) {
+    return {
+      ...base,
+      blind: true as const,
+      items: session.items.map((i) => ({
+        productId: i.productId,
+        name: nameMap.get(i.productId)?.name ?? i.productId,
+        unit: nameMap.get(i.productId)?.unit?.symbol ?? "",
+        countedQty: decimalToNumber(i.countedQty),
+        reason: i.discrepancyReason,
+      })),
+    };
+  }
+
+  return {
+    ...base,
+    blind: false as const,
     items: session.items.map((i) => ({
       productId: i.productId,
       name: nameMap.get(i.productId)?.name ?? i.productId,

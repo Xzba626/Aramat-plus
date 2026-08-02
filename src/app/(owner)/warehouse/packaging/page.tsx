@@ -20,6 +20,7 @@ type Sku = {
   isActive: boolean;
   productId: string | null;
   warehouseQty: number;
+  storeQtys?: Array<{ storeId: string; storeName: string; qty: number }>;
 };
 
 type BranchStore = { id: string; name: string };
@@ -327,11 +328,21 @@ export default function PackagingPage() {
                   {s.cap ? ` · ${s.cap}` : ""}
                 </p>
                 <p className="mt-1 text-sm tabular-nums text-ink">
-                  {t("packaging.stock")}: {s.warehouseQty} {t("units.pcs")}
+                  {t("packaging.warehouseStock")}: {s.warehouseQty}{" "}
+                  {t("units.pcs")}
                   {s.defaultCost != null
                     ? ` · ${t("packaging.planCost")}: ${formatMoney(s.defaultCost)}`
                     : ""}
                 </p>
+                {s.storeQtys && s.storeQtys.length > 0 ? (
+                  <ul className="mt-1 space-y-0.5 text-xs text-muted">
+                    {s.storeQtys.map((st) => (
+                      <li key={st.storeId} className="tabular-nums">
+                        {st.storeName}: {st.qty} {t("units.pcs")}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </div>
               <div className="flex flex-wrap gap-2">
                 {s.productId ? (
