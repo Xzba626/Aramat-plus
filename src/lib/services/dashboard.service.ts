@@ -15,14 +15,19 @@ function startOfDay(d: Date) {
 }
 
 function pctChange(current: number, previous: number) {
+  const abs = Math.round((current - previous) * 100) / 100;
+  const absLabel =
+    abs === 0 ? "0 с." : `${abs > 0 ? "+" : ""}${abs} с.`;
   if (previous === 0) {
-    if (current === 0) return { pct: 0, label: "0%" };
-    return { pct: 100, label: "+100%" };
+    if (current === 0) return { pct: 0, label: "0%", abs, absLabel };
+    return { pct: 100, label: "+100%", abs, absLabel };
   }
   const pct = Math.round(((current - previous) / previous) * 100);
   return {
     pct,
     label: `${pct > 0 ? "+" : ""}${pct}%`,
+    abs,
+    absLabel,
   };
 }
 
@@ -181,7 +186,7 @@ export async function getDashboardPayload(companyId: string) {
     .slice(0, 12);
 
   const weekStart = startOfDay(new Date(now.getTime() - 6 * 86400000));
-  const [warehouseBalances, salesWeek] = await Promise.all([
+  const [warehouseBalances, salesWeek, weekExpenses] = await Promise.all([
     warehouse
       ? prisma.stockBalance.findMany({
           where: {
@@ -198,9 +203,29 @@ export async function getDashboardPayload(companyId: string) {
         status: { in: ["COMPLETED", "PARTIAL_RETURN"] },
         createdAt: { gte: weekStart, lte: now },
       },
-      select: { total: true, createdAt: true },
+      select: {
+        id: true,
+        total: true,
+        createdAt: true,
+        items: {
+          select: {
+            quantity: true,
+            costPerUnit: true,
+            isGift: true,
+          },
+        },
+      },
+    }),
+    sumAllocatedExpenses({
+      companyId,
+      from: weekStart,
+      to: todayStart,
     }),
   ]);
+
+  const returnLinesWeek = await loadApprovedReturnLines(
+    salesWeek.map((s) => s.id)
+  );
 
   const warehouseUnits = warehouseBalances.reduce(
     (s, b) => s + decimalToNumber(b.quantity),
@@ -209,13 +234,29 @@ export async function getDashboardPayload(companyId: string) {
   const warehouseSku = warehouseBalances.length;
 
   const sparkline: number[] = [];
+  const netSparkline: number[] = [];
+  const sparklineLabels: string[] = [];
   for (let i = 6; i >= 0; i--) {
     const day = startOfDay(new Date(now.getTime() - i * 86400000));
     const next = new Date(day.getTime() + 86400000);
-    const dayRev = salesWeek
-      .filter((s) => s.createdAt >= day && s.createdAt < next)
-      .reduce((sum, s) => sum + decimalToNumber(s.total), 0);
+    const dayKey = day.toISOString().slice(0, 10);
+    sparklineLabels.push(dayKey);
+    const daySales = salesWeek.filter(
+      (s) => s.createdAt >= day && s.createdAt < next
+    );
+    const dayRev = daySales.reduce(
+      (sum, s) => sum + decimalToNumber(s.total),
+      0
+    );
     sparkline.push(Math.round(dayRev * 100) / 100);
+    const dayGross = saleGrossMetricsNetOfReturnsSync(
+      daySales,
+      returnLinesWeek
+    );
+    const dayExp = weekExpenses.byDay.get(dayKey) ?? 0;
+    netSparkline.push(
+      Math.round((dayGross.grossProfit - dayExp) * 100) / 100
+    );
   }
 
   const storesWithSales = storeTodayBase.filter((s) => s.salesCount > 0).length;
@@ -423,6 +464,7 @@ export async function getDashboardPayload(companyId: string) {
     generatedAt: now.toISOString(),
     today: {
       ...today,
+      expenses: expensesToday.total,
       weightSold: Math.round(weightSold * 1000) / 1000,
       pieceSold: Math.round(pieceSold * 1000) / 1000,
       deltas: {
@@ -442,6 +484,8 @@ export async function getDashboardPayload(companyId: string) {
       storesOpen: storesWithSales,
       storesTotal: stores.length,
       sparkline,
+      netSparkline,
+      sparklineLabels,
     },
     stores: storeToday,
     lowStock: lowStockFiltered.map((b) => ({

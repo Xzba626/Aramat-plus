@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma";
 import { addBatch, deductBatchesFifo } from "@/lib/services/stock.service";
 import { logActivity } from "@/lib/services/activity-log.service";
+import { checkLowBottleStockAfterTransfer } from "@/lib/services/packaging.service";
 
 export type TransferLineInput = {
   productId: string;
@@ -33,7 +34,7 @@ export async function createTransfer(params: {
   });
   if (!store) throw new Error("TRANSFER_BRANCH_ONLY");
 
-  return prisma.$transaction(
+  const txResult = await prisma.$transaction(
     async (tx) => {
       const transfer = await tx.transfer.create({
         data: {
@@ -106,7 +107,11 @@ export async function createTransfer(params: {
         },
       });
 
-      return tx.transfer.findUniqueOrThrow({
+      const packagingProductIds = params.items
+        .map((i) => i.productId)
+        .filter(Boolean);
+
+      const result = await tx.transfer.findUniqueOrThrow({
         where: { id: transfer.id },
         include: {
           items: { include: { product: true } },
@@ -116,9 +121,22 @@ export async function createTransfer(params: {
           createdBy: { select: { id: true, name: true } },
         },
       });
+
+      return { result, packagingProductIds, storeName: store.name, storeId: store.id };
     },
     { maxWait: 15_000, timeout: 60_000 }
   );
+
+  void checkLowBottleStockAfterTransfer({
+    companyId: params.companyId,
+    storeId: txResult.storeId,
+    storeName: txResult.storeName,
+    productIds: txResult.packagingProductIds,
+  }).catch((err) =>
+    console.error("[createTransfer] bottle low-stock notify failed", err)
+  );
+
+  return txResult.result;
 }
 
 /** Store A → Store B (FIFO cost preserved). */

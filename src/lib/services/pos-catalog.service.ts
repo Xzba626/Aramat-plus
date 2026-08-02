@@ -1,4 +1,4 @@
-import { LocationType, StoreKind } from "@prisma/client";
+import { LocationType, ProductKind, StoreKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 import { getStoreStock } from "@/lib/services/stock.service";
@@ -30,7 +30,9 @@ export async function getPosCatalog(params: {
   });
   const q = (params.q ?? "").trim().toLowerCase();
 
-  let items = balances.map((b) => {
+  let items = balances
+    .filter((b) => b.product.kind !== ProductKind.PACKAGING)
+    .map((b) => {
     const physical = decimalToNumber(b.quantity);
     const held = reserved.get(b.productId) ?? 0;
     const qty = Math.max(0, physical - held);
@@ -52,6 +54,7 @@ export async function getPosCatalog(params: {
         sku: b.product.sku,
         barcode: b.product.barcode,
         minStock: min,
+        accountingType: b.product.accountingType,
         brand: b.product.brand
           ? {
               id: b.product.brand.id,

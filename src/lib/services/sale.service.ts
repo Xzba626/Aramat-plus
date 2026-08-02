@@ -1,4 +1,4 @@
-import { LocationType, Prisma, Role, StoreKind } from "@prisma/client";
+import { AccountingType, LocationType, Prisma, Role, StoreKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { deductBatchesFifo } from "@/lib/services/stock.service";
 import { logActivity } from "@/lib/services/activity-log.service";
@@ -13,11 +13,22 @@ import {
   consumeApprovedDiscount,
   linkDiscountToSale,
 } from "@/lib/services/discount-request.service";
+import {
+  createBottleSaleExpenseInTx,
+  deductBottleFromStore,
+  ensureBottleExpenseType,
+  getPackagingQtyAtStore,
+  maybeNotifyLowBottleStock,
+  resolvePackagingProduct,
+} from "@/lib/services/packaging.service";
 
 export type SaleLineInput = {
   productId: string;
   quantity: number;
   isGift?: boolean;
+  /** WEIGHT/decant: bottle from store stock (Product PACKAGING). */
+  packagingProductId?: string;
+  packagingSkuId?: string;
 };
 
 /**
@@ -87,7 +98,13 @@ export async function createSale(params: {
         companyId: params.companyId,
         isActive: true,
       },
-      select: { id: true, name: true, salePrice: true },
+      select: {
+        id: true,
+        name: true,
+        salePrice: true,
+        accountingType: true,
+        kind: true,
+      },
     }),
   ]);
 
@@ -131,7 +148,16 @@ export async function createSale(params: {
     salePrice: Prisma.Decimal;
     costPerUnit: Prisma.Decimal;
     isGift: boolean;
+    isDecant: boolean;
+    packagingProductId: string | null;
+    packagingQuantity: Prisma.Decimal | null;
+    packagingCostPerUnit: Prisma.Decimal | null;
   };
+
+  const requiresBottle = locationType === LocationType.STORE;
+  const bottleExpenseType = requiresBottle
+    ? await ensureBottleExpenseType(params.companyId)
+    : null;
 
   const committed = await prisma.$transaction(
     async (tx) => {
@@ -163,6 +189,11 @@ export async function createSale(params: {
 
       let subtotal = new Prisma.Decimal(0);
       const lineRows: LineRow[] = [];
+      const pendingBottleExpenses: Array<{
+        productId: string;
+        packagingProductId: string;
+        amount: number;
+      }> = [];
       const cartForDiscount: Array<{
         productId: string;
         quantity: number;
@@ -172,10 +203,20 @@ export async function createSale(params: {
       for (const line of params.items) {
         const product = productById.get(line.productId);
         if (!product) throw new Error("PRODUCT_NOT_FOUND");
+        if (product.kind === "PACKAGING") {
+          throw new Error("VALIDATION_ERROR");
+        }
 
         const qty = new Prisma.Decimal(line.quantity);
         const isGift = Boolean(line.isGift);
         const unitPrice = isGift ? new Prisma.Decimal(0) : product.salePrice;
+        const isWeight = product.accountingType === AccountingType.WEIGHT;
+
+        if (requiresBottle && isWeight && !isGift) {
+          if (!line.packagingProductId && !line.packagingSkuId) {
+            throw new Error("BOTTLE_REQUIRED");
+          }
+        }
 
         if (!isGift) {
           cartForDiscount.push({
@@ -192,10 +233,34 @@ export async function createSale(params: {
           quantity: qty,
         });
 
+        let packagingProductId: string | null = null;
+        let packagingQuantity: Prisma.Decimal | null = null;
+        let packagingCostPerUnit: Prisma.Decimal | null = null;
+        let bottleExpenseAmount = 0;
+
+        if (requiresBottle && isWeight && !isGift) {
+          const packaging = await resolvePackagingProduct({
+            companyId: params.companyId,
+            packagingProductId: line.packagingProductId,
+            packagingSkuId: line.packagingSkuId,
+          });
+          const bottle = await deductBottleFromStore(tx, {
+            packagingProductId: packaging.id,
+            storeId: store.id,
+            quantity: 1,
+          });
+          packagingProductId = bottle.packagingProductId;
+          packagingQuantity = bottle.packagingQuantity;
+          packagingCostPerUnit = bottle.packagingCostPerUnit;
+          bottleExpenseAmount = bottle.bottleExpenseAmount;
+        }
+
+        let sliceIdx = 0;
         for (const slice of consumed) {
           if (!isGift) {
             subtotal = subtotal.add(unitPrice.mul(slice.quantity));
           }
+          const isFirstSlice = sliceIdx === 0;
           lineRows.push({
             productId: line.productId,
             batchId: slice.batchId,
@@ -203,6 +268,19 @@ export async function createSale(params: {
             salePrice: unitPrice,
             costPerUnit: slice.costPerUnit,
             isGift,
+            isDecant: isFirstSlice && Boolean(packagingProductId),
+            packagingProductId: isFirstSlice ? packagingProductId : null,
+            packagingQuantity: isFirstSlice ? packagingQuantity : null,
+            packagingCostPerUnit: isFirstSlice ? packagingCostPerUnit : null,
+          });
+          sliceIdx++;
+        }
+
+        if (bottleExpenseAmount > 0 && packagingProductId) {
+          pendingBottleExpenses.push({
+            productId: line.productId,
+            packagingProductId,
+            amount: bottleExpenseAmount,
           });
         }
       }
@@ -253,6 +331,10 @@ export async function createSale(params: {
               salePrice: r.salePrice,
               costPerUnit: r.costPerUnit,
               isGift: r.isGift,
+              isDecant: r.isDecant,
+              packagingProductId: r.packagingProductId,
+              packagingQuantity: r.packagingQuantity,
+              packagingCostPerUnit: r.packagingCostPerUnit,
             })),
           },
         },
@@ -287,13 +369,52 @@ export async function createSale(params: {
         });
       }
 
-      return { sale, total, subtotal, discount };
+      // Bottle opex: one ONCE expense per decant line (not perfume COGS)
+      if (bottleExpenseType) {
+        for (const row of pendingBottleExpenses) {
+          const prodName = productById.get(row.productId)?.name ?? "";
+          await createBottleSaleExpenseInTx(tx, {
+            expenseTypeId: bottleExpenseType.id,
+            createdById: params.sellerId,
+            storeId: store.id,
+            amount: row.amount,
+            saleId: sale.id,
+            label: prodName,
+          });
+        }
+      }
+
+      return { sale, total, subtotal, discount, pendingBottleExpenses };
     },
-    {
-      maxWait: 8000,
-      timeout: 20000,
-    }
+    { maxWait: 8000, timeout: 20000 }
   );
+
+  // Low bottle stock alerts (post-commit)
+  if (locationType === LocationType.STORE) {
+    const bottleIds = [
+      ...new Set(
+        committed.pendingBottleExpenses.map((r) => r.packagingProductId)
+      ),
+    ];
+    for (const pid of bottleIds) {
+      const packaging = await prisma.product.findUnique({
+        where: { id: pid },
+        select: { id: true, name: true },
+      });
+      if (!packaging) continue;
+      const qtyAfter = await getPackagingQtyAtStore(pid, store.id);
+      void maybeNotifyLowBottleStock({
+        companyId: params.companyId,
+        storeId: store.id,
+        storeName: store.name,
+        packagingProductId: pid,
+        skuName: packaging.name,
+        qtyAfter,
+      }).catch((err) =>
+        console.error("[createSale] bottle low-stock notify failed", err)
+      );
+    }
+  }
 
   void logActivity({
     userId: params.sellerId,

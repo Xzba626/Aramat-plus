@@ -59,6 +59,7 @@ export default auth((req) => {
       "/reports",
       "/history",
       "/export",
+      "/discounts",
     ];
     if (ownerOnlyPrefixes.some((p) => pathname.startsWith(p))) {
       return NextResponse.redirect(new URL("/pos", req.url));

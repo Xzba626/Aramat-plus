@@ -16,6 +16,10 @@ export type PosCartLine = {
   salePrice: number;
   quantity: number;
   max: number;
+  /** WEIGHT lines require bottle selection at checkout. */
+  accountingType?: "PIECE" | "WEIGHT";
+  packagingProductId?: string | null;
+  packagingSkuId?: string | null;
 };
 
 export type PosDiscountState = {
@@ -51,6 +55,10 @@ type PosCartState = {
   syncDiscountWithCart: () => void;
   add: (item: Omit<PosCartLine, "quantity"> & { quantity?: number }) => void;
   setQty: (productId: string, quantity: number) => void;
+  setPackaging: (
+    productId: string,
+    packaging: { packagingProductId: string; packagingSkuId?: string | null }
+  ) => void;
   remove: (productId: string) => void;
   clear: () => void;
   count: () => number;
@@ -299,6 +307,23 @@ export const usePosCart = create<PosCartState>()(
             discount: invalidateDiscountIfNeeded(lines, state.discount),
           };
         });
+      },
+
+      setPackaging: (
+        productId: string,
+        packaging: { packagingProductId: string; packagingSkuId?: string | null }
+      ) => {
+        set((state) => ({
+          lines: state.lines.map((l) =>
+            l.productId === productId
+              ? {
+                  ...l,
+                  packagingProductId: packaging.packagingProductId,
+                  packagingSkuId: packaging.packagingSkuId ?? null,
+                }
+              : l
+          ),
+        }));
       },
 
       remove: (productId) => {

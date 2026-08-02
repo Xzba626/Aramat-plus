@@ -48,15 +48,24 @@ function TodayKpi({
   emptyLabel,
   delta,
   vsYesterdayLabel,
+  subtitle,
 }: {
   label: string;
   hintKey: string;
   value: string;
   emptyLabel?: string;
-  delta?: { pct: number; label: string };
+  delta?: { pct: number; label: string; abs: number; absLabel?: string };
   vsYesterdayLabel: string;
+  subtitle?: string;
 }) {
+  const { formatMoney } = useI18n();
   const isEmpty = value === "—" || value === "0 с." || value === "0";
+  const signedDelta =
+    delta && delta.abs !== 0
+      ? `${delta.abs > 0 ? "+" : "−"}${formatMoney(Math.abs(delta.abs), { short: true })}`
+      : delta
+        ? formatMoney(0, { short: true })
+        : null;
   return (
     <div className="rounded-[18px] border border-border bg-card p-4 shadow-[var(--shadow-card)]">
       <HelpTip hintKey={hintKey}>
@@ -74,22 +83,30 @@ function TodayKpi({
           <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-ink">
             {value}
           </p>
+          {subtitle ? (
+            <p className="mt-1 text-xs text-muted">{subtitle}</p>
+          ) : null}
           {delta ? (
-            <p
-              className={cn(
-                "mt-1 flex items-center gap-0.5 text-xs font-semibold",
-                delta.pct > 0 && "text-zone-money-deep",
-                delta.pct < 0 && "text-danger",
-                delta.pct === 0 && "text-muted"
-              )}
-            >
-              {delta.pct > 0 ? (
-                <ArrowUpRight className="h-3.5 w-3.5" />
-              ) : delta.pct < 0 ? (
-                <ArrowDownRight className="h-3.5 w-3.5" />
+            <>
+              <p
+                className={cn(
+                  "mt-1 flex items-center gap-0.5 text-xs font-semibold",
+                  delta.abs > 0 && "text-zone-money-deep",
+                  delta.abs < 0 && "text-danger",
+                  delta.abs === 0 && "text-muted"
+                )}
+              >
+                {delta.abs > 0 ? (
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                ) : delta.abs < 0 ? (
+                  <ArrowDownRight className="h-3.5 w-3.5" />
+                ) : null}
+                {signedDelta} {vsYesterdayLabel}
+              </p>
+              {delta.pct !== 0 ? (
+                <p className="mt-0.5 text-[10px] text-muted">{delta.label}</p>
               ) : null}
-              {delta.label} {vsYesterdayLabel}
-            </p>
+            </>
           ) : null}
         </>
       )}
@@ -166,7 +183,24 @@ export function OwnerDashboardClient({
     storesOpen: data.stores.filter((s) => s.salesCount > 0).length,
     storesTotal: data.stores.length,
     sparkline: [0, 0, 0, 0, 0, 0, today.revenue],
+    netSparkline: [0, 0, 0, 0, 0, 0, today.netProfit ?? today.profit],
+    sparklineLabels: [] as string[],
   };
+
+  const chartValues =
+    pulse.netSparkline && pulse.netSparkline.length
+      ? pulse.netSparkline
+      : pulse.sparkline;
+  const chartMax = Math.max(...chartValues.map((v) => Math.abs(v)), 1);
+
+  const sortedStores = useMemo(
+    () =>
+      [...data.stores].sort(
+        (a, b) =>
+          (b.netProfit ?? b.profit ?? 0) - (a.netProfit ?? a.profit ?? 0)
+      ),
+    [data.stores]
+  );
 
   const displayName = userName.trim() || t("roles.owner");
   const firstName = displayName.split(/\s+/)[0] || displayName;
@@ -300,7 +334,7 @@ export function OwnerDashboardClient({
       {/* Today — money */}
       <section>
         <ZoneHeader title={t("dashboard.zoneToday")} />
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <TodayKpi
             label={t("dashboard.revenueLabel")}
             hintKey="todayRevenue"
@@ -324,12 +358,69 @@ export function OwnerDashboardClient({
           <TodayKpi
             label={t("dashboard.netProfit")}
             hintKey="dashboardProfit"
-            value={hasSales ? formatMoney(today.netProfit ?? today.profit, { short: true }) : "—"}
+            value={
+              hasSales
+                ? formatMoney(today.netProfit ?? today.profit, { short: true })
+                : "—"
+            }
             emptyLabel={t("dashboard.noProfitYet")}
             delta={hasSales ? today.deltas.netProfit : undefined}
             vsYesterdayLabel={t("dashboard.vsYesterday")}
+            subtitle={
+              today.expenses != null && today.expenses > 0
+                ? `${t("dashboard.expensesLabel")}: ${formatMoney(today.expenses, { short: true })}`
+                : undefined
+            }
+          />
+          <TodayKpi
+            label={t("dashboard.expensesLabel")}
+            hintKey="dashboardProfit"
+            value={formatMoney(today.expenses ?? 0, { short: true })}
+            emptyLabel={undefined}
+            vsYesterdayLabel={t("dashboard.vsYesterday")}
           />
         </div>
+        {chartValues.length > 0 ? (
+          <div className="mt-4 rounded-[18px] border border-border bg-card p-4 shadow-[var(--shadow-card)]">
+            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-muted">
+              {t("dashboard.weekNetProfit")}
+            </p>
+            <div className="flex items-end gap-1 sm:gap-2">
+              {chartValues.map((val, i) => {
+                const barPct = Math.max(4, (Math.abs(val) / chartMax) * 100);
+                const dayLabel = pulse.sparklineLabels?.[i];
+                const weekday = dayLabel
+                  ? new Date(`${dayLabel}T12:00:00`).toLocaleDateString(undefined, {
+                      weekday: "short",
+                    })
+                  : String(i + 1);
+                return (
+                  <div
+                    key={dayLabel ?? i}
+                    className="flex min-w-0 flex-1 flex-col items-center gap-1"
+                  >
+                    <span className="text-[9px] tabular-nums text-muted sm:text-[10px]">
+                      {formatMoney(val, { short: true })}
+                    </span>
+                    <div className="flex h-16 w-full items-end justify-center sm:h-20">
+                      <div
+                        className={cn(
+                          "w-full max-w-[28px] rounded-t-md sm:max-w-[36px]",
+                          val >= 0 ? "bg-brand/75" : "bg-danger/60"
+                        )}
+                        style={{ height: `${barPct}%` }}
+                        title={formatMoney(val, { short: true })}
+                      />
+                    </div>
+                    <span className="truncate text-[9px] text-muted sm:text-[10px]">
+                      {weekday}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </section>
 
       {/* Need decisions — chips + queue */}
@@ -490,11 +581,11 @@ export function OwnerDashboardClient({
       {/* Stores */}
       <section>
         <ZoneHeader title={t("dashboard.storesToday")} />
-        {data.stores.length === 0 ? (
+        {sortedStores.length === 0 && pulse.storesTotal === 0 ? (
           <p className="text-sm text-muted">{t("dashboard.noStores")}</p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {data.stores.map((s) => {
+            {sortedStores.map((s) => {
               const problems = "problems" in s && Array.isArray(s.problems) ? s.problems : [];
               const topName =
                 "topProductName" in s ? (s.topProductName as string | null) : null;

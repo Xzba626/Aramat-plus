@@ -22,23 +22,44 @@ type Sku = {
   warehouseQty: number;
 };
 
+type BranchStore = { id: string; name: string };
+type Warehouse = { id: string; name: string };
+
 export default function PackagingPage() {
   const { t, formatMoney } = useI18n();
   const [items, setItems] = useState<Sku[]>([]);
+  const [stores, setStores] = useState<BranchStore[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
 
   async function load() {
     setLoading(true);
-    const res = await fetch(
-      `/api/packaging-skus?seedDefaults=1&archived=${showInactive ? "1" : "0"}`
-    );
-    const data = await res.json();
-    if (res.ok) setItems(Array.isArray(data) ? data : []);
+    const [skuRes, storeRes, whRes] = await Promise.all([
+      fetch(
+        `/api/packaging-skus?seedDefaults=1&archived=${showInactive ? "1" : "0"}`
+      ),
+      fetch("/api/stores"),
+      fetch("/api/warehouses"),
+    ]);
+    const data = await skuRes.json();
+    const storeData = await storeRes.json();
+    const whData = await whRes.json();
+    if (skuRes.ok) setItems(Array.isArray(data) ? data : []);
     else setError(apiErrorMessage(data.error, t));
+    if (storeRes.ok && Array.isArray(storeData)) {
+      setStores(
+        storeData.filter(
+          (s: { kind?: string; isActive?: boolean }) =>
+            s.kind === "BRANCH" && s.isActive !== false
+        )
+      );
+    }
+    if (whRes.ok && Array.isArray(whData)) setWarehouses(whData);
     setLoading(false);
   }
 
@@ -59,8 +80,6 @@ export default function PackagingPage() {
         name: String(fd.get("name") || "") || undefined,
         volumeMl: Number(fd.get("volumeMl")),
         material: String(fd.get("material") || "glass"),
-        color: String(fd.get("color") || "") || null,
-        cap: String(fd.get("cap") || "") || null,
         defaultCost: fd.get("defaultCost")
           ? Number(fd.get("defaultCost"))
           : null,
@@ -74,6 +93,39 @@ export default function PackagingPage() {
     setMsg(t("packaging.created"));
     setShowForm(false);
     (e.target as HTMLFormElement).reset();
+    load();
+  }
+
+  async function onTransfer(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
+    setMsg("");
+    const fd = new FormData(e.currentTarget);
+    const productId = String(fd.get("productId") || "");
+    const toStoreId = String(fd.get("toStoreId") || "");
+    const fromWarehouseId = String(fd.get("fromWarehouseId") || "");
+    const quantity = Number(fd.get("quantity"));
+    if (!productId || !toStoreId || !fromWarehouseId || !(quantity > 0)) {
+      setError(t("errors.VALIDATION_ERROR"));
+      return;
+    }
+    const res = await fetch("/api/transfers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fromWarehouseId,
+        toStoreId,
+        items: [{ productId, quantity }],
+        notes: "packaging transfer",
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t));
+      return;
+    }
+    setMsg(t("packaging.transferDone"));
+    setShowTransfer(false);
     load();
   }
 
@@ -107,6 +159,14 @@ export default function PackagingPage() {
             <Button
               fullWidth={false}
               type="button"
+              variant="secondary"
+              onClick={() => setShowTransfer((v) => !v)}
+            >
+              {showTransfer ? t("common.cancel") : t("packaging.sendToStore")}
+            </Button>
+            <Button
+              fullWidth={false}
+              type="button"
               onClick={() => setShowForm((v) => !v)}
             >
               {showForm ? t("common.cancel") : t("packaging.addSku")}
@@ -126,6 +186,74 @@ export default function PackagingPage() {
         />
         {t("packaging.showInactive")}
       </label>
+
+      {showTransfer ? (
+        <Card className="p-5">
+          <SectionTitle>{t("packaging.sendToStore")}</SectionTitle>
+          <form onSubmit={onTransfer} className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <FieldLabel>{t("packaging.bottleProduct")}</FieldLabel>
+              <select
+                name="productId"
+                required
+                className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  {t("packaging.selectBottle")}
+                </option>
+                {items
+                  .filter((s) => s.isActive && s.productId && s.warehouseQty > 0)
+                  .map((s) => (
+                    <option key={s.id} value={s.productId!}>
+                      {s.name} · {s.warehouseQty} {t("units.pcs")}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div>
+              <FieldLabel>{t("packaging.transferStore")}</FieldLabel>
+              <select
+                name="toStoreId"
+                required
+                className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  —
+                </option>
+                {stores.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <FieldLabel>{t("packaging.quantityPcs")}</FieldLabel>
+              <input
+                name="quantity"
+                type="number"
+                min={1}
+                step={1}
+                required
+                defaultValue={10}
+                className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+              />
+            </div>
+            <input
+              type="hidden"
+              name="fromWarehouseId"
+              value={warehouses[0]?.id ?? ""}
+            />
+            <div className="sm:col-span-2">
+              <Button type="submit" disabled={!warehouses[0]?.id}>
+                {t("packaging.sendToStore")}
+              </Button>
+            </div>
+          </form>
+        </Card>
+      ) : null}
 
       {showForm ? (
         <Card className="p-5">
@@ -170,20 +298,6 @@ export default function PackagingPage() {
                 <option value="glass">{t("packaging.materialGlass")}</option>
                 <option value="plastic">{t("packaging.materialPlastic")}</option>
               </select>
-            </div>
-            <div>
-              <FieldLabel>{t("packaging.color")}</FieldLabel>
-              <input
-                name="color"
-                className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <FieldLabel>{t("packaging.cap")}</FieldLabel>
-              <input
-                name="cap"
-                className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
-              />
             </div>
             <div className="sm:col-span-2">
               <Button type="submit">{t("common.save")}</Button>

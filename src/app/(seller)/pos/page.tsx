@@ -17,6 +17,7 @@ type CatalogItem = {
     brand: { name: string; imageUrl: string | null } | null;
     category: { id: string; name: string } | null;
     unit: { symbol: string } | null;
+    accountingType?: "PIECE" | "WEIGHT";
   };
 };
 
@@ -68,6 +69,7 @@ export default function PosPage() {
       salePrice: item.salePrice,
       max: item.quantity,
       quantity: 1,
+      accountingType: item.product.accountingType,
     });
     setFlash(t("pos.addedToCart", { name: item.product.name }));
     setTimeout(() => setFlash(""), 1200);

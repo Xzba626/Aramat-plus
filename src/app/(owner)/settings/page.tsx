@@ -27,17 +27,6 @@ export default function SettingsPage() {
       descKey: "settingsPage.referencesDesc",
     },
     {
-      href: "/users",
-      titleKey: "settingsPage.users",
-      descKey: "settingsPage.usersDesc",
-      ownerOnly: true,
-    },
-    {
-      href: "/notifications",
-      titleKey: "settingsPage.notifications",
-      descKey: "settingsPage.notificationsDesc",
-    },
-    {
       href: "/settings/company",
       titleKey: "settingsPage.company",
       descKey: "settingsPage.companyDesc",

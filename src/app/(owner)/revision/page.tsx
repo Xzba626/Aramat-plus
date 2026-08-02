@@ -1,7 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { Role } from "@prisma/client";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel } from "@/components/ui/card";
 import {
@@ -40,6 +42,10 @@ type StoreOpt = { id: string; name: string };
 export default function RevisionPage() {
   const { t, formatDateTime } = useI18n();
   const { toast } = useToast();
+  const { data: session } = useSession();
+  const isOwner = session?.user?.role === Role.OWNER;
+  const countSectionRef = useRef<HTMLDivElement>(null);
+
   const [rows, setRows] = useState<Row[]>([]);
   const [stores, setStores] = useState<StoreOpt[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,7 +74,10 @@ export default function RevisionPage() {
     if (storesRes.ok && Array.isArray(st)) {
       setStores(
         st
-          .filter((s: { kind?: string; isActive?: boolean }) => s.kind === "BRANCH" && s.isActive !== false)
+          .filter(
+            (s: { kind?: string; isActive?: boolean }) =>
+              s.kind === "BRANCH" && s.isActive !== false
+          )
           .map((s: { id: string; name: string }) => ({ id: s.id, name: s.name }))
       );
     }
@@ -77,6 +86,7 @@ export default function RevisionPage() {
 
   useEffect(() => {
     reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filtered = useMemo(() => {
@@ -88,6 +98,25 @@ export default function RevisionPage() {
       return matchQ && matchS;
     });
   }, [rows, q, status]);
+
+  async function openDetail(id: string) {
+    setActiveId(id);
+    const res = await fetch(`/api/revisions?id=${id}`);
+    const data = await res.json();
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t, "common.error"));
+      return;
+    }
+    setDetail(data);
+    const next: Record<string, string> = {};
+    for (const it of data.items as DetailItem[]) {
+      next[it.productId] = String(it.countedQty);
+    }
+    setCounts(next);
+    requestAnimationFrame(() => {
+      countSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
 
   async function onCreate(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -112,22 +141,6 @@ export default function RevisionPage() {
     e.currentTarget.reset();
     await reload();
     await openDetail(data.id);
-  }
-
-  async function openDetail(id: string) {
-    setActiveId(id);
-    const res = await fetch(`/api/revisions?id=${id}`);
-    const data = await res.json();
-    if (!res.ok) {
-      setError(apiErrorMessage(data.error, t, "common.error"));
-      return;
-    }
-    setDetail(data);
-    const next: Record<string, string> = {};
-    for (const it of data.items as DetailItem[]) {
-      next[it.productId] = String(it.countedQty);
-    }
-    setCounts(next);
   }
 
   async function saveCounts() {
@@ -184,16 +197,16 @@ export default function RevisionPage() {
     return value;
   };
 
+  const inProgressCount = rows.filter((r) => r.status === "IN_PROGRESS").length;
+
   return (
     <ModuleWorkspace
       title={t("revisionPage.title")}
       subtitle={t("revisionPage.subtitle")}
       kpis={[
         {
-          label: t("revisionPage.actual"),
-          value: loading
-            ? "…"
-            : String(rows.filter((r) => r.status === "IN_PROGRESS").length),
+          label: t("revisionPage.statusInProgress"),
+          value: loading ? "…" : String(inProgressCount),
         },
         {
           label: t("revisionPage.title"),
@@ -208,6 +221,7 @@ export default function RevisionPage() {
         </Link>
       }
     >
+      <p className="mb-4 text-sm text-muted">{t("revisionPage.flowHint")}</p>
       {error ? <p className="mb-4 text-sm text-danger">{error}</p> : null}
 
       <ModuleSection title={t("revisionPage.newTitle")}>
@@ -215,8 +229,12 @@ export default function RevisionPage() {
           <form onSubmit={onCreate} className="space-y-3">
             <div>
               <FieldLabel>{t("common.store")}</FieldLabel>
-              <select name="storeId" required className="w-full rounded-xl border border-border bg-page px-3 py-2 text-sm">
-                <option value="">{t("common.search")}</option>
+              <select
+                name="storeId"
+                required
+                className="w-full rounded-xl border border-border bg-page px-3 py-2 text-sm"
+              >
+                <option value="">{t("revisionPage.pickStore")}</option>
                 {stores.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -226,7 +244,10 @@ export default function RevisionPage() {
             </div>
             <div>
               <FieldLabel>{t("common.notes")}</FieldLabel>
-              <input name="comment" className="w-full rounded-xl border border-border bg-page px-3 py-2 text-sm" />
+              <input
+                name="comment"
+                className="w-full rounded-xl border border-border bg-page px-3 py-2 text-sm"
+              />
             </div>
             <Button type="submit" disabled={busy} fullWidth={false}>
               {t("revisionPage.start")}
@@ -236,75 +257,128 @@ export default function RevisionPage() {
       </ModuleSection>
 
       {detail ? (
-        <ModuleSection title={`${t("revisionPage.title")}: ${detail.store}`}>
-          <Card className="mb-3 flex flex-wrap gap-2 p-3">
-            <span className="text-sm text-muted">
-              {revisionStatusLabel(detail.status)}
-            </span>
-            {detail.status === "IN_PROGRESS" ? (
-              <>
-                <Button type="button" fullWidth={false} disabled={busy} onClick={saveCounts}>
-                  {t("revisionPage.saveCounts")}
-                </Button>
-                <Button type="button" fullWidth={false} disabled={busy} onClick={() => decide("APPROVE")}>
-                  {t("revisionPage.approve")}
-                </Button>
+        <div ref={countSectionRef}>
+          <ModuleSection
+            title={t("revisionPage.countFormTitle", { store: detail.store })}
+          >
+            <Card className="mb-3 flex flex-wrap items-center gap-2 p-3">
+              <span className="text-sm text-muted">
+                {revisionStatusLabel(detail.status)}
+              </span>
+              <span className="text-sm text-muted">
+                · {t("revisionPage.itemsCount", { count: detail.items.length })}
+              </span>
+              {detail.status === "IN_PROGRESS" ? (
+                <>
+                  <Button
+                    type="button"
+                    fullWidth={false}
+                    disabled={busy || detail.items.length === 0}
+                    onClick={saveCounts}
+                  >
+                    {t("revisionPage.saveCounts")}
+                  </Button>
+                  {isOwner ? (
+                    <Button
+                      type="button"
+                      fullWidth={false}
+                      disabled={busy}
+                      onClick={() => decide("APPROVE")}
+                    >
+                      {t("revisionPage.approve")}
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    fullWidth={false}
+                    disabled={busy}
+                    onClick={() => decide("CANCEL")}
+                  >
+                    {t("common.cancel")}
+                  </Button>
+                </>
+              ) : (
                 <Button
                   type="button"
                   variant="secondary"
                   fullWidth={false}
-                  disabled={busy}
-                  onClick={() => decide("CANCEL")}
+                  onClick={() => setDetail(null)}
                 >
-                  {t("common.cancel")}
+                  {t("common.close")}
                 </Button>
-              </>
+              )}
+            </Card>
+
+            {detail.items.length === 0 ? (
+              <Card className="p-5 text-sm text-muted">
+                {t("revisionPage.noItemsInStore")}
+              </Card>
             ) : (
-              <Button type="button" variant="secondary" fullWidth={false} onClick={() => setDetail(null)}>
-                {t("common.close")}
-              </Button>
+              <Card className="overflow-hidden p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[480px] text-sm">
+                    <thead className="bg-page text-left text-xs text-muted">
+                      <tr>
+                        <th className="p-3">{t("wh.colName")}</th>
+                        {isOwner ? (
+                          <th className="p-3">{t("revisionPage.expected")}</th>
+                        ) : null}
+                        <th className="p-3">{t("revisionPage.actual")}</th>
+                        {isOwner ? (
+                          <th className="p-3">{t("revisionPage.diff")}</th>
+                        ) : null}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detail.items.map((it) => (
+                        <tr key={it.productId} className="border-t border-border">
+                          <td className="p-3">{it.name}</td>
+                          {isOwner ? (
+                            <td className="p-3 tabular-nums">
+                              {it.expectedQty} {it.unit}
+                            </td>
+                          ) : null}
+                          <td className="p-3">
+                            {detail.status === "IN_PROGRESS" ? (
+                              <input
+                                className="w-24 rounded border border-border px-2 py-1 tabular-nums"
+                                inputMode="decimal"
+                                value={counts[it.productId] ?? ""}
+                                onChange={(e) =>
+                                  setCounts((c) => ({
+                                    ...c,
+                                    [it.productId]: e.target.value,
+                                  }))
+                                }
+                              />
+                            ) : (
+                              <span className="tabular-nums">
+                                {it.countedQty} {it.unit}
+                              </span>
+                            )}
+                          </td>
+                          {isOwner ? (
+                            <td
+                              className={cn(
+                                "p-3 tabular-nums font-semibold",
+                                it.difference > 0 && "text-success",
+                                it.difference < 0 && "text-danger"
+                              )}
+                            >
+                              {it.difference > 0 ? "+" : ""}
+                              {it.difference}
+                            </td>
+                          ) : null}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
             )}
-          </Card>
-          <Card className="overflow-hidden p-0">
-            <table className="w-full text-sm">
-              <thead className="bg-page text-left text-xs text-muted">
-                <tr>
-                  <th className="p-3">{t("wh.colName")}</th>
-                  <th className="p-3">{t("revisionPage.expected")}</th>
-                  <th className="p-3">{t("revisionPage.actual")}</th>
-                  <th className="p-3">{t("revisionPage.diff")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail.items.map((it) => (
-                  <tr key={it.productId} className="border-t border-border">
-                    <td className="p-3">{it.name}</td>
-                    <td className="p-3">
-                      {it.expectedQty} {it.unit}
-                    </td>
-                    <td className="p-3">
-                      {detail.status === "IN_PROGRESS" ? (
-                        <input
-                          className="w-24 rounded border border-border px-2 py-1"
-                          value={counts[it.productId] ?? ""}
-                          onChange={(e) =>
-                            setCounts((c) => ({
-                              ...c,
-                              [it.productId]: e.target.value,
-                            }))
-                          }
-                        />
-                      ) : (
-                        it.countedQty
-                      )}
-                    </td>
-                    <td className="p-3">{it.difference}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        </ModuleSection>
+          </ModuleSection>
+        </div>
       ) : null}
 
       <div className="mb-3 flex flex-wrap gap-2">
@@ -343,8 +417,9 @@ export default function RevisionPage() {
                 <div className="text-xs text-muted">{revisionStatusLabel(r.status)}</div>
               </div>
               <div className="mt-1 text-sm text-muted">
-                {r.createdBy} · {formatDateTime(r.createdAt)} · {r.itemCount} · Δ{" "}
-                {r.varianceAbs}
+                {r.createdBy} · {formatDateTime(r.createdAt)} ·{" "}
+                {t("revisionPage.itemsCount", { count: r.itemCount })}
+                {isOwner ? ` · Δ ${r.varianceAbs}` : ""}
               </div>
             </button>
           ))}

@@ -14,7 +14,7 @@ import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
 
 type Decision = DashboardPayload["decisions"][number];
-type Tab = "pending" | "history" | "warehouse";
+type Tab = "pending" | "history";
 
 type HistoryRow = {
   id: string;
@@ -120,25 +120,17 @@ export default function ReturnsPage() {
           label: t("returnsPage.history"),
           value: String(history.length),
         },
-        {
-          label: t("returnsPage.warehouseReturn"),
-          value: t("wh.open"),
-        },
       ]}
-      actions={
-        <Link href="/warehouse/return-in">
-          <Button type="button" fullWidth={false}>
-            {t("returnsPage.warehouseReturn")}
-          </Button>
-        </Link>
-      }
     >
+      <p className="mb-4 rounded-xl border border-border bg-page px-4 py-3 text-sm text-muted">
+        {t("returnsPage.customerReturnsHint")}
+      </p>
+
       <div className="mb-5 flex flex-wrap gap-1.5 border-b border-border pb-3">
         {(
           [
             ["pending", "returnsPage.pending"],
             ["history", "returnsPage.history"],
-            ["warehouse", "returnsPage.warehouseReturn"],
           ] as const
         ).map(([id, labelKey]) => (
           <button
@@ -339,19 +331,15 @@ export default function ReturnsPage() {
         </ModuleSection>
       ) : null}
 
-      {tab === "warehouse" ? (
-        <ModuleSection title={t("returnsPage.warehouseReturn")}>
-          <Card className="p-5">
-            <p className="text-sm text-muted">{t("returnsPage.subtitle")}</p>
-            <Link
-              href="/warehouse/return-in"
-              className="mt-4 inline-flex rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-hover"
-            >
-              {t("wh.open")} — {t("returnsPage.warehouseReturn")}
-            </Link>
-          </Card>
-        </ModuleSection>
-      ) : null}
+      <div className="mt-8 border-t border-border pt-4">
+        <p className="text-xs text-muted">{t("returnsPage.warehouseReturnRareHint")}</p>
+        <Link
+          href="/warehouse/return-in"
+          className="mt-2 inline-flex text-sm font-medium text-muted underline-offset-2 hover:text-brand hover:underline"
+        >
+          {t("returnsPage.warehouseReturnRare")} →
+        </Link>
+      </div>
     </ModuleWorkspace>
   );
 }

@@ -1,11 +1,13 @@
 import { Role } from "@prisma/client";
 import { z } from "zod";
 import { getSessionUser } from "@/lib/session";
+import { requireOwnerOrManager } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
 import {
   createDiscountRequest,
   getActiveDiscountForCart,
   getDiscountRequestForSeller,
+  listDiscountRequests,
 } from "@/lib/services/discount-request.service";
 
 const createSchema = z.object({
@@ -63,7 +65,14 @@ export async function GET(req: Request) {
       return jsonOk(active);
     }
 
-    return jsonOk(null);
+    const denied = requireOwnerOrManager(user);
+    if (denied) return denied;
+
+    const limit = Math.min(
+      Number(sp.get("limit") || 100),
+      200
+    );
+    return jsonOk(await listDiscountRequests(user.companyId, limit));
   } catch (err) {
     return handleApiError(err);
   }

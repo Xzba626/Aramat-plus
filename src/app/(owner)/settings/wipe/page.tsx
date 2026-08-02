@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, FieldLabel } from "@/components/ui/card";
@@ -19,11 +19,26 @@ export default function SettingsWipePage() {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [password, setPassword] = useState("");
+  const [masterPassword, setMasterPassword] = useState("");
   const [phrase, setPhrase] = useState("");
   const [ack, setAck] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [masterConfigured, setMasterConfigured] = useState(false);
+  const [masterHint, setMasterHint] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/settings/wipe")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.masterConfigured != null) {
+          setMasterConfigured(Boolean(d.masterConfigured));
+          setMasterHint(d.masterHint ?? null);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -36,12 +51,17 @@ export default function SettingsWipePage() {
       setError(t("wipe.phraseMismatch"));
       return;
     }
+    if (masterConfigured && !masterPassword) {
+      setError(t("wipe.needMasterPassword"));
+      return;
+    }
     setLoading(true);
     const res = await fetch("/api/settings/wipe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         password,
+        masterPassword: masterConfigured ? masterPassword : undefined,
         confirmPhrase: phrase.trim(),
         acknowledge: true,
       }),
@@ -84,6 +104,19 @@ export default function SettingsWipePage() {
             </ul>
             <p className="text-sm font-semibold text-danger">{t("wipe.wipeHint")}</p>
 
+            {!masterConfigured ? (
+              <p className="rounded-xl border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-ink">
+                {t("wipe.setMasterCta")}{" "}
+                <Link href="/settings/company" className="font-semibold text-brand">
+                  {t("wipe.setMasterLink")}
+                </Link>
+              </p>
+            ) : masterHint ? (
+              <p className="text-xs text-muted">
+                {t("wipe.masterHintLabel")}: {masterHint}
+              </p>
+            ) : null}
+
             {step === 1 ? (
               <Button type="button" variant="secondary" fullWidth={false} onClick={() => setStep(2)}>
                 {t("wipe.start")}
@@ -103,6 +136,19 @@ export default function SettingsWipePage() {
                     autoComplete="current-password"
                   />
                 </div>
+                {masterConfigured ? (
+                  <div>
+                    <FieldLabel>{t("wipe.masterPassword")}</FieldLabel>
+                    <input
+                      type="password"
+                      className="w-full"
+                      value={masterPassword}
+                      onChange={(e) => setMasterPassword(e.target.value)}
+                      required
+                      autoComplete="off"
+                    />
+                  </div>
+                ) : null}
                 {step === 2 ? (
                   <Button
                     type="button"
@@ -110,6 +156,10 @@ export default function SettingsWipePage() {
                     onClick={() => {
                       if (!password) {
                         setError(t("wipe.needPassword"));
+                        return;
+                      }
+                      if (masterConfigured && !masterPassword) {
+                        setError(t("wipe.needMasterPassword"));
                         return;
                       }
                       setError("");

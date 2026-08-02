@@ -5,10 +5,12 @@ import {
   CRM_WIPE_PHRASE,
   wipeCompanyOperationalData,
 } from "@/lib/services/crm-wipe.service";
+import { getWipeMasterMeta } from "@/lib/services/wipe-master.service";
 import { z } from "zod";
 
 const wipeSchema = z.object({
   password: z.string().min(1),
+  masterPassword: z.string().optional(),
   confirmPhrase: z.string().min(1),
   acknowledge: z.literal(true),
 });
@@ -18,8 +20,11 @@ export async function GET() {
     const user = await getSessionUser();
     const denied = requireOwner(user);
     if (denied) return denied;
+    const meta = await getWipeMasterMeta(user!.companyId);
     return jsonOk({
       phrase: CRM_WIPE_PHRASE,
+      masterConfigured: meta.configured,
+      masterHint: meta.hint,
       keeps: [
         "owner",
         "company",
@@ -63,6 +68,7 @@ export async function POST(req: Request) {
       companyId: user!.companyId,
       ownerId: user!.id,
       ownerPassword: body.password,
+      masterPassword: body.masterPassword,
       confirmPhrase: body.confirmPhrase,
     });
     return jsonOk(result);

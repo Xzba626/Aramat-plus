@@ -36,11 +36,21 @@ export const expenseTypeSchema = z.object({
   name: z.string().min(1).max(120),
 });
 
+export const giftRuleSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  productId: z.string().cuid().optional().nullable(),
+  minQuantity: z.coerce.number().positive().optional().nullable(),
+  giftProductId: z.string().cuid(),
+  giftQuantity: z.coerce.number().positive().optional(),
+  isActive: z.boolean().optional(),
+});
+
 export const productSchema = z.object({
   name: z.string().min(1).max(200),
   sku: z.string().max(80).optional().nullable(),
   barcode: z.string().max(80).optional().nullable(),
   description: z.string().max(2000).optional().nullable(),
+  imageUrl: z.string().max(500).optional().nullable(),
   categoryId: z.string().optional().nullable(),
   brandId: z.string().optional().nullable(),
   unitId: z.string().optional().nullable(),
@@ -138,6 +148,8 @@ export const saleSchema = z.object({
         productId: z.string().min(1),
         quantity: z.coerce.number().positive(),
         isGift: z.boolean().optional(),
+        packagingProductId: z.string().min(1).optional(),
+        packagingSkuId: z.string().min(1).optional(),
       })
     )
     .min(1),

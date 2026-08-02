@@ -2,6 +2,7 @@ import { Prisma, Role, StoreKind } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/services/activity-log.service";
+import { verifyWipeMasterPassword } from "@/lib/services/wipe-master.service";
 
 export const CRM_WIPE_PHRASE = "ОЧИСТИТЬ";
 
@@ -9,7 +10,7 @@ type Tx = Prisma.TransactionClient;
 
 /**
  * Owner-only CRM wipe.
- * KEEP: Company, Owner account, Warehouse, Setting, Unit/ProductType/OperationType/ExpenseType,
+ * KEEP: Company, Owner account (never deleted), Warehouse, Setting, Unit/ProductType/OperationType/ExpenseType,
  *        OWNER_DIRECT store shell.
  * WIPE: operational + catalog data, BRANCH stores, non-owner users, journals.
  */
@@ -17,6 +18,7 @@ export async function wipeCompanyOperationalData(params: {
   companyId: string;
   ownerId: string;
   ownerPassword: string;
+  masterPassword?: string;
   confirmPhrase: string;
 }) {
   if (params.confirmPhrase.trim() !== CRM_WIPE_PHRASE) {
@@ -35,6 +37,8 @@ export async function wipeCompanyOperationalData(params: {
 
   const ok = await bcrypt.compare(params.ownerPassword, owner.passwordHash);
   if (!ok) throw new Error("WRONG_PASSWORD");
+
+  await verifyWipeMasterPassword(params.companyId, params.masterPassword);
 
   await prisma.$transaction(
     async (tx) => {
@@ -136,6 +140,7 @@ async function wipeInTransaction(tx: Tx, companyId: string) {
   await tx.user.deleteMany({
     where: { companyId, role: { not: Role.OWNER } },
   });
+  // Owner user is intentionally never deleted — only non-owner staff are removed.
 
   await tx.store.deleteMany({
     where: { companyId, kind: StoreKind.BRANCH },

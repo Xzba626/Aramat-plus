@@ -1,16 +1,13 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import {
-  apiErrorMessage,
-  labelProductType,
-} from "@/lib/i18n/labels";
-import { resolveAccountingTypeFromProductTypeName } from "@/lib/product-accounting";
+import { apiErrorMessage, labelProductType } from "@/lib/i18n/labels";
 import { ImagePlus } from "lucide-react";
 
 type RefItem = { id: string; name: string };
@@ -25,14 +22,14 @@ export default function NewProductPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [brandBusy, setBrandBusy] = useState(false);
-  const [accountingType, setAccountingType] = useState<"PIECE" | "WEIGHT">(
-    "PIECE"
-  );
+  const [accountingType, setAccountingType] = useState<"PIECE" | "WEIGHT">("PIECE");
   const [salePrice, setSalePrice] = useState("");
   const [cost, setCost] = useState("");
   const [initialQty, setInitialQty] = useState("");
   const [newBrand, setNewBrand] = useState(false);
   const [brandName, setBrandName] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   async function loadBrands() {
     const res = await fetch("/api/brands");
@@ -49,22 +46,6 @@ export default function NewProductPage() {
       setTypes(Array.isArray(pt) ? pt : []);
     });
   }, []);
-
-  const selectedType = useMemo(
-    () => types.find((pt) => pt.id === productTypeId) ?? null,
-    [types, productTypeId]
-  );
-
-  const mappedAccounting = useMemo(
-    () => resolveAccountingTypeFromProductTypeName(selectedType?.name),
-    [selectedType]
-  );
-
-  const isManualAccounting = mappedAccounting == null && !!productTypeId;
-
-  useEffect(() => {
-    if (mappedAccounting) setAccountingType(mappedAccounting);
-  }, [mappedAccounting]);
 
   const unitLabel =
     accountingType === "WEIGHT" ? t("warehouse.unitMl") : t("warehouse.unitPcs");
@@ -106,6 +87,26 @@ export default function NewProductPage() {
     setBrandBusy(false);
   }
 
+  async function onPhotoChange(file: File | null) {
+    if (!file) return;
+    setUploading(true);
+    setError("");
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const res = await fetch("/api/products/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(apiErrorMessage(data.error, t));
+      } else {
+        setImageUrl(data.imageUrl);
+      }
+    } catch {
+      setError(t("common.error"));
+    }
+    setUploading(false);
+  }
+
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
@@ -144,13 +145,13 @@ export default function NewProductPage() {
     }
 
     const qty = Number(initialQty);
-    const finalAccounting = mappedAccounting ?? accountingType;
     const payload = {
       name: String(fd.get("name") || ""),
       description: String(fd.get("description") || "") || null,
       brandId: resolvedBrandId,
       productTypeId: productTypeId || null,
-      accountingType: finalAccounting,
+      accountingType,
+      imageUrl,
       salePrice: Number(salePrice),
       defaultCostPerUnit: cost ? Number(cost) : null,
       ...(qty > 0 ? { initialQuantity: qty } : {}),
@@ -207,10 +208,33 @@ export default function NewProductPage() {
 
           <div>
             <FieldLabel>{t("warehouse.productPhoto")}</FieldLabel>
-            <div className="flex items-center gap-3 rounded-xl border border-dashed border-border bg-page px-4 py-6 text-sm text-muted">
-              <ImagePlus className="h-5 w-5 shrink-0" strokeWidth={1.75} />
-              {t("warehouse.productPhotoSoon")}
-            </div>
+            <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-border bg-page px-4 py-4 text-sm text-muted hover:border-brand/40">
+              {imageUrl ? (
+                <Image
+                  src={imageUrl}
+                  alt=""
+                  width={64}
+                  height={64}
+                  className="h-16 w-16 rounded-lg object-cover"
+                />
+              ) : (
+                <ImagePlus className="h-8 w-8 shrink-0" strokeWidth={1.75} />
+              )}
+              <span>
+                {uploading
+                  ? t("warehouse.productPhotoUploading")
+                  : imageUrl
+                    ? t("warehouse.productPhotoUploaded")
+                    : t("warehouse.productPhotoUpload")}
+              </span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="sr-only"
+                disabled={uploading}
+                onChange={(e) => onPhotoChange(e.target.files?.[0] ?? null)}
+              />
+            </label>
           </div>
 
           <div>
@@ -300,56 +324,39 @@ export default function NewProductPage() {
 
           <div>
             <FieldLabel>{t("warehouse.productSellHow")}</FieldLabel>
-            {mappedAccounting ? (
-              <p className="rounded-xl border border-border bg-page px-3 py-3 text-sm text-ink">
-                {t("warehouse.productSellAuto", {
-                  mode:
-                    mappedAccounting === "WEIGHT"
-                      ? t("warehouse.productSellVolume")
-                      : t("warehouse.productSellPiece"),
-                })}
-              </p>
-            ) : isManualAccounting ? (
-              <>
-                <p className="mb-2 text-xs text-muted">
-                  {t("warehouse.productSellManualHint")}
-                </p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <label
-                    className={`cursor-pointer rounded-xl border px-3 py-3 text-sm ${
-                      accountingType === "PIECE"
-                        ? "border-brand bg-brand-soft font-semibold text-brand"
-                        : "border-border bg-card"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      className="sr-only"
-                      checked={accountingType === "PIECE"}
-                      onChange={() => setAccountingType("PIECE")}
-                    />
-                    {t("warehouse.productSellPiece")}
-                  </label>
-                  <label
-                    className={`cursor-pointer rounded-xl border px-3 py-3 text-sm ${
-                      accountingType === "WEIGHT"
-                        ? "border-brand bg-brand-soft font-semibold text-brand"
-                        : "border-border bg-card"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      className="sr-only"
-                      checked={accountingType === "WEIGHT"}
-                      onChange={() => setAccountingType("WEIGHT")}
-                    />
-                    {t("warehouse.productSellVolume")}
-                  </label>
-                </div>
-              </>
-            ) : (
-              <p className="text-xs text-muted">{t("warehouse.productTypeHint")}</p>
-            )}
+            <p className="mb-2 text-xs text-muted">{t("warehouse.productSellManualHint")}</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label
+                className={`cursor-pointer rounded-xl border px-3 py-3 text-sm ${
+                  accountingType === "PIECE"
+                    ? "border-brand bg-brand-soft font-semibold text-brand"
+                    : "border-border bg-card"
+                }`}
+              >
+                <input
+                  type="radio"
+                  className="sr-only"
+                  checked={accountingType === "PIECE"}
+                  onChange={() => setAccountingType("PIECE")}
+                />
+                {t("warehouse.productSellPiece")}
+              </label>
+              <label
+                className={`cursor-pointer rounded-xl border px-3 py-3 text-sm ${
+                  accountingType === "WEIGHT"
+                    ? "border-brand bg-brand-soft font-semibold text-brand"
+                    : "border-border bg-card"
+                }`}
+              >
+                <input
+                  type="radio"
+                  className="sr-only"
+                  checked={accountingType === "WEIGHT"}
+                  onChange={() => setAccountingType("WEIGHT")}
+                />
+                {t("warehouse.productSellVolume")}
+              </label>
+            </div>
           </div>
 
           <div>
@@ -412,7 +419,7 @@ export default function NewProductPage() {
           ) : null}
 
           {error ? <p className="text-sm text-danger">{error}</p> : null}
-          <Button type="submit" disabled={loading || brandBusy}>
+          <Button type="submit" disabled={loading || brandBusy || uploading}>
             {loading ? t("warehouse.productSaving") : t("warehouse.productCreateBtn")}
           </Button>
         </form>

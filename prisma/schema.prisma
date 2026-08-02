@@ -393,6 +393,7 @@ model Product {
   sku            String?
   barcode        String?
   description    String?
+  imageUrl       String?
   companyId      String
   categoryId     String?
   brandId        String?
@@ -424,7 +425,8 @@ model Product {
   transferItems TransferItem[]
   saleItems     SaleItem[]
   packagingSaleItems SaleItem[] @relation("SaleItemPackaging")
-  giftRulesAsGift GiftRule[] @relation("GiftProduct")
+  giftRulesAsGift   GiftRule[] @relation("GiftProduct")
+  giftRulesTrigger  GiftRule[] @relation("GiftTriggerProduct")
   reservationItems ReservationItem[]
 
   @@index([companyId])
@@ -704,6 +706,8 @@ model GiftRule {
   id              String   @id @default(cuid())
   companyId       String
   name            String
+  /// Trigger product; null = any product in cart
+  productId       String?
   minQuantity     Decimal? @db.Decimal(14, 3)
   minAmount       Decimal? @db.Decimal(12, 2)
   giftProductId   String
@@ -712,10 +716,12 @@ model GiftRule {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  giftProduct Product @relation("GiftProduct", fields: [giftProductId], references: [id])
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product       Product? @relation("GiftTriggerProduct", fields: [productId], references: [id], onDelete: SetNull)
+  giftProduct   Product  @relation("GiftProduct", fields: [giftProductId], references: [id])
 
   @@index([companyId])
+  @@index([productId])
 }
 
 // ─── Returns ─────────────────────────────────────────────────────────────────

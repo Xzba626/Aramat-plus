@@ -3,7 +3,10 @@ import { requireOwnerOrManager } from "@/lib/rbac";
 import { handleApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
-import { getAnalyticsBreakdown } from "@/lib/services/analytics.service";
+import {
+  getAnalyticsBreakdown,
+  type AnalyticsPeriod,
+} from "@/lib/services/analytics.service";
 
 function csvEscape(v: string | number | null | undefined) {
   const s = v == null ? "" : String(v);
@@ -11,7 +14,25 @@ function csvEscape(v: string | number | null | undefined) {
   return s;
 }
 
-/** Export CSV: ?type=products|sales|expenses|analytics */
+function salesPeriodStart(period: AnalyticsPeriod): Date {
+  const now = new Date();
+  if (period === "today") {
+    const d = new Date(now);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  if (period === "week") {
+    const d = new Date(now);
+    d.setHours(0, 0, 0, 0);
+    const day = d.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    d.setDate(d.getDate() - diff);
+    return d;
+  }
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+}
+
+/** Export CSV: ?type=products|sales|expenses|analytics&period=today|week|month (sales) */
 export async function GET(req: Request) {
   try {
     const user = await getSessionUser();
@@ -19,6 +40,11 @@ export async function GET(req: Request) {
     if (denied) return denied;
 
     const type = new URL(req.url).searchParams.get("type") || "products";
+    const periodParam = new URL(req.url).searchParams.get("period");
+    const period: AnalyticsPeriod =
+      periodParam === "today" || periodParam === "week" || periodParam === "month"
+        ? periodParam
+        : "month";
     const companyId = user!.companyId;
     let lines: string[] = [];
 
@@ -54,8 +80,12 @@ export async function GET(req: Request) {
         ),
       ];
     } else if (type === "sales") {
+      const from = salesPeriodStart(period);
       const rows = await prisma.sale.findMany({
-        where: { store: { companyId } },
+        where: {
+          store: { companyId },
+          createdAt: { gte: from },
+        },
         include: {
           store: true,
           seller: true,
@@ -110,7 +140,7 @@ export async function GET(req: Request) {
         ),
       ];
     } else if (type === "analytics") {
-      const data = await getAnalyticsBreakdown(companyId, "month");
+      const data = await getAnalyticsBreakdown(companyId, period);
       lines = [
         "metric,value",
         `revenue,${data.network.revenue}`,
@@ -128,7 +158,7 @@ export async function GET(req: Request) {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="aramat-${type}.csv"`,
+        "Content-Disposition": `attachment; filename="aramat-${type}${type === "sales" || type === "analytics" ? `-${period}` : ""}.csv"`,
       },
     });
   } catch (err) {

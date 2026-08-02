@@ -21,6 +21,7 @@
     "diagnose:stock": "tsx scripts/diagnose-stock.ts",
     "test:stock-flow": "tsx scripts/test-stock-flow.ts",
     "test:profit-net": "tsx scripts/test-profit-net.ts",
+    "test:bottle-sale": "tsx scripts/test-bottle-sale.ts",
     "test:revision": "tsx scripts/test-revision.ts",
     "test:partial-return": "tsx scripts/test-partial-return.ts",
     "test:lockout": "tsx scripts/test-lockout.ts",

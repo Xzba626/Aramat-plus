@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Role } from "@prisma/client";
@@ -25,6 +26,7 @@ type Product = {
   id: string;
   name: string;
   sku?: string | null;
+  imageUrl?: string | null;
   salePrice: string | number;
   defaultCostPerUnit?: string | number | null;
   accountingType: string;
@@ -51,6 +53,39 @@ export default function ProductDetailPage() {
   );
   const [keepPrice, setKeepPrice] = useState(true);
   const [newSalePrice, setNewSalePrice] = useState("");
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  async function onPhotoChange(file: File | null) {
+    if (!file || !product) return;
+    setPhotoBusy(true);
+    setError("");
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const up = await fetch("/api/products/upload", { method: "POST", body: fd });
+      const upData = await up.json();
+      if (!up.ok) {
+        setError(apiErrorMessage(upData.error, t));
+        setPhotoBusy(false);
+        return;
+      }
+      const res = await fetch(`/api/products/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: upData.imageUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(apiErrorMessage(data.error, t));
+      } else {
+        setProduct((p) => (p ? { ...p, imageUrl: upData.imageUrl } : p));
+        setMsg(t("warehouse.productPhotoUploaded"));
+      }
+    } catch {
+      setError(t("common.error"));
+    }
+    setPhotoBusy(false);
+  }
 
   async function load() {
     const res = await fetch(`/api/products/${id}`);
@@ -158,6 +193,33 @@ export default function ProductDetailPage() {
       <PageHeader title={product.name} />
 
       <Card className="p-5 sm:p-6">
+        <div className="mb-4 flex items-start gap-4">
+          <label className="relative block h-20 w-20 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-border bg-page">
+            {product.imageUrl ? (
+              <Image
+                src={product.imageUrl}
+                alt=""
+                fill
+                className="object-cover"
+                sizes="80px"
+              />
+            ) : (
+              <span className="flex h-full items-center justify-center text-xs text-muted">
+                {t("warehouse.productPhoto")}
+              </span>
+            )}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="sr-only"
+              disabled={photoBusy}
+              onChange={(e) => onPhotoChange(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          <p className="text-xs text-muted">
+            {photoBusy ? t("warehouse.productPhotoUploading") : t("warehouse.productPhotoUpload")}
+          </p>
+        </div>
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-xs font-bold uppercase tracking-wide text-muted">

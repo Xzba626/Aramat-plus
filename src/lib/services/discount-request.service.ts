@@ -351,3 +351,41 @@ export async function linkDiscountToSale(
     data: { saleId: params.saleId },
   });
 }
+
+export async function listDiscountRequests(companyId: string, limit = 100) {
+  const rows = await prisma.discountRequest.findMany({
+    where: {
+      companyId,
+      status: { in: ["PENDING", "APPROVED", "REJECTED"] },
+    },
+    include: {
+      requester: { select: { name: true } },
+      store: { select: { name: true } },
+      reviewer: { select: { name: true } },
+      sale: {
+        include: {
+          store: { select: { name: true } },
+          items: {
+            take: 5,
+            include: { product: { select: { name: true } } },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+
+  return rows.map((row) => {
+    const base = serializeDiscountRequest(row);
+    const productNames =
+      row.sale?.items.map((i) => i.product.name).join(", ") ?? "";
+    return {
+      ...base,
+      storeName: row.store?.name ?? row.sale?.store.name ?? "—",
+      requesterName: row.requester.name,
+      reviewerName: row.reviewer?.name ?? null,
+      products: productNames,
+    };
+  });
+}

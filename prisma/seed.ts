@@ -69,12 +69,13 @@ async function main() {
   ]);
 
   await Promise.all([
-    prisma.productType.create({ data: { name: "Разливной", companyId: company.id } }),
-    prisma.productType.create({ data: { name: "Штучный", companyId: company.id } }),
-    prisma.productType.create({ data: { name: "Дезодорант", companyId: company.id } }),
-    prisma.productType.create({ data: { name: "Освежитель", companyId: company.id } }),
-    prisma.productType.create({ data: { name: "Часы", companyId: company.id } }),
     prisma.productType.create({ data: { name: "Парфюм", companyId: company.id } }),
+    prisma.productType.create({ data: { name: "Масляные духи", companyId: company.id } }),
+    prisma.productType.create({ data: { name: "Дезодорант", companyId: company.id } }),
+    prisma.productType.create({ data: { name: "Освежитель воздуха", companyId: company.id } }),
+    prisma.productType.create({ data: { name: "Часы", companyId: company.id } }),
+    prisma.productType.create({ data: { name: "Аксессуары", companyId: company.id } }),
+    prisma.productType.create({ data: { name: "Подарки", companyId: company.id } }),
     prisma.productType.create({ data: { name: "Другое", companyId: company.id } }),
     prisma.operationType.create({
       data: { name: "Перемещение", code: "TRANSFER", companyId: company.id },
@@ -87,6 +88,7 @@ async function main() {
     prisma.expenseType.create({ data: { name: "Коммунальные", companyId: company.id } }),
     prisma.expenseType.create({ data: { name: "Интернет", companyId: company.id } }),
     prisma.expenseType.create({ data: { name: "Прочие", companyId: company.id } }),
+    prisma.expenseType.create({ data: { name: "Флаконы", companyId: company.id } }),
   ]);
 
   const store1 = await prisma.store.create({

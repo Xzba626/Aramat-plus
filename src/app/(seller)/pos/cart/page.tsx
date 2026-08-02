@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel } from "@/components/ui/card";
@@ -17,12 +17,21 @@ import { useToast } from "@/components/ui/toast";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
 
+type BottleOption = {
+  packagingSkuId: string | null;
+  packagingProductId: string;
+  name: string;
+  volumeMl: number | null;
+  quantity: number;
+};
+
 export default function PosCartPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { t, formatMoney } = useI18n();
   const lines = usePosCart((s) => s.lines);
   const setQty = usePosCart((s) => s.setQty);
+  const setPackaging = usePosCart((s) => s.setPackaging);
   const clear = usePosCart((s) => s.clear);
   const payment = usePosCart((s) => s.paymentMethod);
   const setPayment = usePosCart((s) => s.setPaymentMethod);
@@ -39,6 +48,34 @@ export default function PosCartPage() {
   const [showDiscount, setShowDiscount] = useState(false);
   const [discountNote, setDiscountNote] = useState("");
   const [discountAmountInput, setDiscountAmountInput] = useState("10");
+  const [bottles, setBottles] = useState<BottleOption[]>([]);
+  const [bottlesLoading, setBottlesLoading] = useState(false);
+
+  const weightLines = useMemo(
+    () => lines.filter((l) => l.accountingType === "WEIGHT"),
+    [lines]
+  );
+
+  const loadBottles = useCallback(async () => {
+    if (weightLines.length === 0) {
+      setBottles([]);
+      return;
+    }
+    setBottlesLoading(true);
+    const res = await fetch("/api/pos/packaging-bottles");
+    const data = await res.json();
+    setBottlesLoading(false);
+    if (res.ok && Array.isArray(data)) {
+      setBottles(data);
+    }
+  }, [weightLines.length]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    loadBottles();
+  }, [hydrated, loadBottles]);
+
+  const missingBottle = weightLines.some((l) => !l.packagingProductId);
 
   const refreshDiscount = useCallback(
     async (id?: string) => {
@@ -101,6 +138,10 @@ export default function PosCartPage() {
       setError(t("pos.discountPendingBlock"));
       return;
     }
+    if (missingBottle) {
+      setError(t("pos.bottleRequired"));
+      return;
+    }
     setLoading(true);
     setError("");
     setDone("");
@@ -116,6 +157,14 @@ export default function PosCartPage() {
         items: lines.map((l) => ({
           productId: l.productId,
           quantity: l.quantity,
+          ...(l.accountingType === "WEIGHT" && l.packagingProductId
+            ? {
+                packagingProductId: l.packagingProductId,
+                ...(l.packagingSkuId
+                  ? { packagingSkuId: l.packagingSkuId }
+                  : {}),
+              }
+            : {}),
         })),
       }),
     });
@@ -240,32 +289,70 @@ export default function PosCartPage() {
       {lines.map((l) => (
         <div
           key={l.productId}
-          className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3"
+          className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-3"
         >
-          <div className="min-w-0 flex-1">
-            <div className="font-semibold text-ink">{l.name}</div>
-            <div className="text-xs text-muted">
-              {formatMoney(l.salePrice)} · {t("pos.maxQty", { n: l.max })}
-              {l.unitSymbol}
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold text-ink">{l.name}</div>
+              <div className="text-xs text-muted">
+                {formatMoney(l.salePrice)} · {t("pos.maxQty", { n: l.max })}
+                {l.unitSymbol}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="h-9 w-9 rounded-xl border border-border"
+                onClick={() => setQty(l.productId, l.quantity - 1)}
+              >
+                −
+              </button>
+              <span className="w-8 text-center font-semibold">{l.quantity}</span>
+              <button
+                type="button"
+                className="h-9 w-9 rounded-xl border border-border"
+                onClick={() => setQty(l.productId, l.quantity + 1)}
+              >
+                +
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="h-9 w-9 rounded-xl border border-border"
-              onClick={() => setQty(l.productId, l.quantity - 1)}
-            >
-              −
-            </button>
-            <span className="w-8 text-center font-semibold">{l.quantity}</span>
-            <button
-              type="button"
-              className="h-9 w-9 rounded-xl border border-border"
-              onClick={() => setQty(l.productId, l.quantity + 1)}
-            >
-              +
-            </button>
-          </div>
+          {l.accountingType === "WEIGHT" ? (
+            <div className="border-t border-border pt-2">
+              <FieldLabel>{t("pos.selectBottle")}</FieldLabel>
+              {bottlesLoading ? (
+                <p className="mt-1 text-xs text-muted">{t("common.loading")}</p>
+              ) : bottles.length === 0 ? (
+                <p className="mt-1 text-xs text-danger">{t("pos.noBottlesInStore")}</p>
+              ) : (
+                <select
+                  className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                  value={l.packagingProductId ?? ""}
+                  onChange={(e) => {
+                    const opt = bottles.find(
+                      (b) => b.packagingProductId === e.target.value
+                    );
+                    if (opt) {
+                      setPackaging(l.productId, {
+                        packagingProductId: opt.packagingProductId,
+                        packagingSkuId: opt.packagingSkuId,
+                      });
+                    }
+                  }}
+                >
+                  <option value="">{t("pos.bottlePlaceholder")}</option>
+                  {bottles.map((b) => (
+                    <option
+                      key={b.packagingProductId}
+                      value={b.packagingProductId}
+                    >
+                      {b.name} · {b.quantity} {t("units.pcs")}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          ) : null}
         </div>
       ))}
 
@@ -368,7 +455,7 @@ export default function PosCartPage() {
             <Button
               type="button"
               onClick={sell}
-              disabled={loading || activeDiscount?.status === "PENDING"}
+              disabled={loading || activeDiscount?.status === "PENDING" || missingBottle}
             >
               {loading ? "…" : t("pos.sell")}
             </Button>

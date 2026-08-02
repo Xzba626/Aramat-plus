@@ -1,6 +1,8 @@
 import {
   AccountingType,
+  ExpensePeriodicity,
   LocationType,
+  NotificationType,
   ProductKind,
   Prisma,
 } from "@prisma/client";
@@ -8,6 +10,11 @@ import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { resolveUnitId } from "@/lib/services/product-nomenclature.service";
+import { deductBatchesFifo } from "@/lib/services/stock.service";
+import { notifyCompanyRoles } from "@/lib/services/notification.service";
+
+export const BOTTLE_LOW_STOCK_THRESHOLD = 5;
+const BOTTLE_EXPENSE_TYPE_NAME = "Флаконы";
 
 const DEFAULT_VOLUMES = [5, 10, 30, 50, 100] as const;
 
@@ -283,4 +290,233 @@ export async function ensureDefaultPackagingSkus(companyId: string, actorId?: st
     created.push(sku.id);
   }
   return created;
+}
+
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+/** Find or create expense type for bottle opex on WEIGHT sales. */
+export async function ensureBottleExpenseType(companyId: string) {
+  const existing = await prisma.expenseType.findFirst({
+    where: { companyId, name: BOTTLE_EXPENSE_TYPE_NAME },
+  });
+  if (existing) return existing;
+  return prisma.expenseType.create({
+    data: { companyId, name: BOTTLE_EXPENSE_TYPE_NAME },
+  });
+}
+
+export async function resolvePackagingProduct(params: {
+  companyId: string;
+  packagingSkuId?: string | null;
+  packagingProductId?: string | null;
+}) {
+  if (params.packagingProductId) {
+    const product = await prisma.product.findFirst({
+      where: {
+        id: params.packagingProductId,
+        companyId: params.companyId,
+        kind: ProductKind.PACKAGING,
+        isActive: true,
+      },
+      include: { packagingSku: true },
+    });
+    if (!product) throw new Error("BOTTLE_NOT_FOUND");
+    return product;
+  }
+  if (params.packagingSkuId) {
+    await ensurePackagingProduct(params.packagingSkuId);
+    const product = await prisma.product.findFirst({
+      where: {
+        companyId: params.companyId,
+        kind: ProductKind.PACKAGING,
+        packagingSkuId: params.packagingSkuId,
+        isActive: true,
+      },
+      include: { packagingSku: true },
+    });
+    if (!product) throw new Error("BOTTLE_NOT_FOUND");
+    return product;
+  }
+  throw new Error("BOTTLE_REQUIRED");
+}
+
+/** Packaging bottles available at a store (qty > 0). */
+export async function listStorePackagingStock(
+  companyId: string,
+  storeId: string
+) {
+  const store = await prisma.store.findFirst({
+    where: { id: storeId, companyId, isActive: true },
+  });
+  if (!store) throw new Error("STORE_NOT_FOUND");
+
+  const balances = await prisma.stockBalance.findMany({
+    where: {
+      locationType: LocationType.STORE,
+      locationId: storeId,
+      quantity: { gt: 0 },
+      product: {
+        companyId,
+        kind: ProductKind.PACKAGING,
+        isActive: true,
+      },
+    },
+    include: {
+      product: {
+        include: { packagingSku: true, unit: true },
+      },
+    },
+    orderBy: { product: { name: "asc" } },
+  });
+
+  return balances.map((b) => ({
+    packagingSkuId: b.product.packagingSkuId,
+    packagingProductId: b.productId,
+    name: b.product.name,
+    volumeMl: b.product.packagingSku
+      ? decimalToNumber(b.product.packagingSku.volumeMl)
+      : null,
+    quantity: Math.round(decimalToNumber(b.quantity) * 1000) / 1000,
+    defaultCost:
+      b.product.packagingSku?.defaultCost != null
+        ? decimalToNumber(b.product.packagingSku.defaultCost)
+        : b.product.defaultCostPerUnit != null
+          ? decimalToNumber(b.product.defaultCostPerUnit)
+          : null,
+  }));
+}
+
+export async function getPackagingQtyAtStore(
+  productId: string,
+  storeId: string
+): Promise<number> {
+  const row = await prisma.stockBalance.findUnique({
+    where: {
+      productId_locationType_locationId: {
+        productId,
+        locationType: LocationType.STORE,
+        locationId: storeId,
+      },
+    },
+  });
+  return row ? decimalToNumber(row.quantity) : 0;
+}
+
+export type BottleDeductResult = {
+  packagingProductId: string;
+  packagingQuantity: Prisma.Decimal;
+  packagingCostPerUnit: Prisma.Decimal;
+  bottleExpenseAmount: number;
+};
+
+/** Deduct 1 bottle from store FIFO; returns cost for opex (not perfume COGS). */
+export async function deductBottleFromStore(
+  tx: Prisma.TransactionClient,
+  params: {
+    packagingProductId: string;
+    storeId: string;
+    quantity?: number;
+  }
+): Promise<BottleDeductResult> {
+  const qty = new Prisma.Decimal(params.quantity ?? 1);
+  const consumed = await deductBatchesFifo(tx, {
+    productId: params.packagingProductId,
+    locationType: LocationType.STORE,
+    locationId: params.storeId,
+    quantity: qty,
+  });
+  const totalCost = consumed.reduce(
+    (s, c) => s + decimalToNumber(c.costPerUnit) * decimalToNumber(c.quantity),
+    0
+  );
+  const totalQty = consumed.reduce(
+    (s, c) => s + decimalToNumber(c.quantity),
+    0
+  );
+  const avgCost = totalQty > 0 ? totalCost / totalQty : 0;
+  return {
+    packagingProductId: params.packagingProductId,
+    packagingQuantity: qty,
+    packagingCostPerUnit: new Prisma.Decimal(avgCost),
+    bottleExpenseAmount: Math.round(totalCost * 100) / 100,
+  };
+}
+
+export async function createBottleSaleExpenseInTx(
+  tx: Prisma.TransactionClient,
+  params: {
+    expenseTypeId: string;
+    createdById: string;
+    storeId: string;
+    amount: number;
+    saleId: string;
+    label: string;
+  }
+) {
+  if (!(params.amount > 0)) return null;
+  const now = new Date();
+  return tx.expense.create({
+    data: {
+      expenseTypeId: params.expenseTypeId,
+      amount: new Prisma.Decimal(params.amount),
+      storeId: params.storeId,
+      description: `sale:${params.saleId} · ${params.label}`,
+      createdById: params.createdById,
+      incurredAt: now,
+      periodicity: ExpensePeriodicity.ONCE,
+      startsAt: startOfDay(now),
+    },
+  });
+}
+
+export async function maybeNotifyLowBottleStock(params: {
+  companyId: string;
+  storeId: string;
+  storeName: string;
+  packagingProductId: string;
+  skuName: string;
+  qtyAfter: number;
+}) {
+  if (params.qtyAfter > BOTTLE_LOW_STOCK_THRESHOLD) return;
+  await notifyCompanyRoles({
+    companyId: params.companyId,
+    type: NotificationType.LOW_STOCK,
+    title: "Мало флаконов",
+    message: `${params.storeName}: «${params.skuName}» — осталось ${params.qtyAfter} шт`,
+    entityType: "Product",
+    entityId: params.packagingProductId,
+  });
+}
+
+/** After transfer to store: notify owner if any packaging SKU is low. */
+export async function checkLowBottleStockAfterTransfer(params: {
+  companyId: string;
+  storeId: string;
+  storeName: string;
+  productIds: string[];
+}) {
+  for (const productId of params.productIds) {
+    const product = await prisma.product.findFirst({
+      where: {
+        id: productId,
+        companyId: params.companyId,
+        kind: ProductKind.PACKAGING,
+      },
+      select: { id: true, name: true },
+    });
+    if (!product) continue;
+    const qty = await getPackagingQtyAtStore(productId, params.storeId);
+    await maybeNotifyLowBottleStock({
+      companyId: params.companyId,
+      storeId: params.storeId,
+      storeName: params.storeName,
+      packagingProductId: product.id,
+      skuName: product.name,
+      qtyAfter: qty,
+    });
+  }
 }

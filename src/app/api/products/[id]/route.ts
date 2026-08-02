@@ -104,6 +104,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
         data: {
           name: body.name,
           sku: body.sku === undefined ? undefined : body.sku,
+          imageUrl: body.imageUrl === undefined ? undefined : body.imageUrl,
           categoryId:
             body.categoryId === undefined ? undefined : body.categoryId,
           brandId: body.brandId === undefined ? undefined : body.brandId,

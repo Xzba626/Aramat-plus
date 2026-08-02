@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { Bell, Search } from "lucide-react";
+import { Bell, Menu, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sectionTitleKeyForPath } from "@/lib/navigation/owner-nav";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
@@ -23,10 +23,10 @@ function initials(name: string) {
 export function OwnerTopBar({
   userName,
   role,
+  onMenu,
 }: {
   userName: string;
   role: string;
-  /** @deprecated Mobile no longer uses a drawer menu */
   onMenu?: () => void;
 }) {
   const pathname = usePathname();
@@ -67,7 +67,15 @@ export function OwnerTopBar({
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
       <div className="flex h-14 items-center gap-2.5 px-4 sm:gap-3 sm:px-6 lg:px-8">
-        {/* Mobile: brand mark (no hamburger — bottom nav is the menu) */}
+        {/* Mobile: hamburger + brand */}
+        <button
+          type="button"
+          onClick={onMenu}
+          className="rounded-xl p-2 text-muted hover:bg-page hover:text-ink lg:hidden"
+          aria-label={t("common.menu")}
+        >
+          <Menu className="h-5 w-5" strokeWidth={1.75} />
+        </button>
         <Link
           href="/dashboard"
           className="flex shrink-0 items-center gap-2 lg:hidden"

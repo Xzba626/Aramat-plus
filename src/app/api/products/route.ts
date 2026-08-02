@@ -166,6 +166,7 @@ export async function POST(req: Request) {
           sku,
           barcode: body.barcode ?? null,
           description: body.description ?? null,
+          imageUrl: body.imageUrl ?? null,
           companyId: user!.companyId,
           categoryId: body.categoryId ?? null,
           brandId: body.brandId ?? null,

@@ -42,6 +42,7 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
       { href: "/analytics?view=network", labelKey: "nav.financeRevenue" },
       { href: "/analytics?view=expenses", labelKey: "nav.financeExpenses" },
       { href: "/analytics?view=network&focus=net", labelKey: "nav.financeNetProfit" },
+      { href: "/reports", labelKey: "nav.reports" },
     ],
   },
   {
@@ -67,7 +68,6 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
       { href: "/warehouse/receive", labelKey: "nav.purchasesReceive" },
       { href: "/warehouse/packaging", labelKey: "nav.packaging" },
       { href: "/warehouse/batches", labelKey: "nav.purchasesBatches" },
-      { href: "/warehouse/suppliers", labelKey: "nav.purchasesSuppliers" },
       { href: "/warehouse/transfers", labelKey: "nav.inventoryTransfers" },
       { href: "/warehouse/return-in", labelKey: "nav.inventoryReturnIn" },
       {
@@ -80,18 +80,17 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
       { href: "/warehouse/products", labelKey: "nav.productsCatalog" },
       { href: "/warehouse/categories", labelKey: "nav.productsCategories" },
       { href: "/warehouse/brands", labelKey: "nav.productsBrands" },
+      { href: "/warehouse/product-types", labelKey: "nav.productsTypes" },
     ],
   },
   {
     id: "sales",
-    labelKey: "nav.sales",
+    labelKey: "nav.salesRequests",
     href: "/returns",
     icon: "sales",
     children: [
       { href: "/returns", labelKey: "nav.salesReturns" },
-      { href: "/dashboard#decisions", labelKey: "nav.salesDiscounts" },
-      { href: "/reservations", labelKey: "nav.reservations" },
-      { href: "/analytics?view=sellers", labelKey: "nav.salesPos" },
+      { href: "/discounts", labelKey: "nav.salesDiscounts" },
     ],
   },
   {
@@ -103,7 +102,6 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     children: [
       { href: "/users", labelKey: "nav.users" },
       { href: "/journal", labelKey: "nav.journal" },
-      { href: "/analytics?view=sellers", labelKey: "nav.teamActivity" },
     ],
   },
   {
@@ -112,8 +110,7 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     href: "/settings",
     icon: "settings",
     children: [
-      { href: "/settings", labelKey: "nav.settings" },
-      { href: "/notifications", labelKey: "nav.notifications" },
+      { href: "/settings", labelKey: "nav.settingsHub" },
       {
         href: "/settings/wipe",
         labelKey: "nav.settingsDemo",
@@ -216,6 +213,10 @@ export function sectionForPath(pathname: string): OwnerNavSection | undefined {
     return OWNER_NAV_SECTIONS.find((s) => s.id === "finance");
   }
 
+  if (pathname.startsWith("/reports")) {
+    return OWNER_NAV_SECTIONS.find((s) => s.id === "finance");
+  }
+
   if (
     pathname.startsWith("/warehouse") ||
     pathname.startsWith("/revision")
@@ -223,7 +224,11 @@ export function sectionForPath(pathname: string): OwnerNavSection | undefined {
     return OWNER_NAV_SECTIONS.find((s) => s.id === "warehouse");
   }
 
-  if (pathname.startsWith("/returns") || pathname.startsWith("/reservations")) {
+  if (
+    pathname.startsWith("/returns") ||
+    pathname.startsWith("/reservations") ||
+    pathname.startsWith("/discounts")
+  ) {
     return OWNER_NAV_SECTIONS.find((s) => s.id === "sales");
   }
 

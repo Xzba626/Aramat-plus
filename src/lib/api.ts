@@ -40,6 +40,8 @@ export function handleApiError(err: unknown) {
     const safeCodes = new Set([
       "ARCHIVE_ONLY",
       "BATCH_QTY_MUST_BE_POSITIVE",
+      "BOTTLE_NOT_FOUND",
+      "BOTTLE_REQUIRED",
       "BRANCH_NOT_FOUND",
       "BRAND_NAME_REQUIRED",
       "BRAND_NOT_FOUND",
@@ -83,6 +85,8 @@ export function handleApiError(err: unknown) {
       "VALIDATION_ERROR",
       "WAREHOUSE_MISSING",
       "WRONG_PASSWORD",
+      "WRONG_MASTER_PASSWORD",
+      "MASTER_PASSWORD_REQUIRED",
       "WIPE_PHRASE_MISMATCH",
       "ACCOUNT_LOCKED",
       "RETURN_QTY_EXCEEDS",

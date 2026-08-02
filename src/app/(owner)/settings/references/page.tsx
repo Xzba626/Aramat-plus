@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -112,7 +113,12 @@ export default function ReferencesPage() {
         <RefSection title={t("wh.categoriesTitle")} path="/api/categories" t={t} />
         <RefSection title={t("wh.brandsTitle")} path="/api/brands" t={t} />
         <RefSection title={t("wh.stockTitle")} path="/api/units" extraFields="symbol" t={t} />
-        <RefSection title={t("wh.colType")} path="/api/product-types" t={t} />
+        <Card className="mb-6 p-4 text-sm text-muted">
+          {t("wh.referencesProductTypesNote")}{" "}
+          <Link href="/warehouse/product-types" className="font-semibold text-brand">
+            {t("nav.productsTypes")} →
+          </Link>
+        </Card>
         <RefSection title={t("wh.historyTitle")} path="/api/operation-types" extraFields="code" t={t} />
         <RefSection title={t("storeDetail.expenses")} path="/api/expense-types" t={t} />
       </div>

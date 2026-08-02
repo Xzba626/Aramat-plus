@@ -33,18 +33,14 @@ export async function resolveAccountingTypeForProductTypeId(
  * Final accounting type for create/update.
  * Known types override client; «Другое» keeps client choice.
  */
+/** Accounting type is chosen explicitly in UI — product type is analytics only. */
 export async function resolveProductAccountingType(
-  prisma: PrismaClient,
-  companyId: string,
-  productTypeId: string | null | undefined,
+  _prisma: PrismaClient,
+  _companyId: string,
+  _productTypeId: string | null | undefined,
   clientAccountingType: AccountingType
 ): Promise<AccountingType> {
-  const mapped = await resolveAccountingTypeForProductTypeId(
-    prisma,
-    companyId,
-    productTypeId
-  );
-  return mapped ?? clientAccountingType;
+  return clientAccountingType;
 }
 
 /** Ensure company has analytics product types (idempotent). */
