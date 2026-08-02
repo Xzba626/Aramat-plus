@@ -245,6 +245,9 @@
     "statusAllGood": "Имрӯз ҳама зери назорат аст. Мушкили фаврӣ нест.",
     "statusSalesUp": "Фурӯш нисбат ба дирӯз {{pct}} зиёд аст. Рӯзи хуб!",
     "statusLowStock": "{{n}} мол тамом мешавад. Анборро санҷед.",
+    "statusNoSalesToday": "Имрӯз мағоза(ҳо) бе фурӯш ҳаст — ин огоҳӣ аз боқимонда нест, танҳо рӯзи ором.",
+    "deltaNew": "қимати нав",
+    "netProfitProrateHint": "Дар фоидаи соф ҳиссаи хароҷоти моҳона (иҷора/музд) ҳисоб шудааст, на маблағи пурраи сабт.",
     "statusAttention": "Диққат лозим: {{n}} дархост мунтазири қарори шумост.",
     "today": "Имрӯз",
     "vsYesterday": "нисбат ба дирӯз",
@@ -530,7 +533,14 @@
     "packagingSkuUpdate": "Шиша нав шуд",
     "categoryArchive": "Категория ба архив",
     "categoryRestore": "Категория барқарор",
-    "categoryDelete": "Категория нест шуд"
+    "categoryDelete": "Категория нест шуд",
+    "reservationCreate": "Резерв эҷод шуд",
+    "reservationCancel": "Резерв бекор шуд",
+    "reservationComplete": "Резерв бо фурӯш пӯшида шуд",
+    "reservationExpire": "Мӯҳлати резерв гузашт"
+  },
+  "actionComments": {
+    "cartCleared": "Сабад тоза шуд"
   },
   "entities": {
     "sale": "Фурӯш",
@@ -547,7 +557,8 @@
     "packagingSku": "Шиша",
     "expense": "Хароҷот",
     "category": "Категория",
-    "brand": "Бренд"
+    "brand": "Бренд",
+    "reservation": "Резерв"
   },
   "purchases": {
     "receiveTitle": "Қабули мол",
@@ -693,7 +704,7 @@
     "salesToday": "Фурӯши имрӯз",
     "profitToday": "Фоидаи имрӯз",
     "pendingDecisions": "Мунтазири қарор",
-    "ownerDirectHint": "Манбаъ: анбори марказӣ · бе интиқол",
+    "ownerDirectHint": "Фурӯши мустақим аз анбор (мол ба мағоза фиристода нашудааст)",
     "kindsOnHand": "Намудҳо дар анбор: {{sku}} · адад: {{units}}",
     "today": "Имрӯз",
     "month": "Моҳ",
@@ -762,6 +773,10 @@
     "colChecks": "Чекҳо",
     "expensesTitle": "Хароҷот аз рӯи мағозаҳо",
     "expensesHint": "Хароҷот дар корти ҳар мағоза (варақаи «Хароҷот») нигоҳ дошта мешавад. Нуқтаро кушоед, то иҷора, маош ё коммуналиро илова кунед.",
+    "expensesAllocatedHint": "Дар фоидаи давра ҳиссаи хароҷот ҳисоб мешавад (моҳона ба рӯзҳо тақсим). Ҷамъ — ҳиссаҳо, на маблағи пурраи сабт.",
+    "expensesInPeriod": "Дар давра ҳисоб шуд",
+    "expensesFullAmount": "маблағи пурраи сабт {{amount}}",
+    "expensesEmpty": "Дар ин давра хароҷоти ҳисобшуда нест",
     "openExpenses": "Хароҷотро кушоед →",
     "monthRevenueShort": "Моҳ: {{amount}}"
   },
@@ -887,9 +902,7 @@
     "password": "Рамз",
     "submit": "Ворид шудан",
     "submitting": "Ворид…",
-    "invalid": "Логин ё рамз нодуруст",
-    "demo": "Демо: owner@aromat.plus / owner1234",
-    "noSelfRegister": "Бақайдгирӣ нест — дастрасиро танҳо соҳиб медиҳад"
+    "invalid": "Логин ё рамз нодуруст"
   },
   "splash": {
     "welcome": "Хуш омадед",

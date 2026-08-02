@@ -14,12 +14,18 @@ function startOfDay(d: Date) {
   return x;
 }
 
+/**
+ * % vs yesterday for owner KPIs.
+ * Sign follows business outcome (current − previous): higher profit/revenue = better.
+ * Never invent "+100%" from division by zero — use "новое" instead.
+ * When previous is negative, base = |previous| so worsening loss is negative %.
+ */
 function pctChange(current: number, previous: number) {
   const abs = Math.round((current - previous) * 100) / 100;
   const absLabel =
     abs === 0 ? "0 с." : `${abs > 0 ? "+" : ""}${abs} с.`;
   if (previous === 0) {
-    if (current === 0)
+    if (current === 0) {
       return {
         pct: 0,
         label: "0%",
@@ -27,17 +33,20 @@ function pctChange(current: number, previous: number) {
         absLabel,
         current,
         previous,
+        isNew: false,
       };
+    }
     return {
-      pct: 100,
-      label: "+100%",
+      pct: 0,
+      label: "новое",
       abs,
       absLabel,
       current,
       previous,
+      isNew: true,
     };
   }
-  const pct = Math.round(((current - previous) / previous) * 100);
+  const pct = Math.round((abs / Math.abs(previous)) * 100);
   return {
     pct,
     label: `${pct > 0 ? "+" : ""}${pct}%`,
@@ -45,6 +54,7 @@ function pctChange(current: number, previous: number) {
     absLabel,
     current,
     previous,
+    isNew: false,
   };
 }
 

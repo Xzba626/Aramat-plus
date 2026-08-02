@@ -147,8 +147,13 @@ export default function WriteOffsPage() {
         { label: t("journalPage.loaded"), value: String(rows.length) },
         {
           label: t("wh.centralWarehouse"),
-          hint: t("dashboard.stockOnHand"),
-          value: String(stock.length),
+          hint: t("dashboard.stockHint"),
+          value: t("storesPage.kindsOnHand", {
+            sku: stock.length,
+            units: Math.round(
+              stock.reduce((n, s) => n + (Number.isFinite(s.quantity) ? s.quantity : 0), 0) * 1000
+            ) / 1000,
+          }),
         },
       ]}
       actions={

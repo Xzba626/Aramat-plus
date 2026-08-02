@@ -378,14 +378,22 @@ export async function listDiscountRequests(companyId: string, limit = 100) {
 
   return rows.map((row) => {
     const base = serializeDiscountRequest(row);
-    const productNames =
-      row.sale?.items.map((i) => i.product.name).join(", ") ?? "";
+    const fromSale =
+      row.sale?.items.map((i) => i.product.name).filter(Boolean).join(", ") ??
+      "";
+    let fromCart = "";
+    if (!fromSale && Array.isArray(row.cartSnapshot)) {
+      fromCart = (row.cartSnapshot as Array<{ name?: string }>)
+        .map((l) => l.name)
+        .filter(Boolean)
+        .join(", ");
+    }
     return {
       ...base,
       storeName: row.store?.name ?? row.sale?.store.name ?? "—",
       requesterName: row.requester.name,
       reviewerName: row.reviewer?.name ?? null,
-      products: productNames,
+      products: fromSale || fromCart,
     };
   });
 }

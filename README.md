@@ -66,13 +66,9 @@ npm run db:seed
 
 Остановка: `npm run db:down`
 
-### Демо-аккаунты
+### Локальные аккаунты после `npm run db:seed`
 
-| Роль | Email | Пароль |
-|------|-------|--------|
-| Owner | owner@aromat.plus | owner1234 |
-| Manager | manager@aromat.plus | manager1234 |
-| Seller | seller@aromat.plus | seller1234 |
+Создаются только в вашей локальной/seed-базе. **Пароли не публикуются в README и не показываются в UI** — смотрите вывод `prisma/seed.ts` в терминале при сиде. На продакшене используйте свои пароли и смените seed-пароли сразу после деплоя.
 
 ## Milestone 1 (этапы 1–10)
 

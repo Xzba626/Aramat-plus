@@ -56,8 +56,9 @@ npm run smoke:cycle
 
 ## Accounts (after seed)
 
-- Owner: `owner@aromat.plus` / `owner1234`
-- Seller: `seller@aromat.plus` / `seller1234` → Магазин №1
+Пароли печатает `npm run db:seed` в терминал. Не копируйте их в docs / UI / публичный README.
+- Owner: `owner@aromat.plus`
+- Seller: `seller@aromat.plus` → Магазин №1
 
 ## Do not
 

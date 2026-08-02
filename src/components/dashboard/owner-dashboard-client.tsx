@@ -62,6 +62,7 @@ function TodayKpi({
     absLabel?: string;
     current?: number;
     previous?: number;
+    isNew?: boolean;
   };
   vsYesterdayLabel: string;
   subtitle?: string;
@@ -121,8 +122,18 @@ function TodayKpi({
                 ) : null}
                 {signedDelta} {vsYesterdayLabel}
               </p>
-              {delta.pct !== 0 ? (
-                <p className="mt-0.5 text-[10px] text-muted">{delta.label}</p>
+              {delta.isNew || delta.pct !== 0 ? (
+                <p
+                  className={cn(
+                    "mt-0.5 text-[10px] font-medium",
+                    delta.isNew && "text-muted",
+                    !delta.isNew && delta.abs > 0 && "text-zone-money-deep",
+                    !delta.isNew && delta.abs < 0 && "text-danger",
+                    !delta.isNew && delta.abs === 0 && "text-muted"
+                  )}
+                >
+                  {delta.isNew ? t("dashboard.deltaNew") : delta.label}
+                </p>
               ) : null}
             </>
           ) : null}
@@ -283,14 +294,23 @@ export function OwnerDashboardClient({
         badge: t("dashboard.trafficRed"),
       };
     }
-    if (pulse.lowStockCount > 0 || data.stores.some((s) => s.salesCount === 0)) {
+    // Low stock only when there are actually low-stock SKUs (never "Заканчиваются 0")
+    if (pulse.lowStockCount > 0) {
       return {
         level: "yellow",
         text: t("dashboard.statusLowStock", { n: pulse.lowStockCount }),
         badge: t("dashboard.trafficYellow"),
       };
     }
-    if (today.deltas.revenue.pct > 0) {
+    // Quiet store(s) today — separate, neutral message (not stock alarm)
+    if (data.stores.some((s) => s.salesCount === 0)) {
+      return {
+        level: "yellow",
+        text: t("dashboard.statusNoSalesToday"),
+        badge: t("dashboard.trafficYellow"),
+      };
+    }
+    if (today.deltas.revenue.pct > 0 && !today.deltas.revenue.isNew) {
       return {
         level: "green",
         text: t("dashboard.statusSalesUp", { pct: today.deltas.revenue.label }),
@@ -413,6 +433,7 @@ export function OwnerDashboardClient({
             emptyLabel={t("dashboard.noProfitYet")}
             delta={today.deltas.netProfit}
             vsYesterdayLabel={t("dashboard.vsYesterday")}
+            subtitle={t("dashboard.netProfitProrateHint")}
             comparison={{
               today: today.netProfit ?? today.profit,
               yesterday: today.yesterday?.netProfit ?? 0,
@@ -559,75 +580,69 @@ export function OwnerDashboardClient({
           })}
         />
 
-        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-2">
-          {decisionChips.map((chip) => {
-            const Icon = chip.icon;
-            const active = chip.count > 0;
-            return (
-              <Link
-                key={chip.labelKey}
-                href={chip.href}
-                className={cn(
-                  "rounded-[16px] border p-3 transition hover:shadow-[var(--shadow-card)]",
-                  active && chip.tone === "danger" && "border-danger/25 bg-danger/5",
-                  active && chip.tone === "alert" && "border-zone-alert/25 bg-zone-alert-soft",
-                  !active && "border-border bg-card"
-                )}
-              >
-                <div className="flex items-center gap-2 text-muted">
-                  <Icon className="h-4 w-4" strokeWidth={1.75} />
-                  <span className="text-[11px] font-semibold uppercase tracking-wide">
-                    {t(chip.labelKey)}
-                  </span>
-                </div>
-                <p
-                  className={cn(
-                    "mt-2 text-2xl font-bold tabular-nums",
-                    active ? "text-ink" : "text-muted"
-                  )}
-                >
-                  {chip.count}
-                </p>
-              </Link>
-            );
-          })}
-        </div>
+        {decisionChips.some((c) => c.count > 0) ? (
+          <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-2">
+            {decisionChips
+              .filter((chip) => chip.count > 0)
+              .map((chip) => {
+                const Icon = chip.icon;
+                return (
+                  <Link
+                    key={chip.labelKey}
+                    href={chip.href}
+                    className={cn(
+                      "rounded-[16px] border p-3 transition hover:shadow-[var(--shadow-card)]",
+                      chip.tone === "danger" && "border-danger/25 bg-danger/5",
+                      chip.tone === "alert" &&
+                        "border-zone-alert/25 bg-zone-alert-soft"
+                    )}
+                  >
+                    <div className="flex items-center gap-2 text-muted">
+                      <Icon className="h-4 w-4" strokeWidth={1.75} />
+                      <span className="text-[11px] font-semibold uppercase tracking-wide">
+                        {t(chip.labelKey)}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-2xl font-bold tabular-nums text-ink">
+                      {chip.count}
+                    </p>
+                  </Link>
+                );
+              })}
+          </div>
+        ) : null}
 
-        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
-          {t("dashboard.infoAlerts")}
-        </p>
-        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-2">
-          {infoChips.map((chip) => {
-            const Icon = chip.icon;
-            const active = chip.count > 0;
-            return (
-              <Link
-                key={chip.labelKey}
-                href={chip.href}
-                className={cn(
-                  "rounded-[16px] border p-3 transition hover:shadow-[var(--shadow-card)]",
-                  active && "border-zone-alert/25 bg-zone-alert-soft",
-                  !active && "border-border bg-card"
-                )}
-              >
-                <div className="flex items-center gap-2 text-muted">
-                  <Icon className="h-4 w-4" strokeWidth={1.75} />
-                  <span className="text-[11px] font-semibold uppercase tracking-wide">
-                    {t(chip.labelKey)}
-                  </span>
-                </div>
-                <p
-                  className={cn(
-                    "mt-2 text-2xl font-bold tabular-nums",
-                    active ? "text-ink" : "text-muted"
-                  )}
-                >
-                  {chip.count}
-                </p>
-              </Link>
-            );
-          })}
-        </div>
+        {infoChips.some((c) => c.count > 0) ? (
+          <>
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
+              {t("dashboard.infoAlerts")}
+            </p>
+            <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-2">
+              {infoChips
+                .filter((chip) => chip.count > 0)
+                .map((chip) => {
+                  const Icon = chip.icon;
+                  return (
+                    <Link
+                      key={chip.labelKey}
+                      href={chip.href}
+                      className="rounded-[16px] border border-zone-alert/25 bg-zone-alert-soft p-3 transition hover:shadow-[var(--shadow-card)]"
+                    >
+                      <div className="flex items-center gap-2 text-muted">
+                        <Icon className="h-4 w-4" strokeWidth={1.75} />
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">
+                          {t(chip.labelKey)}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-2xl font-bold tabular-nums text-ink">
+                        {chip.count}
+                      </p>
+                    </Link>
+                  );
+                })}
+            </div>
+          </>
+        ) : null}
 
         {attentionTotal === 0 && decisions.length === 0 && data.lowStock.length === 0 ? (
           <div className="flex items-start gap-3 rounded-[18px] border border-zone-money/20 bg-zone-money-soft p-5">

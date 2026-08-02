@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/module-workspace";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { labelExpensePeriodicity } from "@/lib/i18n/labels";
 
 type Network = {
   revenue: number;
@@ -49,6 +50,7 @@ type SellerRow = {
 type ExpenseRow = {
   id: string;
   amount: number;
+  allocatedAmount?: number;
   type: string;
   store: string | null;
   description: string | null;
@@ -422,22 +424,50 @@ export default function AnalyticsClient() {
       {tab === "expenses" ? (
         <ModuleSection title={t("analyticsPage.expensesTitle")}>
           <div className="mb-3 text-sm text-muted">
-            {t("analyticsPage.expensesHint")} ·{" "}
+            {t("analyticsPage.expensesAllocatedHint")} ·{" "}
             {formatMoney(expenseTotal, { short: true })}
           </div>
-          {expenses.map((e) => (
-            <Card
-              key={e.id}
-              className="mb-2 flex flex-wrap justify-between gap-2 p-3 text-sm"
-            >
-              <span>
-                {e.type} · {e.store ?? "—"} · {e.periodicity ?? "ONCE"}
-              </span>
-              <span>
-                {formatMoney(e.amount)} · {formatDate(e.incurredAt)}
-              </span>
+          {expenses.length === 0 ? (
+            <Card className="p-4 text-sm text-muted">
+              {t("analyticsPage.expensesEmpty")}
             </Card>
-          ))}
+          ) : null}
+          {expenses.map((e) => {
+            const allocated = e.allocatedAmount ?? e.amount;
+            const periodLabel = labelExpensePeriodicity(e.periodicity, t);
+            return (
+              <Card
+                key={e.id}
+                className="mb-2 flex flex-wrap justify-between gap-2 p-3 text-sm"
+              >
+                <div>
+                  <div className="font-semibold text-ink">
+                    {e.type} · {e.store ?? "—"}
+                  </div>
+                  <div className="mt-0.5 text-xs text-muted">
+                    {periodLabel}
+                    {e.periodicity && e.periodicity !== "ONCE"
+                      ? ` · ${t("analyticsPage.expensesFullAmount", {
+                          amount: formatMoney(e.amount, { short: true }),
+                        })}`
+                      : null}
+                  </div>
+                  {e.description ? (
+                    <div className="mt-0.5 text-xs text-muted">{e.description}</div>
+                  ) : null}
+                </div>
+                <div className="text-right">
+                  <div className="font-bold tabular-nums text-ink">
+                    {formatMoney(allocated, { short: true })}
+                  </div>
+                  <div className="text-xs text-muted">
+                    {t("analyticsPage.expensesInPeriod")} ·{" "}
+                    {formatDate(e.incurredAt)}
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
         </ModuleSection>
       ) : null}
     </ModuleWorkspace>

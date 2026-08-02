@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
-import { sumAllocatedExpenses } from "@/lib/services/expense.service";
+import { sumAllocatedExpenses, listAllocatedExpenseItems } from "@/lib/services/expense.service";
 import {
   saleGrossMetricsNetOfReturnsSync,
   withNetProfit,
@@ -123,6 +123,21 @@ export async function getAnalyticsBreakdown(
       checks: number;
     }
   >();
+  // Always list every active store — even with 0 sales in the period
+  const companyStores = await prisma.store.findMany({
+    where: { companyId, isArchived: false },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  for (const s of companyStores) {
+    storeMap.set(s.id, {
+      name: s.name,
+      revenue: 0,
+      cogs: 0,
+      grossProfit: 0,
+      checks: 0,
+    });
+  }
   const categoryMap = new Map<
     string,
     { name: string; sold: number; revenue: number; profit: number }
@@ -259,28 +274,10 @@ export async function getAnalyticsBreakdown(
     };
   });
 
-  const expenseRows = await prisma.expense.findMany({
-    where: {
-      startsAt: { lte: now },
-      OR: [
-        { endsAt: null },
-        { endsAt: { gte: from } },
-      ],
-      AND: [
-        {
-          OR: [
-            { store: { companyId } },
-            { createdBy: { companyId } },
-          ],
-        },
-      ],
-    },
-    include: {
-      expenseType: { select: { name: true } },
-      store: { select: { name: true } },
-    },
-    orderBy: { startsAt: "desc" },
-    take: 100,
+  const expenseItems = await listAllocatedExpenseItems({
+    companyId,
+    from,
+    to: now,
   });
 
   return {
@@ -309,7 +306,9 @@ export async function getAnalyticsBreakdown(
       }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 50),
-    stores,
+    stores: stores.sort(
+      (a, b) => b.revenue - a.revenue || a.name.localeCompare(b.name)
+    ),
     categories: Array.from(categoryMap.values())
       .map((c) => ({
         name: c.name,
@@ -328,17 +327,7 @@ export async function getAnalyticsBreakdown(
       .sort((a, b) => b.revenue - a.revenue),
     expenses: {
       total: expenses.total,
-      items: expenseRows.map((e) => ({
-        id: e.id,
-        amount: decimalToNumber(e.amount),
-        type: e.expenseType.name,
-        store: e.store?.name ?? null,
-        description: e.description,
-        periodicity: e.periodicity,
-        startsAt: e.startsAt.toISOString(),
-        endsAt: e.endsAt?.toISOString() ?? null,
-        incurredAt: e.incurredAt.toISOString(),
-      })),
+      items: expenseItems,
     },
   };
 }

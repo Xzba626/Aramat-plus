@@ -43,6 +43,14 @@ export const ACTION_KEYS: Record<string, string> = {
   PACKAGING_SKU_CREATE: "actions.packagingSkuCreate",
   PACKAGING_SKU_UPDATE: "actions.packagingSkuUpdate",
   PRICE_CHANGE: "actions.priceChange",
+  RESERVATION_CREATE: "actions.reservationCreate",
+  RESERVATION_CANCEL: "actions.reservationCancel",
+  RESERVATION_COMPLETE: "actions.reservationComplete",
+  RESERVATION_EXPIRE: "actions.reservationExpire",
+};
+
+export const ACTION_COMMENT_KEYS: Record<string, string> = {
+  "cart cleared": "actionComments.cartCleared",
 };
 
 export const ENTITY_KEYS: Record<string, string> = {
@@ -61,6 +69,14 @@ export const ENTITY_KEYS: Record<string, string> = {
   Brand: "entities.brand",
   Supplier: "entities.supplier",
   PackagingSku: "entities.packagingSku",
+  Reservation: "entities.reservation",
+};
+
+export const EXPENSE_PERIODICITY_KEYS: Record<string, string> = {
+  ONCE: "storeDetail.periodOnce",
+  DAILY: "storeDetail.periodDaily",
+  WEEKLY: "storeDetail.periodWeekly",
+  MONTHLY: "storeDetail.periodMonthly",
 };
 
 export const SALE_STATUS_KEYS: Record<string, string> = {
@@ -99,9 +115,27 @@ export function labelAction(action: string, t: TranslateFn): string {
   return key ? t(key) : action;
 }
 
+export function labelActionComment(
+  comment: string | null | undefined,
+  t: TranslateFn
+): string | null {
+  if (!comment) return null;
+  const key = ACTION_COMMENT_KEYS[comment];
+  return key ? t(key) : comment;
+}
+
 export function labelEntity(entityType: string, t: TranslateFn): string {
   const key = ENTITY_KEYS[entityType];
   return key ? t(key) : entityType;
+}
+
+export function labelExpensePeriodicity(
+  periodicity: string | null | undefined,
+  t: TranslateFn
+): string {
+  if (!periodicity) return t(EXPENSE_PERIODICITY_KEYS.ONCE);
+  const key = EXPENSE_PERIODICITY_KEYS[periodicity];
+  return key ? t(key) : periodicity;
 }
 
 export function labelSaleStatus(status: string, t: TranslateFn): string {

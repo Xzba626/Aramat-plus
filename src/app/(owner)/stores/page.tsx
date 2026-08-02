@@ -183,7 +183,13 @@ export default function StoresPage() {
     <div>
       <PageHeader
         title={t("storesPage.title")}
-        count={loading ? null : stores.length || null}
+        count={
+          loading
+            ? null
+            : showArchived
+              ? branches.length || null
+              : (branches.length + (ownerDirect ? 1 : 0)) || null
+        }
         subtitle={t("storesPage.subtitle")}
         actions={
           <div className="flex flex-wrap gap-2">

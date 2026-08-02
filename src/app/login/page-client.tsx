@@ -80,12 +80,6 @@ export default function LoginPageClient() {
             {loading ? t("login.submitting") : t("login.submit")}
           </Button>
         </form>
-        <p className="mt-4 text-center text-xs text-muted">
-          {t("login.noSelfRegister")}
-        </p>
-        <p className="mt-2 text-center text-[11px] text-muted">
-          {t("login.demo")}
-        </p>
       </Card>
     </div>
   );

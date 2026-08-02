@@ -247,7 +247,10 @@
     "statusAllGood": "Сегодня всё под контролем. Никаких срочных проблем.",
     "statusSalesUp": "Продажи выше вчерашних на {{pct}}. Отличный день!",
     "statusLowStock": "Заканчиваются {{n}} товар(а). Стоит проверить склад.",
+    "statusNoSalesToday": "Сегодня есть магазин(ы) без продаж — это не тревога по остаткам, просто тихий день в точке.",
     "statusAttention": "Требует внимания: {{n}} запрос(а) ждут вашего решения.",
+    "deltaNew": "новое значение",
+    "netProfitProrateHint": "В чистой прибыли уже учтена доля месячных расходов (аренда/зарплата), а не полная сумма записи.",
     "today": "Сегодня",
     "vsYesterday": "по сравнению со вчера",
     "compareTodayYesterday": "Сегодня: {{today}}. Вчера: {{yesterday}}. Разница: {{diff}}.",
@@ -533,7 +536,14 @@
     "supplierRestore": "Поставщик восстановлен",
     "supplierUpdate": "Поставщик обновлён",
     "packagingSkuCreate": "Флакон создан",
-    "packagingSkuUpdate": "Флакон обновлён"
+    "packagingSkuUpdate": "Флакон обновлён",
+    "reservationCreate": "Резерв создан",
+    "reservationCancel": "Резерв отменён",
+    "reservationComplete": "Резерв закрыт продажей",
+    "reservationExpire": "Резерв истёк"
+  },
+  "actionComments": {
+    "cartCleared": "Корзина очищена"
   },
   "entities": {
     "sale": "Продажа",
@@ -551,7 +561,7 @@
     "expense": "Расход",
     "category": "Категория",
     "brand": "Бренд",
-    "supplier": "Поставщик"
+    "reservation": "Резерв"
   },
   "purchases": {
     "receiveTitle": "Поступление товара",
@@ -697,7 +707,7 @@
     "salesToday": "Продажи сегодня",
     "profitToday": "Прибыль сегодня",
     "pendingDecisions": "Ожидают решения",
-    "ownerDirectHint": "Источник: центральный склад · без перемещений",
+    "ownerDirectHint": "Прямые продажи со склада (товар не отправляли в магазин)",
     "kindsOnHand": "Видов на складе: {{sku}} · единиц: {{units}}",
     "today": "Сегодня",
     "month": "Месяц",
@@ -766,6 +776,10 @@
     "colChecks": "Чеки",
     "expensesTitle": "Расходы по магазинам",
     "expensesHint": "Расходы ведутся в карточке каждого магазина (вкладка «Расходы»). Откройте точку, чтобы добавить аренду, зарплату или коммунальные.",
+    "expensesAllocatedHint": "В прибыли периода учтена доля расходов (месячные делятся на дни). Итог ниже — сумма учтённых долей, не полных сумм записей.",
+    "expensesInPeriod": "Учтено в периоде",
+    "expensesFullAmount": "полная сумма записи {{amount}}",
+    "expensesEmpty": "Нет расходов, учтённых в этом периоде",
     "openExpenses": "Открыть расходы →",
     "monthRevenueShort": "Месяц: {{amount}}"
   },
@@ -891,9 +905,7 @@
     "password": "Пароль",
     "submit": "Войти",
     "submitting": "Вход…",
-    "invalid": "Неверный логин или пароль",
-    "demo": "Демо: owner@aromat.plus / owner1234",
-    "noSelfRegister": "Регистрации нет — доступ выдаёт только владелец"
+    "invalid": "Неверный логин или пароль"
   },
   "splash": {
     "welcome": "Добро пожаловать",
@@ -1069,7 +1081,7 @@
     "warehouseEmpty": "Склад пуст",
     "returnInTitle": "Возврат из магазина",
     "returnInOk": "Возврат принят на центральный склад",
-    "writeOffTitle": "Списание",
+    "writeOffTitle": "Списания",
     "writeOffConfirm": "Зафиксировать списание",
     "historyTitle": "История операций склада",
     "brandsTitle": "Бренды",

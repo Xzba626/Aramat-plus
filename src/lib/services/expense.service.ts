@@ -211,6 +211,99 @@ export async function sumAllocatedExpenses(params: {
   };
 }
 
+/** Expenses that contribute to P&L in [from, to], with period-allocated amounts. */
+export async function listAllocatedExpenseItems(params: {
+  companyId: string;
+  from: Date;
+  to: Date;
+  storeId?: string | null;
+}): Promise<
+  Array<{
+    id: string;
+    amount: number;
+    allocatedAmount: number;
+    type: string;
+    store: string | null;
+    description: string | null;
+    periodicity: ExpensePeriodicity;
+    startsAt: string;
+    endsAt: string | null;
+    incurredAt: string;
+  }>
+> {
+  const from = startOfDay(params.from);
+  const to = startOfDay(params.to);
+  const rows = await prisma.expense.findMany({
+    where: {
+      startsAt: { lte: endOfDay(to) },
+      AND: [
+        {
+          OR: [{ endsAt: null }, { endsAt: { gte: startOfDay(from) } }],
+        },
+        params.storeId
+          ? { storeId: params.storeId, store: { companyId: params.companyId } }
+          : {
+              OR: [
+                { store: { companyId: params.companyId } },
+                { createdBy: { companyId: params.companyId }, storeId: null },
+              ],
+            },
+      ],
+    },
+    include: {
+      expenseType: { select: { name: true } },
+      store: { select: { name: true } },
+    },
+    orderBy: [{ incurredAt: "desc" }, { startsAt: "desc" }],
+    take: 200,
+  });
+
+  const items: Array<{
+    id: string;
+    amount: number;
+    allocatedAmount: number;
+    type: string;
+    store: string | null;
+    description: string | null;
+    periodicity: ExpensePeriodicity;
+    startsAt: string;
+    endsAt: string | null;
+    incurredAt: string;
+  }> = [];
+
+  for (const r of rows) {
+    let allocated = 0;
+    for (let t = from.getTime(); t <= to.getTime(); t += 86400000) {
+      allocated += dailyShareForExpense(
+        {
+          amount: r.amount,
+          periodicity: r.periodicity,
+          startsAt: r.startsAt,
+          endsAt: r.endsAt,
+          incurredAt: r.incurredAt,
+        },
+        new Date(t)
+      );
+    }
+    allocated = Math.round(allocated * 100) / 100;
+    if (allocated <= 0) continue;
+    items.push({
+      id: r.id,
+      amount: decimalToNumber(r.amount),
+      allocatedAmount: allocated,
+      type: r.expenseType.name,
+      store: r.store?.name ?? null,
+      description: r.description,
+      periodicity: r.periodicity,
+      startsAt: r.startsAt.toISOString(),
+      endsAt: r.endsAt?.toISOString() ?? null,
+      incurredAt: r.incurredAt.toISOString(),
+    });
+  }
+
+  return items;
+}
+
 export async function createExpense(params: {
   companyId: string;
   createdById: string;

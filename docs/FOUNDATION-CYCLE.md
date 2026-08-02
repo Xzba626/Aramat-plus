@@ -48,11 +48,11 @@ UI → API (Next.js) → Prisma → PostgreSQL (local или Neon)
 
 ## Ручной smoke (10 минут)
 
-1. **Owner** `owner@aromat.plus` / `owner1234`  
+1. **Owner** `owner@aromat.plus` — пароль задаётся при seed (см. вывод терминала), не храните в docs.  
 2. Склад → Поступление (или уже есть товар)  
 3. Склад → Отправка → Магазин №1 → N шт → Подтвердить  
 4. Магазины → Магазин №1 → Остатки → товар виден  
-5. **Seller** `seller@aromat.plus` / `seller1234` → `/pos` → товар с остатком N  
+5. **Seller** `seller@aromat.plus` — пароль из seed (только локально) → `/pos` → товар с остатком N  
 6. Корзина → Продать 1  
 7. Seller: остаток N−1  
 8. Owner: Магазин → История продаж / diagnose:stock  

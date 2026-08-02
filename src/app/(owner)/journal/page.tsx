@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/module-workspace";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { labelAction, labelEntity, labelRole } from "@/lib/i18n/labels";
+import { labelAction, labelActionComment, labelEntity, labelRole } from "@/lib/i18n/labels";
 
 type LogRow = {
   id: string;
@@ -173,7 +173,7 @@ export default function JournalPage() {
                           {labelAction(log.action, t)}
                           {log.comment ? (
                             <span className="block text-xs text-muted">
-                              {log.comment}
+                              {labelActionComment(log.comment, t) ?? log.comment}
                             </span>
                           ) : null}
                         </td>
