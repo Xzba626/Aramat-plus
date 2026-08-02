@@ -18,6 +18,7 @@ import {
   labelRole,
   labelSaleStatus,
 } from "@/lib/i18n/labels";
+import { FinanceFunnel } from "@/components/dashboard/finance-funnel";
 
 type StoreDetail = {
   id: string;
@@ -40,6 +41,10 @@ type StoreDetail = {
     skuCount: number;
     todaySalesCount: number;
     todayRevenue: number;
+    todayCogs?: number;
+    todayGrossProfit?: number;
+    todayExpenses?: number;
+    todayNetProfit?: number;
     todayProfit: number;
     monthProfit: number;
     monthRevenue: number;
@@ -266,6 +271,11 @@ function OverviewTab({
   formatDateTime: (date: Date | string | number) => string;
 }) {
   const o = store.overview;
+  const revenue = o.todayRevenue;
+  const gross = o.todayGrossProfit ?? o.todayProfit;
+  const cogs = o.todayCogs ?? Math.max(0, Math.round((revenue - gross) * 100) / 100);
+  const expenses = o.todayExpenses ?? 0;
+  const net = o.todayNetProfit ?? Math.round((gross - expenses) * 100) / 100;
 
   return (
     <div className="space-y-4">
@@ -275,6 +285,21 @@ function OverviewTab({
           <p className="mt-1 text-sm text-muted">{t("storeDetail.ownerDirectHint")}</p>
         </Card>
       ) : null}
+
+      <div>
+        <div className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
+          {t("dashboard.zoneToday")}
+        </div>
+        <p className="mb-3 text-sm text-muted">{t("dashboard.funnelSectionHint")}</p>
+        <FinanceFunnel
+          scope="store"
+          revenue={revenue}
+          cogs={cogs}
+          grossProfit={gross}
+          expenses={expenses}
+          netProfit={net}
+        />
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Stat label={t("storeDetail.statStatus")} value={storeStatusLabel(store.status, store.isArchived, t)} />
@@ -293,8 +318,7 @@ function OverviewTab({
           <Stat label={t("storeDetail.statManagers")} value={String(o.managersCount)} />
         ) : null}
         <Stat label={t("storeDetail.statSku")} value={String(o.skuCount)} />
-        <Stat label={t("storeDetail.statSalesToday")} value={formatMoney(o.todayRevenue)} />
-        <Stat label={t("storeDetail.statProfitToday")} value={formatMoney(o.todayProfit)} accent />
+        <Stat label={t("storeDetail.statSalesToday")} value={String(o.todaySalesCount)} />
         <Stat label={t("storeDetail.statProfitMonth")} value={formatMoney(o.monthProfit)} accent />
         <Stat label={t("storeDetail.statAvgCheck")} value={formatMoney(o.avgCheck)} />
         {!isOwnerDirect ? (

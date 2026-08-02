@@ -9,6 +9,8 @@ import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 import { ensureOwnerDirectStore } from "@/lib/services/owner-direct.service";
 import { logActivity } from "@/lib/services/activity-log.service";
+import { sumAllocatedExpenses } from "@/lib/services/expense.service";
+import { withNetProfit } from "@/lib/services/profit.service";
 
 export type StockRowStatus = "OK" | "LOW" | "OUT";
 
@@ -125,6 +127,17 @@ export async function getStoreDetail(companyId: string, storeId: string) {
   const month = profitOf(salesMonth);
   const avgCheck = today.count > 0 ? today.revenue / today.count : 0;
 
+  const expensesToday = await sumAllocatedExpenses({
+    companyId,
+    from: todayStart,
+    to: todayStart,
+    storeId,
+  });
+  const todayNet = withNetProfit(
+    { revenue: today.revenue, cogs: today.revenue - today.profit, grossProfit: today.profit },
+    expensesToday.total
+  );
+
   let skuCount = 0;
   if (locationId) {
     skuCount = await prisma.stockBalance.count({
@@ -161,6 +174,10 @@ export async function getStoreDetail(companyId: string, storeId: string) {
       skuCount,
       todaySalesCount: today.count,
       todayRevenue: today.revenue,
+      todayCogs: Math.round((today.revenue - today.profit) * 100) / 100,
+      todayGrossProfit: Math.round(today.profit * 100) / 100,
+      todayExpenses: todayNet.expenses,
+      todayNetProfit: todayNet.netProfit,
       todayProfit: today.profit,
       monthProfit: month.profit,
       monthRevenue: month.revenue,

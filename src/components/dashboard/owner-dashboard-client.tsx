@@ -4,8 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Role } from "@prisma/client";
 import {
-  ArrowDownRight,
-  ArrowUpRight,
   Bell,
   CheckCircle2,
   Package,
@@ -19,6 +17,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HelpTip } from "@/components/ui/help-tip";
+import {
+  FinanceFunnel,
+  StoresProfitTable,
+} from "@/components/dashboard/finance-funnel";
 import { cn } from "@/lib/utils";
 import type { DashboardPayload } from "@/lib/services/dashboard.service";
 import { useI18n } from "@/components/i18n/i18n-provider";
@@ -37,108 +39,6 @@ function ZoneHeader({ title, subtitle }: { title: string; subtitle?: string }) {
     <div className="mb-4">
       <h3 className="text-base font-bold text-ink sm:text-lg">{title}</h3>
       {subtitle ? <p className="mt-0.5 text-sm text-muted">{subtitle}</p> : null}
-    </div>
-  );
-}
-
-function TodayKpi({
-  label,
-  hintKey,
-  value,
-  emptyLabel,
-  delta,
-  vsYesterdayLabel,
-  subtitle,
-  comparison,
-}: {
-  label: string;
-  hintKey: string;
-  value: string;
-  emptyLabel?: string;
-  delta?: {
-    pct: number;
-    label: string;
-    abs: number;
-    absLabel?: string;
-    current?: number;
-    previous?: number;
-    isNew?: boolean;
-  };
-  vsYesterdayLabel: string;
-  subtitle?: string;
-  comparison?: { today: number; yesterday: number; diff: number } | null;
-}) {
-  const { formatMoney, t } = useI18n();
-  const isEmpty = value === "—" || value === "0 с." || value === "0";
-  const signedDelta =
-    delta && delta.abs !== 0
-      ? `${delta.abs > 0 ? "+" : "−"}${formatMoney(Math.abs(delta.abs), { short: true })}`
-      : delta
-        ? formatMoney(0, { short: true })
-        : null;
-  return (
-    <div className="rounded-[18px] border border-border bg-card p-4 shadow-[var(--shadow-card)]">
-      <HelpTip hintKey={hintKey}>
-        <span className="text-xs font-bold uppercase tracking-wide text-muted">
-          {label}
-        </span>
-      </HelpTip>
-      {isEmpty && emptyLabel ? (
-        <>
-          <p className="mt-3 text-lg font-bold text-muted">—</p>
-          <p className="mt-1 text-xs text-muted">{emptyLabel}</p>
-        </>
-      ) : (
-        <>
-          <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-ink">
-            {value}
-          </p>
-          {subtitle ? (
-            <p className="mt-1 text-xs text-muted">{subtitle}</p>
-          ) : null}
-          {comparison ? (
-            <p className="mt-2 text-[11px] leading-snug text-muted">
-              {t("dashboard.compareTodayYesterday", {
-                today: formatMoney(comparison.today, { short: true }),
-                yesterday: formatMoney(comparison.yesterday, { short: true }),
-                diff: `${comparison.diff > 0 ? "+" : comparison.diff < 0 ? "−" : ""}${formatMoney(Math.abs(comparison.diff), { short: true })}`,
-              })}
-            </p>
-          ) : null}
-          {delta ? (
-            <>
-              <p
-                className={cn(
-                  "mt-1 flex items-center gap-0.5 text-xs font-semibold",
-                  delta.abs > 0 && "text-zone-money-deep",
-                  delta.abs < 0 && "text-danger",
-                  delta.abs === 0 && "text-muted"
-                )}
-              >
-                {delta.abs > 0 ? (
-                  <ArrowUpRight className="h-3.5 w-3.5" />
-                ) : delta.abs < 0 ? (
-                  <ArrowDownRight className="h-3.5 w-3.5" />
-                ) : null}
-                {signedDelta} {vsYesterdayLabel}
-              </p>
-              {delta.isNew || delta.pct !== 0 ? (
-                <p
-                  className={cn(
-                    "mt-0.5 text-[10px] font-medium",
-                    delta.isNew && "text-muted",
-                    !delta.isNew && delta.abs > 0 && "text-zone-money-deep",
-                    !delta.isNew && delta.abs < 0 && "text-danger",
-                    !delta.isNew && delta.abs === 0 && "text-muted"
-                  )}
-                >
-                  {delta.isNew ? t("dashboard.deltaNew") : delta.label}
-                </p>
-              ) : null}
-            </>
-          ) : null}
-        </>
-      )}
     </div>
   );
 }
@@ -379,112 +279,59 @@ export function OwnerDashboardClient({
         </Link>
       </section>
 
-      {/* Today — money */}
+      {/* Today — finance funnel (same math as before, clearer layout) */}
       <section>
-        <ZoneHeader title={t("dashboard.zoneToday")} />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <TodayKpi
-            label={t("dashboard.revenueLabel")}
-            hintKey="todayRevenue"
-            value={hasSales ? formatMoney(today.revenue, { short: true }) : "—"}
-            emptyLabel={t("dashboard.noSalesYet")}
-            delta={hasSales ? today.deltas.revenue : undefined}
-            vsYesterdayLabel={t("dashboard.vsYesterday")}
-            comparison={
-              hasSales
-                ? {
-                    today: today.revenue,
-                    yesterday: today.yesterday?.revenue ?? 0,
-                    diff: today.deltas.revenue.abs,
-                  }
-                : null
-            }
-          />
-          <TodayKpi
-            label={t("dashboard.grossProfitLabel")}
-            hintKey="dashboardProfit"
-            value={
-              hasSales
-                ? formatMoney(today.grossProfit ?? today.profit, { short: true })
-                : "—"
-            }
-            emptyLabel={t("dashboard.noProfitYet")}
-            delta={hasSales ? today.deltas.grossProfit : undefined}
-            vsYesterdayLabel={t("dashboard.vsYesterday")}
-            subtitle={
-              hasSales
-                ? `${t("dashboard.costLabel")}: ${formatMoney(today.cogs ?? 0, { short: true })}`
-                : undefined
-            }
-            comparison={
-              hasSales
-                ? {
-                    today: today.grossProfit ?? today.profit,
-                    yesterday: today.yesterday?.grossProfit ?? 0,
-                    diff: today.deltas.grossProfit.abs,
-                  }
-                : null
-            }
-          />
-          <TodayKpi
-            label={t("dashboard.netProfit")}
-            hintKey="dashboardProfit"
-            value={formatMoney(today.netProfit ?? today.profit, { short: true })}
-            emptyLabel={t("dashboard.noProfitYet")}
-            delta={today.deltas.netProfit}
-            vsYesterdayLabel={t("dashboard.vsYesterday")}
-            subtitle={t("dashboard.netProfitProrateHint")}
-            comparison={{
-              today: today.netProfit ?? today.profit,
-              yesterday: today.yesterday?.netProfit ?? 0,
-              diff: today.deltas.netProfit.abs,
-            }}
-          />
-        </div>
-
-        <div className="mt-3 rounded-[18px] border border-border bg-card p-4 shadow-[var(--shadow-card)]">
-          <p className="text-xs font-bold uppercase tracking-wide text-muted">
-            {t("dashboard.expenseLayersTitle")}
-          </p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted">
-                {t("dashboard.cogsLayer")}
-              </p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
-                {formatMoney(today.cogs ?? 0, { short: true })}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted">
-                {t("dashboard.packagingLayer")}
-              </p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
-                {formatMoney(today.packagingCost ?? 0, { short: true })}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted">
-                {t("dashboard.operationalLayer")}
-              </p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
-                {formatMoney(today.operationalExpenses ?? 0, { short: true })}
-              </p>
-            </div>
-          </div>
-          <p className="mt-2 text-xs text-muted">
-            {t("dashboard.expenseLayersHint", {
-              total: formatMoney(today.expenses ?? 0, { short: true }),
-            })}
-          </p>
-        </div>
+        <ZoneHeader
+          title={t("dashboard.zoneToday")}
+          subtitle={t("dashboard.funnelSectionHint")}
+        />
+        <FinanceFunnel
+          scope="network"
+          revenue={today.revenue}
+          cogs={today.cogs ?? 0}
+          grossProfit={today.grossProfit ?? today.profit}
+          expenses={today.expenses ?? 0}
+          netProfit={today.netProfit ?? today.profit}
+          storeExpenses={data.stores.map((s) => ({
+            id: s.id,
+            name: s.name,
+            expenses: s.expenses ?? 0,
+          }))}
+          revenueComparison={
+            hasSales
+              ? {
+                  today: today.revenue,
+                  yesterday: today.yesterday?.revenue ?? 0,
+                  diff: today.deltas.revenue.abs,
+                }
+              : null
+          }
+          grossComparison={
+            hasSales
+              ? {
+                  today: today.grossProfit ?? today.profit,
+                  yesterday: today.yesterday?.grossProfit ?? 0,
+                  diff: today.deltas.grossProfit.abs,
+                }
+              : null
+          }
+          netComparison={{
+            today: today.netProfit ?? today.profit,
+            yesterday: today.yesterday?.netProfit ?? 0,
+            diff: today.deltas.netProfit.abs,
+          }}
+        />
 
         {chartValues.length > 0 ? (
           <div className="mt-4 rounded-[18px] border border-border bg-card p-4 shadow-[var(--shadow-card)]">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-bold uppercase tracking-wide text-muted">
-                {t("dashboard.weekNetProfit")}
-              </p>
+              <HelpTip hintKey="funnelChart">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted">
+                  {chartRange === "7d"
+                    ? t("dashboard.weekNetProfit")
+                    : t("dashboard.monthNetProfit")}
+                </p>
+              </HelpTip>
               <div className="flex gap-1 rounded-full border border-border p-0.5">
                 <button
                   type="button"
@@ -512,9 +359,9 @@ export function OwnerDashboardClient({
                 </button>
               </div>
             </div>
-            <div className="flex items-end gap-0.5 sm:gap-1 overflow-x-auto">
+            <div className="flex items-end gap-1 overflow-x-auto sm:gap-2">
               {chartValues.map((val, i) => {
-                const barPct = Math.max(4, (Math.abs(val) / chartMax) * 100);
+                const barPct = Math.max(8, (Math.abs(val) / chartMax) * 100);
                 const dayLabel = chartLabels[i];
                 const weekday = dayLabel
                   ? new Date(`${dayLabel}T12:00:00`).toLocaleDateString(
@@ -522,6 +369,7 @@ export function OwnerDashboardClient({
                       {
                         weekday: chartRange === "7d" ? "short" : undefined,
                         day: chartRange === "30d" ? "numeric" : undefined,
+                        month: chartRange === "30d" ? "short" : undefined,
                       }
                     )
                   : String(i + 1);
@@ -530,43 +378,75 @@ export function OwnerDashboardClient({
                     key={dayLabel ?? i}
                     className={cn(
                       "flex min-w-0 flex-col items-center gap-1",
-                      chartRange === "30d" ? "w-2 shrink-0 sm:w-2.5" : "flex-1"
+                      chartRange === "30d"
+                        ? "w-3 shrink-0 sm:w-3.5"
+                        : "min-w-[3rem] flex-1"
                     )}
                   >
-                    {chartRange === "7d" ? (
-                      <span className="text-[9px] tabular-nums text-muted sm:text-[10px]">
-                        {formatMoney(val, { short: true })}
-                      </span>
-                    ) : null}
+                    <span
+                      className={cn(
+                        "text-center text-[10px] font-semibold tabular-nums sm:text-xs",
+                        val >= 0 ? "text-zone-money-deep" : "text-danger"
+                      )}
+                    >
+                      {chartRange === "7d" || i % 3 === 0
+                        ? formatMoney(val, { short: true })
+                        : ""}
+                    </span>
                     <div
                       className={cn(
                         "flex w-full items-end justify-center",
-                        chartRange === "30d" ? "h-14" : "h-16 sm:h-20"
+                        chartRange === "30d" ? "h-16" : "h-24 sm:h-28"
                       )}
                     >
                       <div
                         className={cn(
                           "w-full rounded-t-md",
-                          chartRange === "7d" && "max-w-[28px] sm:max-w-[36px]",
-                          val >= 0 ? "bg-brand/75" : "bg-danger/60"
+                          chartRange === "7d" && "max-w-[40px] sm:max-w-[48px]",
+                          val >= 0 ? "bg-brand/80" : "bg-danger/65"
                         )}
                         style={{ height: `${barPct}%` }}
-                        title={`${dayLabel ?? ""}: ${formatMoney(val, { short: true })}`}
+                        title={`${weekday}: ${formatMoney(val, { short: true })}`}
                       />
                     </div>
-                    {chartRange === "7d" || i % 5 === 0 ? (
-                      <span className="truncate text-[8px] text-muted sm:text-[10px]">
-                        {weekday}
-                      </span>
-                    ) : (
-                      <span className="h-3" />
-                    )}
+                    <span className="truncate text-[10px] font-medium text-muted sm:text-xs">
+                      {weekday}
+                    </span>
                   </div>
                 );
               })}
             </div>
+            <p className="mt-3 text-xs text-muted">{t("dashboard.funnelChartHint")}</p>
           </div>
         ) : null}
+      </section>
+
+      {/* Profit by store — same numbers as funnel / network totals */}
+      <section>
+        <ZoneHeader
+          title={t("dashboard.funnelStoresTitle")}
+          subtitle={t("dashboard.funnelStoresSubtitle")}
+        />
+        {sortedStores.length === 0 ? (
+          <p className="text-sm text-muted">{t("dashboard.noStores")}</p>
+        ) : (
+          <StoresProfitTable
+            rows={sortedStores.map((s) => ({
+              id: s.id,
+              name: s.name,
+              revenue: s.revenue,
+              grossProfit: s.grossProfit ?? s.profit ?? 0,
+              expenses: s.expenses ?? 0,
+              netProfit: s.netProfit ?? s.profit ?? 0,
+            }))}
+            totals={{
+              revenue: today.revenue,
+              grossProfit: today.grossProfit ?? today.profit,
+              expenses: today.expenses ?? 0,
+              netProfit: today.netProfit ?? today.profit,
+            }}
+          />
+        )}
       </section>
 
       {/* Request center — decisions vs informational alerts */}
