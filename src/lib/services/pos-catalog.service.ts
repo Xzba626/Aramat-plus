@@ -53,6 +53,7 @@ export async function getPosCatalog(params: {
         name: b.product.name,
         sku: b.product.sku,
         barcode: b.product.barcode,
+        kind: b.product.kind,
         minStock: min,
         accountingType: b.product.accountingType,
         brand: b.product.brand
@@ -71,6 +72,9 @@ export async function getPosCatalog(params: {
       },
     };
   });
+
+  // Defense in depth: never expose packaging consumables as sellable SKUs
+  items = items.filter((i) => i.product.kind !== ProductKind.PACKAGING);
 
   if (params.categoryId) {
     items = items.filter((i) => i.product.category?.id === params.categoryId);

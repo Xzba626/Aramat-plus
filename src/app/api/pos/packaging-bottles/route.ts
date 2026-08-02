@@ -29,6 +29,12 @@ export async function GET(req: Request) {
     }
 
     const items = await listStorePackagingStock(user.companyId, storeId);
+    // Seller UI must not see exact bottle stock or cost (revision blindness + no opex leak)
+    if (user.role === Role.SELLER) {
+      return jsonOk(
+        items.map(({ quantity: _q, defaultCost: _c, ...rest }) => rest)
+      );
+    }
     return jsonOk(items);
   } catch (err) {
     return handleApiError(err);

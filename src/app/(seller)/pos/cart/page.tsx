@@ -22,7 +22,6 @@ type BottleOption = {
   packagingProductId: string;
   name: string;
   volumeMl: number | null;
-  quantity: number;
 };
 
 export default function PosCartPage() {
@@ -32,6 +31,7 @@ export default function PosCartPage() {
   const lines = usePosCart((s) => s.lines);
   const setQty = usePosCart((s) => s.setQty);
   const setPackaging = usePosCart((s) => s.setPackaging);
+  const purgePackagingLines = usePosCart((s) => s.purgePackagingLines);
   const clear = usePosCart((s) => s.clear);
   const payment = usePosCart((s) => s.paymentMethod);
   const setPayment = usePosCart((s) => s.setPaymentMethod);
@@ -58,18 +58,17 @@ export default function PosCartPage() {
   );
 
   const loadBottles = useCallback(async () => {
-    if (weightLines.length === 0) {
-      setBottles([]);
-      return;
-    }
     setBottlesLoading(true);
     const res = await fetch("/api/pos/packaging-bottles");
     const data = await res.json();
     setBottlesLoading(false);
     if (res.ok && Array.isArray(data)) {
       setBottles(data);
+      purgePackagingLines(
+        data.map((b: BottleOption) => b.packagingProductId).filter(Boolean)
+      );
     }
-  }, [weightLines.length]);
+  }, [purgePackagingLines]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -297,8 +296,11 @@ export default function PosCartPage() {
             <div className="min-w-0 flex-1">
               <div className="font-semibold text-ink">{l.name}</div>
               <div className="text-xs text-muted">
-                {formatMoney(l.salePrice)} · {t("pos.maxQty", { n: l.max })}
-                {l.unitSymbol}
+                {formatMoney(l.salePrice)}
+                {l.unitSymbol ? ` / ${l.unitSymbol}` : ""}
+                {l.accountingType === "WEIGHT" && l.packagingName
+                  ? ` · ${l.packagingName}`
+                  : ""}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -339,6 +341,7 @@ export default function PosCartPage() {
                       setPackaging(l.productId, {
                         packagingProductId: opt.packagingProductId,
                         packagingSkuId: opt.packagingSkuId,
+                        packagingName: opt.name,
                       });
                     }
                   }}
@@ -349,7 +352,8 @@ export default function PosCartPage() {
                       key={b.packagingProductId}
                       value={b.packagingProductId}
                     >
-                      {b.name} · {b.quantity} {t("units.pcs")}
+                      {b.name}
+                      {b.volumeMl != null ? ` · ${b.volumeMl} мл` : ""}
                     </option>
                   ))}
                 </select>

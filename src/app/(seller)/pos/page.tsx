@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { usePosCart } from "@/lib/stores/pos-cart";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
+import { Button } from "@/components/ui/button";
+import { Card, FieldLabel } from "@/components/ui/card";
 
 type CatalogItem = {
   productId: string;
@@ -14,6 +16,7 @@ type CatalogItem = {
   salePrice: number;
   product: {
     name: string;
+    kind?: string;
     brand: { name: string; imageUrl: string | null } | null;
     category: { id: string; name: string } | null;
     unit: { symbol: string } | null;
@@ -23,10 +26,18 @@ type CatalogItem = {
 
 type Category = { id: string; name: string };
 
+type BottleOption = {
+  packagingSkuId: string | null;
+  packagingProductId: string;
+  name: string;
+  volumeMl: number | null;
+};
+
 export default function PosPage() {
   const router = useRouter();
   const { t, formatMoney } = useI18n();
   const add = usePosCart((s) => s.add);
+  const purgePackagingLines = usePosCart((s) => s.purgePackagingLines);
   const cartCount = usePosCart((s) => s.lines.reduce((n, l) => n + l.quantity, 0));
   const [q, setQ] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -36,6 +47,12 @@ export default function PosPage() {
   const [error, setError] = useState("");
   const [flash, setFlash] = useState("");
   const [loading, setLoading] = useState(true);
+
+  const [weightPick, setWeightPick] = useState<CatalogItem | null>(null);
+  const [weightQty, setWeightQty] = useState("10");
+  const [bottleId, setBottleId] = useState("");
+  const [bottles, setBottles] = useState<BottleOption[]>([]);
+  const [bottlesLoading, setBottlesLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -50,7 +67,14 @@ export default function PosPage() {
       return;
     }
     setError("");
-    setItems(data.items ?? []);
+    const raw = (data.items ?? []) as CatalogItem[];
+    // Never show packaging bottles in the sellable grid
+    const sellable = raw.filter(
+      (i) =>
+        i.product.kind !== "PACKAGING" &&
+        !(i.salePrice === 0 && /^флакон\b/i.test(i.product.name))
+    );
+    setItems(sellable);
     setCategories(data.categories ?? []);
     setStoreName(data.store?.name ?? "");
   }, [q, categoryId, t]);
@@ -60,7 +84,36 @@ export default function PosPage() {
     return () => clearTimeout(timer);
   }, [load]);
 
-  function addItem(item: CatalogItem) {
+  useEffect(() => {
+    // Purge legacy cart rows that treated bottles as products
+    fetch("/api/pos/packaging-bottles")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!Array.isArray(data)) return;
+        purgePackagingLines(
+          data.map((b: BottleOption) => b.packagingProductId).filter(Boolean)
+        );
+      })
+      .catch(() => undefined);
+  }, [purgePackagingLines]);
+
+  async function openWeightModal(item: CatalogItem) {
+    setWeightPick(item);
+    setWeightQty("10");
+    setBottleId("");
+    setBottlesLoading(true);
+    const res = await fetch("/api/pos/packaging-bottles");
+    const data = await res.json();
+    setBottlesLoading(false);
+    if (res.ok && Array.isArray(data)) {
+      setBottles(data);
+      if (data.length === 1) setBottleId(data[0].packagingProductId);
+    } else {
+      setBottles([]);
+    }
+  }
+
+  function addPiece(item: CatalogItem) {
     if (item.quantity <= 0) return;
     add({
       productId: item.productId,
@@ -69,10 +122,53 @@ export default function PosPage() {
       salePrice: item.salePrice,
       max: item.quantity,
       quantity: 1,
-      accountingType: item.product.accountingType,
+      accountingType: "PIECE",
     });
     setFlash(t("pos.addedToCart", { name: item.product.name }));
     setTimeout(() => setFlash(""), 1200);
+  }
+
+  function confirmWeightAdd() {
+    if (!weightPick) return;
+    const qty = Number(weightQty);
+    if (!(qty > 0)) {
+      setError(t("pos.qtyInvalid"));
+      return;
+    }
+    if (qty > weightPick.quantity) {
+      setError(t("pos.qtyExceedsStock"));
+      return;
+    }
+    const bottle = bottles.find((b) => b.packagingProductId === bottleId);
+    if (!bottle) {
+      setError(t("pos.bottleRequired"));
+      return;
+    }
+    add({
+      productId: weightPick.productId,
+      name: weightPick.product.name,
+      unitSymbol: weightPick.product.unit?.symbol ?? "мл",
+      salePrice: weightPick.salePrice,
+      max: weightPick.quantity,
+      quantity: qty,
+      accountingType: "WEIGHT",
+      packagingProductId: bottle.packagingProductId,
+      packagingSkuId: bottle.packagingSkuId,
+      packagingName: bottle.name,
+    });
+    setFlash(t("pos.addedToCart", { name: weightPick.product.name }));
+    setTimeout(() => setFlash(""), 1200);
+    setWeightPick(null);
+    setError("");
+  }
+
+  function onCardClick(item: CatalogItem) {
+    if (item.quantity <= 0) return;
+    if (item.product.accountingType === "WEIGHT") {
+      void openWeightModal(item);
+      return;
+    }
+    addPiece(item);
   }
 
   function onSearchKey(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -80,7 +176,7 @@ export default function PosPage() {
     if (items.length >= 1 && q.trim()) {
       const exact = items[0];
       if (exact.quantity > 0) {
-        addItem(exact);
+        onCardClick(exact);
         setQ("");
       }
     }
@@ -143,7 +239,9 @@ export default function PosPage() {
           {flash}
         </div>
       ) : null}
-      {error ? <p className="text-center text-sm text-danger">{error}</p> : null}
+      {error && !weightPick ? (
+        <p className="text-center text-sm text-danger">{error}</p>
+      ) : null}
 
       {loading ? (
         <p className="py-8 text-center text-sm text-muted">{t("pos.loading")}</p>
@@ -160,7 +258,7 @@ export default function PosPage() {
               key={item.productId}
               type="button"
               disabled={item.quantity <= 0}
-              onClick={() => addItem(item)}
+              onClick={() => onCardClick(item)}
               className={cn(
                 "rounded-2xl border border-border bg-card p-3 text-left shadow-sm transition active:scale-[0.98]",
                 item.stockStatus === "LOW" && "ring-1 ring-warning/40",
@@ -180,6 +278,7 @@ export default function PosPage() {
                 <span className="text-sm font-bold text-ink">
                   {formatMoney(item.salePrice)}
                 </span>
+                {/* Seller must NOT see exact stock — only status */}
                 <span
                   className={cn(
                     "text-[11px] font-semibold",
@@ -188,8 +287,11 @@ export default function PosPage() {
                     item.stockStatus === "OUT" && "text-danger"
                   )}
                 >
-                  {item.quantity}
-                  {item.product.unit?.symbol ?? ""}
+                  {item.stockStatus === "OUT"
+                    ? t("pos.outOfStock")
+                    : item.stockStatus === "LOW"
+                      ? t("pos.lowStock")
+                      : t("pos.inStock")}
                 </span>
               </div>
             </button>
@@ -205,6 +307,73 @@ export default function PosPage() {
         >
           {t("pos.cart")} · {cartCount}
         </button>
+      ) : null}
+
+      {weightPick ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+          <Card className="w-full max-w-md space-y-3 p-5">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-bold text-ink">{weightPick.product.name}</h2>
+                <p className="text-sm text-muted">{t("pos.weightAddHint")}</p>
+              </div>
+              <button
+                type="button"
+                data-dismiss-esc
+                className="text-sm text-muted"
+                onClick={() => {
+                  setWeightPick(null);
+                  setError("");
+                }}
+              >
+                {t("common.close")}
+              </button>
+            </div>
+            <div>
+              <FieldLabel>{t("pos.qtyMl")}</FieldLabel>
+              <input
+                type="number"
+                min={0.1}
+                step="0.1"
+                value={weightQty}
+                onChange={(e) => setWeightQty(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <FieldLabel>{t("pos.selectBottle")}</FieldLabel>
+              <p className="mt-0.5 text-[11px] text-muted">{t("pos.bottleHint")}</p>
+              {bottlesLoading ? (
+                <p className="mt-1 text-xs text-muted">{t("common.loading")}</p>
+              ) : bottles.length === 0 ? (
+                <p className="mt-1 text-xs text-danger">{t("pos.noBottlesInStore")}</p>
+              ) : (
+                <select
+                  className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                  value={bottleId}
+                  onChange={(e) => setBottleId(e.target.value)}
+                >
+                  <option value="">{t("pos.bottlePlaceholder")}</option>
+                  {bottles.map((b) => (
+                    <option key={b.packagingProductId} value={b.packagingProductId}>
+                      {b.name}
+                      {b.volumeMl != null ? ` · ${b.volumeMl} мл` : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            {error ? <p className="text-sm text-danger">{error}</p> : null}
+            <Button
+              type="button"
+              className="w-full"
+              onClick={confirmWeightAdd}
+              disabled={bottlesLoading || bottles.length === 0}
+            >
+              {t("pos.addToCart")}
+            </Button>
+          </Card>
+        </div>
       ) : null}
     </div>
   );

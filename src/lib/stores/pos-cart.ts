@@ -15,11 +15,14 @@ export type PosCartLine = {
   unitSymbol: string;
   salePrice: number;
   quantity: number;
+  /** Soft cap for +/- (not shown to seller). */
   max: number;
-  /** WEIGHT lines require bottle selection at checkout. */
+  /** WEIGHT lines require bottle selection. */
   accountingType?: "PIECE" | "WEIGHT";
+  /** Bottle is an attribute of a WEIGHT line — never a separate cart row. */
   packagingProductId?: string | null;
   packagingSkuId?: string | null;
+  packagingName?: string | null;
 };
 
 export type PosDiscountState = {
@@ -59,8 +62,14 @@ type PosCartState = {
   setQty: (productId: string, quantity: number) => void;
   setPackaging: (
     productId: string,
-    packaging: { packagingProductId: string; packagingSkuId?: string | null }
+    packaging: {
+      packagingProductId: string;
+      packagingSkuId?: string | null;
+      packagingName?: string | null;
+    }
   ) => void;
+  /** Drop illegal packaging SKUs if they were persisted in an older cart. */
+  purgePackagingLines: (packagingProductIds: string[]) => void;
   remove: (productId: string) => void;
   clear: () => void;
   count: () => number;
@@ -259,6 +268,12 @@ export const usePosCart = create<PosCartState>()(
 
       add: (item) => {
         const qty = item.quantity ?? 1;
+        if (
+          item.salePrice === 0 &&
+          /^флакон\b/i.test(item.name)
+        ) {
+          return;
+        }
         set((state) => {
           const existing = state.lines.find(
             (l) => l.productId === item.productId
@@ -269,9 +284,14 @@ export const usePosCart = create<PosCartState>()(
               l.productId === item.productId
                 ? {
                     ...l,
-                    quantity: Math.min(l.quantity + qty, l.max),
+                    quantity: Math.min(l.quantity + qty, item.max || l.max),
                     max: item.max,
                     salePrice: item.salePrice,
+                    accountingType: item.accountingType ?? l.accountingType,
+                    packagingProductId:
+                      item.packagingProductId ?? l.packagingProductId,
+                    packagingSkuId: item.packagingSkuId ?? l.packagingSkuId,
+                    packagingName: item.packagingName ?? l.packagingName,
                   }
                 : l
             );
@@ -285,6 +305,10 @@ export const usePosCart = create<PosCartState>()(
                 salePrice: item.salePrice,
                 quantity: Math.min(qty, item.max),
                 max: item.max,
+                accountingType: item.accountingType,
+                packagingProductId: item.packagingProductId ?? null,
+                packagingSkuId: item.packagingSkuId ?? null,
+                packagingName: item.packagingName ?? null,
               },
             ];
           }
@@ -314,10 +338,7 @@ export const usePosCart = create<PosCartState>()(
         });
       },
 
-      setPackaging: (
-        productId: string,
-        packaging: { packagingProductId: string; packagingSkuId?: string | null }
-      ) => {
+      setPackaging: (productId, packaging) => {
         set((state) => ({
           lines: state.lines.map((l) =>
             l.productId === productId
@@ -325,10 +346,27 @@ export const usePosCart = create<PosCartState>()(
                   ...l,
                   packagingProductId: packaging.packagingProductId,
                   packagingSkuId: packaging.packagingSkuId ?? null,
+                  packagingName: packaging.packagingName ?? null,
                 }
               : l
           ),
         }));
+      },
+
+      purgePackagingLines: (packagingProductIds) => {
+        const ban = new Set(packagingProductIds);
+        set((state) => {
+          const lines = state.lines.filter(
+            (l) =>
+              !ban.has(l.productId) &&
+              !(l.salePrice === 0 && /^флакон\b/i.test(l.name))
+          );
+          if (lines.length === state.lines.length) return state;
+          return {
+            lines,
+            discount: invalidateDiscountIfNeeded(lines, state.discount),
+          };
+        });
       },
 
       remove: (productId) => {
