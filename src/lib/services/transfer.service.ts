@@ -173,7 +173,7 @@ export async function createStoreTransfer(params: {
   ]);
   if (!fromStore || !toStore) throw new Error("STORE_NOT_FOUND");
 
-  return prisma.$transaction(
+  const txResult = await prisma.$transaction(
     async (tx) => {
       const transfer = await tx.transfer.create({
         data: {
