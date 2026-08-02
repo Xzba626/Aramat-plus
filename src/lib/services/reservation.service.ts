@@ -1,6 +1,7 @@
 /**
  * Stock reservations: available = physical − ACTIVE (non-expired).
  * Does NOT mutate Batch / StockBalance until sale (FIFO via stock.service).
+ * Cart autosave: no TTL — held until sale complete or cancel.
  */
 import {
   LocationType,
@@ -12,7 +13,11 @@ import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { decimalToNumber } from "@/lib/utils";
 
+/** @deprecated Cart holds have no TTL; kept for optional legacy manual TTL. */
 export const DEFAULT_RESERVATION_TTL_MS = 30 * 60 * 1000;
+
+/** Marker in customerNote for auto-synced POS cart holds. */
+export const CART_AUTOSAVE_NOTE = "__cart_autosave__";
 
 export type ReservationLineInput = {
   productId: string;
@@ -21,7 +26,28 @@ export type ReservationLineInput = {
 
 type Tx = Prisma.TransactionClient;
 
-/** Mark ACTIVE past expiresAt as EXPIRED (lazy TTL). */
+/** ACTIVE and not past expiresAt (null expiresAt = never expires). */
+function activeReservationWhere(
+  extra: Prisma.ReservationWhereInput = {}
+): Prisma.ReservationWhereInput {
+  const now = new Date();
+  return {
+    status: ReservationStatus.ACTIVE,
+    AND: [
+      {
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+    ],
+    ...extra,
+  };
+}
+
+function isExpired(expiresAt: Date | null): boolean {
+  if (!expiresAt) return false;
+  return expiresAt.getTime() <= Date.now();
+}
+
+/** Mark ACTIVE past expiresAt as EXPIRED (legacy TTL rows only). */
 export async function expireStaleReservations(
   tx: Tx | typeof prisma = prisma,
   companyId?: string
@@ -29,7 +55,7 @@ export async function expireStaleReservations(
   const now = new Date();
   const where: Prisma.ReservationWhereInput = {
     status: ReservationStatus.ACTIVE,
-    expiresAt: { lt: now },
+    expiresAt: { not: null, lt: now },
     ...(companyId ? { companyId } : {}),
   };
   const stale = await tx.reservation.findMany({
@@ -44,7 +70,6 @@ export async function expireStaleReservations(
     data: { status: ReservationStatus.EXPIRED },
   });
 
-  // Audit outside nested TX noise: only when using root client
   if (tx === prisma) {
     for (const row of stale) {
       void logActivity({
@@ -83,19 +108,16 @@ export async function sumReservedQty(
     excludeReservationId?: string;
   }
 ) {
-  const now = new Date();
   const items = await tx.reservationItem.findMany({
     where: {
       productId: params.productId,
-      reservation: {
-        status: ReservationStatus.ACTIVE,
-        expiresAt: { gt: now },
+      reservation: activeReservationWhere({
         locationType: params.locationType,
         locationId: params.locationId,
         ...(params.excludeReservationId
           ? { id: { not: params.excludeReservationId } }
           : {}),
-      },
+      }),
     },
     select: { quantity: true },
   });
@@ -149,19 +171,16 @@ export async function reservedQtyByProduct(params: {
   productIds?: string[];
 }) {
   await expireStaleReservations(prisma, params.companyId);
-  const now = new Date();
   const items = await prisma.reservationItem.findMany({
     where: {
       ...(params.productIds?.length
         ? { productId: { in: params.productIds } }
         : {}),
-      reservation: {
+      reservation: activeReservationWhere({
         companyId: params.companyId,
-        status: ReservationStatus.ACTIVE,
-        expiresAt: { gt: now },
         locationType: params.locationType,
         locationId: params.locationId,
-      },
+      }),
     },
     select: { productId: true, quantity: true },
   });
@@ -215,7 +234,7 @@ function serializeReservation(
   r: {
     id: string;
     status: ReservationStatus;
-    expiresAt: Date;
+    expiresAt: Date | null;
     customerNote: string | null;
     createdAt: Date;
     updatedAt: Date;
@@ -236,8 +255,11 @@ function serializeReservation(
   return {
     id: r.id,
     status: r.status,
-    expiresAt: r.expiresAt.toISOString(),
-    customerNote: r.customerNote,
+    expiresAt: r.expiresAt ? r.expiresAt.toISOString() : null,
+    noExpiry: r.expiresAt == null,
+    isCartAutosave: r.customerNote === CART_AUTOSAVE_NOTE,
+    customerNote:
+      r.customerNote === CART_AUTOSAVE_NOTE ? null : r.customerNote,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
     storeId: r.storeId,
@@ -319,8 +341,10 @@ export async function createReservation(params: {
   });
   if (products.length !== productIds.length) throw new Error("PRODUCT_NOT_FOUND");
 
-  const ttl = params.ttlMs ?? DEFAULT_RESERVATION_TTL_MS;
-  const expiresAt = new Date(Date.now() + ttl);
+  const expiresAt =
+    params.ttlMs != null && params.ttlMs > 0
+      ? new Date(Date.now() + params.ttlMs)
+      : null;
 
   const reservation = await prisma.$transaction(
     async (tx) => {
@@ -378,12 +402,12 @@ export async function createReservation(params: {
         action: "RESERVATION_CREATE",
         entityType: "Reservation",
         entityId: created.id,
-        comment: `${loc.storeName} · ${lines.length} SKU · until ${expiresAt.toISOString()}`,
+        comment: `${loc.storeName} · ${lines.length} SKU · hold until sale/cancel`,
         metadata: {
           storeId: params.storeId,
           locationType: loc.locationType,
           locationId: loc.locationId,
-          expiresAt: expiresAt.toISOString(),
+          expiresAt: expiresAt?.toISOString() ?? null,
           items: lines,
         },
       });
@@ -425,7 +449,7 @@ export async function cancelReservation(params: {
       if (row.status !== ReservationStatus.ACTIVE) {
         throw new Error("RESERVATION_NOT_ACTIVE");
       }
-      if (row.expiresAt <= new Date()) {
+      if (isExpired(row.expiresAt)) {
         await tx.reservation.update({
           where: { id: row.id },
           data: { status: ReservationStatus.EXPIRED },
@@ -483,7 +507,11 @@ export async function listReservations(params: {
     where: {
       companyId: params.companyId,
       ...(params.storeId ? { storeId: params.storeId } : {}),
-      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(params.status === "ACTIVE_ONLY"
+        ? activeReservationWhere()
+        : statusFilter
+          ? { status: statusFilter }
+          : {}),
       ...(params.createdById ? { createdById: params.createdById } : {}),
     },
     include: {
@@ -544,7 +572,7 @@ export async function assertReservationForSale(
   if (reservation.status !== ReservationStatus.ACTIVE) {
     throw new Error("RESERVATION_NOT_ACTIVE");
   }
-  if (reservation.expiresAt <= new Date()) {
+  if (isExpired(reservation.expiresAt)) {
     await tx.reservation.update({
       where: { id: reservation.id },
       data: { status: ReservationStatus.EXPIRED },
@@ -661,4 +689,176 @@ export async function assertAvailableForSaleLines(
       }
     }
   }
+}
+
+/**
+ * Upsert POS cart hold for seller+store. Empty cart cancels existing autosave.
+ * No TTL — held until sale completes or cart is cleared.
+ */
+export async function syncSellerCartReservation(params: {
+  companyId: string;
+  storeId: string;
+  createdById: string;
+  items: ReservationLineInput[];
+}) {
+  const existing = await prisma.reservation.findFirst({
+    where: activeReservationWhere({
+      companyId: params.companyId,
+      storeId: params.storeId,
+      createdById: params.createdById,
+      customerNote: CART_AUTOSAVE_NOTE,
+    }),
+    include: {
+      store: { select: { id: true, name: true } },
+      createdBy: { select: { id: true, name: true } },
+      items: {
+        include: {
+          product: { select: { id: true, name: true, salePrice: true } },
+        },
+      },
+    },
+  });
+
+  const merged = new Map<string, number>();
+  for (const line of params.items) {
+    if (!(line.quantity > 0)) continue;
+    merged.set(
+      line.productId,
+      (merged.get(line.productId) ?? 0) + line.quantity
+    );
+  }
+  const lines = [...merged.entries()].map(([productId, quantity]) => ({
+    productId,
+    quantity,
+  }));
+
+  if (lines.length === 0) {
+    if (existing) {
+      await prisma.reservation.update({
+        where: { id: existing.id },
+        data: { status: ReservationStatus.CANCELLED },
+      });
+      await logActivity({
+        userId: params.createdById,
+        companyId: params.companyId,
+        action: "RESERVATION_CANCEL",
+        entityType: "Reservation",
+        entityId: existing.id,
+        comment: "cart cleared",
+      });
+    }
+    return null;
+  }
+
+  const loc = await resolveSaleLocation({
+    companyId: params.companyId,
+    storeId: params.storeId,
+  });
+
+  const productIds = lines.map((l) => l.productId);
+  const products = await prisma.product.findMany({
+    where: {
+      id: { in: productIds },
+      companyId: params.companyId,
+      isActive: true,
+    },
+    select: { id: true },
+  });
+  if (products.length !== productIds.length) throw new Error("PRODUCT_NOT_FOUND");
+
+  return prisma.$transaction(
+    async (tx) => {
+      await expireStaleReservations(tx, params.companyId);
+
+      for (const line of lines) {
+        await lockStockBalanceRow(
+          tx,
+          line.productId,
+          loc.locationType,
+          loc.locationId
+        );
+        const available = await getAvailableQty(tx, {
+          productId: line.productId,
+          locationType: loc.locationType,
+          locationId: loc.locationId,
+          excludeReservationId: existing?.id,
+        });
+        if (available.lt(line.quantity)) {
+          throw new Error("INSUFFICIENT_AVAILABLE");
+        }
+      }
+
+      if (existing) {
+        await tx.reservationItem.deleteMany({
+          where: { reservationId: existing.id },
+        });
+        const updated = await tx.reservation.update({
+          where: { id: existing.id },
+          data: {
+            expiresAt: null,
+            locationType: loc.locationType,
+            locationId: loc.locationId,
+            items: {
+              create: lines.map((l) => ({
+                productId: l.productId,
+                quantity: new Prisma.Decimal(l.quantity),
+              })),
+            },
+          },
+          include: {
+            store: { select: { id: true, name: true } },
+            createdBy: { select: { id: true, name: true } },
+            items: {
+              include: {
+                product: { select: { id: true, name: true, salePrice: true } },
+              },
+            },
+          },
+        });
+        return serializeReservation(updated);
+      }
+
+      const created = await tx.reservation.create({
+        data: {
+          companyId: params.companyId,
+          storeId: params.storeId,
+          locationType: loc.locationType,
+          locationId: loc.locationId,
+          status: ReservationStatus.ACTIVE,
+          expiresAt: null,
+          createdById: params.createdById,
+          customerNote: CART_AUTOSAVE_NOTE,
+          items: {
+            create: lines.map((l) => ({
+              productId: l.productId,
+              quantity: new Prisma.Decimal(l.quantity),
+            })),
+          },
+        },
+        include: {
+          store: { select: { id: true, name: true } },
+          createdBy: { select: { id: true, name: true } },
+          items: {
+            include: {
+              product: { select: { id: true, name: true, salePrice: true } },
+            },
+          },
+        },
+      });
+
+      await logActivity({
+        tx,
+        userId: params.createdById,
+        companyId: params.companyId,
+        action: "RESERVATION_CREATE",
+        entityType: "Reservation",
+        entityId: created.id,
+        comment: `cart autosave · ${loc.storeName}`,
+        metadata: { items: lines, cartAutosave: true },
+      });
+
+      return serializeReservation(created);
+    },
+    { maxWait: 8000, timeout: 20000 }
+  );
 }

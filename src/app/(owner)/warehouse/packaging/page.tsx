@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
@@ -15,7 +14,6 @@ type Sku = {
   volumeMl: number;
   material: string;
   color: string;
-  cap: string;
   defaultCost: number | null;
   isActive: boolean;
   productId: string | null;
@@ -26,6 +24,15 @@ type Sku = {
 type BranchStore = { id: string; name: string };
 type Warehouse = { id: string; name: string };
 
+function materialLabel(
+  material: string,
+  t: (k: string) => string
+): string {
+  if (material === "glass") return t("packaging.materialGlass");
+  if (material === "plastic") return t("packaging.materialPlastic");
+  return material;
+}
+
 export default function PackagingPage() {
   const { t, formatMoney } = useI18n();
   const [items, setItems] = useState<Sku[]>([]);
@@ -33,6 +40,7 @@ export default function PackagingPage() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showReceive, setShowReceive] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const [error, setError] = useState("");
@@ -81,6 +89,7 @@ export default function PackagingPage() {
         name: String(fd.get("name") || "") || undefined,
         volumeMl: Number(fd.get("volumeMl")),
         material: String(fd.get("material") || "glass"),
+        color: String(fd.get("color") || "") || null,
         defaultCost: fd.get("defaultCost")
           ? Number(fd.get("defaultCost"))
           : null,
@@ -94,6 +103,41 @@ export default function PackagingPage() {
     setMsg(t("packaging.created"));
     setShowForm(false);
     (e.target as HTMLFormElement).reset();
+    load();
+  }
+
+  async function onReceive(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
+    setMsg("");
+    const fd = new FormData(e.currentTarget);
+    const productId = String(fd.get("productId") || "");
+    const quantity = Number(fd.get("quantity"));
+    const sku = items.find((s) => s.productId === productId);
+    const costPerUnit =
+      fd.get("costPerUnit") !== null && String(fd.get("costPerUnit")) !== ""
+        ? Number(fd.get("costPerUnit"))
+        : (sku?.defaultCost ?? 1);
+    if (!productId || !(quantity > 0) || !(costPerUnit >= 0)) {
+      setError(t("errors.VALIDATION_ERROR"));
+      return;
+    }
+    const res = await fetch(`/api/products/${productId}/batches`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        quantity,
+        costPerUnit,
+        notes: "packaging receive",
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t));
+      return;
+    }
+    setMsg(t("packaging.receiveDone"));
+    setShowReceive(false);
     load();
   }
 
@@ -152,23 +196,38 @@ export default function PackagingPage() {
         subtitle={t("packaging.subtitle")}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Link href="/warehouse/receive?tab=packaging">
-              <Button fullWidth={false} variant="secondary">
-                {t("packaging.receiveBottles")}
-              </Button>
-            </Link>
             <Button
               fullWidth={false}
               type="button"
               variant="secondary"
-              onClick={() => setShowTransfer((v) => !v)}
+              onClick={() => {
+                setShowReceive((v) => !v);
+                setShowTransfer(false);
+                setShowForm(false);
+              }}
+            >
+              {showReceive ? t("common.cancel") : t("packaging.addReceive")}
+            </Button>
+            <Button
+              fullWidth={false}
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setShowTransfer((v) => !v);
+                setShowReceive(false);
+                setShowForm(false);
+              }}
             >
               {showTransfer ? t("common.cancel") : t("packaging.sendToStore")}
             </Button>
             <Button
               fullWidth={false}
               type="button"
-              onClick={() => setShowForm((v) => !v)}
+              onClick={() => {
+                setShowForm((v) => !v);
+                setShowReceive(false);
+                setShowTransfer(false);
+              }}
             >
               {showForm ? t("common.cancel") : t("packaging.addSku")}
             </Button>
@@ -187,6 +246,63 @@ export default function PackagingPage() {
         />
         {t("packaging.showInactive")}
       </label>
+
+      {showReceive ? (
+        <Card className="p-5">
+          <SectionTitle>{t("packaging.addReceive")}</SectionTitle>
+          <form onSubmit={onReceive} className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <FieldLabel>{t("packaging.bottleProduct")}</FieldLabel>
+              <select
+                name="productId"
+                required
+                className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  {t("packaging.selectBottle")}
+                </option>
+                {items
+                  .filter((s) => s.isActive && s.productId)
+                  .map((s) => (
+                    <option key={s.id} value={s.productId!}>
+                      {s.name}
+                      {s.defaultCost != null
+                        ? ` · ${formatMoney(s.defaultCost)}`
+                        : ""}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div>
+              <FieldLabel>{t("packaging.quantityPcs")}</FieldLabel>
+              <input
+                name="quantity"
+                type="number"
+                min={1}
+                step={1}
+                required
+                defaultValue={1000}
+                className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <FieldLabel>{t("packaging.planCost")}</FieldLabel>
+              <input
+                name="costPerUnit"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder={t("packaging.defaultCost")}
+                className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Button type="submit">{t("packaging.addReceive")}</Button>
+            </div>
+          </form>
+        </Card>
+      ) : null}
 
       {showTransfer ? (
         <Card className="p-5">
@@ -238,7 +354,7 @@ export default function PackagingPage() {
                 min={1}
                 step={1}
                 required
-                defaultValue={10}
+                defaultValue={100}
                 className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
               />
             </div>
@@ -270,24 +386,19 @@ export default function PackagingPage() {
             </div>
             <div>
               <FieldLabel>{t("packaging.volumeMl")}</FieldLabel>
-              <input
-                name="volumeMl"
-                type="number"
-                step="0.001"
-                min="0.001"
-                required
-                className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <FieldLabel>{t("packaging.defaultCost")}</FieldLabel>
-              <input
-                name="defaultCost"
-                type="number"
-                step="0.01"
-                min="0"
-                className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
-              />
+              <div className="mt-1 flex items-center gap-2">
+                <input
+                  name="volumeMl"
+                  type="number"
+                  step="0.001"
+                  min="0.001"
+                  required
+                  className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                />
+                <span className="shrink-0 text-sm font-semibold text-muted">
+                  {t("packaging.volumeUnit")}
+                </span>
+              </div>
             </div>
             <div>
               <FieldLabel>{t("packaging.material")}</FieldLabel>
@@ -299,6 +410,27 @@ export default function PackagingPage() {
                 <option value="glass">{t("packaging.materialGlass")}</option>
                 <option value="plastic">{t("packaging.materialPlastic")}</option>
               </select>
+            </div>
+            <div>
+              <FieldLabel>{t("packaging.defaultCost")}</FieldLabel>
+              <input
+                name="defaultCost"
+                type="number"
+                step="0.01"
+                min="0"
+                className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+              />
+              <p className="mt-1 text-[11px] text-muted">
+                {t("packaging.defaultCostHint")}
+              </p>
+            </div>
+            <div>
+              <FieldLabel>{t("packaging.colorOptional")}</FieldLabel>
+              <input
+                name="color"
+                className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                placeholder={t("packaging.color")}
+              />
             </div>
             <div className="sm:col-span-2">
               <Button type="submit">{t("common.save")}</Button>
@@ -323,9 +455,9 @@ export default function PackagingPage() {
               <div className="min-w-0">
                 <p className="font-semibold text-ink">{s.name}</p>
                 <p className="text-xs text-muted">
-                  {s.volumeMl} {t("units.ml")} · {s.material}
+                  {s.volumeMl} {t("packaging.volumeUnit")} ·{" "}
+                  {materialLabel(s.material, t)}
                   {s.color ? ` · ${s.color}` : ""}
-                  {s.cap ? ` · ${s.cap}` : ""}
                 </p>
                 <p className="mt-1 text-sm tabular-nums text-ink">
                   {t("packaging.warehouseStock")}: {s.warehouseQty}{" "}
@@ -335,24 +467,22 @@ export default function PackagingPage() {
                     : ""}
                 </p>
                 {s.storeQtys && s.storeQtys.length > 0 ? (
-                  <ul className="mt-1 space-y-0.5 text-xs text-muted">
-                    {s.storeQtys.map((st) => (
-                      <li key={st.storeId} className="tabular-nums">
-                        {st.storeName}: {st.qty} {t("units.pcs")}
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="mt-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-muted">
+                      {t("packaging.storesStock")}
+                    </p>
+                    <ul className="mt-0.5 space-y-0.5 text-xs text-muted">
+                      {s.storeQtys.map((st) => (
+                        <li key={st.storeId} className="tabular-nums">
+                          {st.storeName}: {st.qty} {t("units.pcs")}
+                          {st.qty > 0 && st.qty <= 5 ? " ⚠" : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ) : null}
               </div>
               <div className="flex flex-wrap gap-2">
-                {s.productId ? (
-                  <Link
-                    href={`/warehouse/receive?tab=packaging&productId=${s.productId}`}
-                    className="rounded-xl bg-brand px-3 py-2 text-xs font-bold text-white"
-                  >
-                    {t("packaging.receive")}
-                  </Link>
-                ) : null}
                 <Button
                   type="button"
                   variant="secondary"

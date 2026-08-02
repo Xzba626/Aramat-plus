@@ -73,6 +73,7 @@ type ExpenseRow = {
   endsAt: Date | null;
   incurredAt: Date;
   storeId: string | null;
+  expenseTypeName: string;
 };
 
 async function loadActiveExpenses(
@@ -81,7 +82,7 @@ async function loadActiveExpenses(
   rangeEnd: Date,
   storeId?: string | null
 ): Promise<ExpenseRow[]> {
-  return prisma.expense.findMany({
+  const rows = await prisma.expense.findMany({
     where: {
       startsAt: { lte: endOfDay(rangeEnd) },
       AND: [
@@ -106,8 +107,25 @@ async function loadActiveExpenses(
       endsAt: true,
       incurredAt: true,
       storeId: true,
+      expenseType: { select: { name: true } },
     },
   });
+  return rows.map((r) => ({
+    id: r.id,
+    amount: r.amount,
+    periodicity: r.periodicity,
+    startsAt: r.startsAt,
+    endsAt: r.endsAt,
+    incurredAt: r.incurredAt,
+    storeId: r.storeId,
+    expenseTypeName: r.expenseType.name,
+  }));
+}
+
+const PACKAGING_EXPENSE_TYPE = "Флаконы";
+
+function isPackagingExpense(name: string) {
+  return name.trim().toLowerCase() === PACKAGING_EXPENSE_TYPE.toLowerCase();
 }
 
 /** Sum of daily-allocated expenses for [from, to] inclusive calendar days. */
@@ -118,8 +136,14 @@ export async function sumAllocatedExpenses(params: {
   storeId?: string | null;
 }): Promise<{
   total: number;
+  packaging: number;
+  operational: number;
   byStore: Map<string | null, number>;
+  byStorePackaging: Map<string | null, number>;
+  byStoreOperational: Map<string | null, number>;
   byDay: Map<string, number>;
+  byDayPackaging: Map<string, number>;
+  byDayOperational: Map<string, number>;
 }> {
   const from = startOfDay(params.from);
   const to = startOfDay(params.to);
@@ -131,28 +155,59 @@ export async function sumAllocatedExpenses(params: {
   );
 
   const byStore = new Map<string | null, number>();
+  const byStorePackaging = new Map<string | null, number>();
+  const byStoreOperational = new Map<string | null, number>();
   const byDay = new Map<string, number>();
+  const byDayPackaging = new Map<string, number>();
+  const byDayOperational = new Map<string, number>();
   let total = 0;
+  let packaging = 0;
+  let operational = 0;
 
   for (let t = from.getTime(); t <= to.getTime(); t += 86400000) {
     const day = new Date(t);
     const key = day.toISOString().slice(0, 10);
     let daySum = 0;
+    let dayPack = 0;
+    let dayOps = 0;
     for (const e of rows) {
       if (params.storeId != null && e.storeId !== params.storeId) continue;
       const share = dailyShareForExpense(e, day);
       if (share <= 0) continue;
       daySum += share;
       byStore.set(e.storeId, (byStore.get(e.storeId) ?? 0) + share);
+      if (isPackagingExpense(e.expenseTypeName)) {
+        dayPack += share;
+        packaging += share;
+        byStorePackaging.set(
+          e.storeId,
+          (byStorePackaging.get(e.storeId) ?? 0) + share
+        );
+      } else {
+        dayOps += share;
+        operational += share;
+        byStoreOperational.set(
+          e.storeId,
+          (byStoreOperational.get(e.storeId) ?? 0) + share
+        );
+      }
     }
     byDay.set(key, Math.round(daySum * 100) / 100);
+    byDayPackaging.set(key, Math.round(dayPack * 100) / 100);
+    byDayOperational.set(key, Math.round(dayOps * 100) / 100);
     total += daySum;
   }
 
   return {
     total: Math.round(total * 100) / 100,
+    packaging: Math.round(packaging * 100) / 100,
+    operational: Math.round(operational * 100) / 100,
     byStore,
+    byStorePackaging,
+    byStoreOperational,
     byDay,
+    byDayPackaging,
+    byDayOperational,
   };
 }
 

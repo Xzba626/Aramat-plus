@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Role } from "@prisma/client";
@@ -32,6 +31,7 @@ type Product = {
   accountingType: string;
   brand?: { name: string } | null;
   unit?: { symbol: string } | null;
+  category?: { name: string } | null;
   productType?: { name: string } | null;
   batches: Batch[];
   stockBalances?: Array<{ quantity: string | number; locationType: string }>;
@@ -196,12 +196,11 @@ export default function ProductDetailPage() {
         <div className="mb-4 flex items-start gap-4">
           <label className="relative block h-20 w-20 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-border bg-page">
             {product.imageUrl ? (
-              <Image
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
                 src={product.imageUrl}
                 alt=""
-                fill
-                className="object-cover"
-                sizes="80px"
+                className="h-full w-full object-cover"
               />
             ) : (
               <span className="flex h-full items-center justify-center text-xs text-muted">
@@ -240,10 +239,17 @@ export default function ProductDetailPage() {
               {t("warehouse.productCardType")}
             </dt>
             <dd className="mt-0.5 font-semibold text-ink">
-              {product.productType?.name ??
-                (product.accountingType === "WEIGHT"
-                  ? t("warehouse.productSellVolume")
-                  : t("warehouse.productSellPiece"))}
+              {product.category?.name ?? product.productType?.name ?? "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-bold uppercase tracking-wide text-muted">
+              {t("warehouse.productCardSaleMethod")}
+            </dt>
+            <dd className="mt-0.5 font-semibold text-ink">
+              {product.accountingType === "WEIGHT"
+                ? t("warehouse.productSellVolume")
+                : t("warehouse.productSellPiece")}
             </dd>
           </div>
           <div>

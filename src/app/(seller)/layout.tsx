@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/session";
 import { SellerBottomNavLive } from "@/components/pos/seller-bottom-nav-live";
 import { PosTopBar } from "@/components/pos/pos-top-bar";
 import { PosCartSessionBinder } from "@/components/pos/pos-cart-session-binder";
+import { PosCartReserveSync } from "@/components/pos/pos-cart-reserve-sync";
 
 export default async function SellerLayout({ children }: { children: ReactNode }) {
   const user = await getSessionUser();
@@ -23,6 +24,7 @@ export default async function SellerLayout({ children }: { children: ReactNode }
   return (
     <div className="min-h-screen bg-page">
       <PosCartSessionBinder sellerId={user.id} storeId={storeId} />
+      <PosCartReserveSync />
       <div className="mx-auto flex min-h-screen max-w-[480px] flex-col">
         <PosTopBar storeName={store?.name} />
         <main className="flex-1 px-4 py-4 pb-24">{children}</main>

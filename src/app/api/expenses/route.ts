@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ExpensePeriodicity } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager } from "@/lib/rbac";
+import { requireOwner, requireOwnerOrManager } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
 import {
   createExpense,
@@ -39,7 +39,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
-    const denied = requireOwnerOrManager(user);
+    const denied = requireOwner(user);
     if (denied) return denied;
 
     const body = createSchema.parse(await req.json());

@@ -62,13 +62,14 @@ async function main() {
   await ensureDefaultPackagingSkus(company.id);
 
   // Dedicated SKU so stock is isolated from prior tests
+  const stamp = Date.now();
   const sku = await prisma.packagingSku.create({
     data: {
       companyId: company.id,
-      name: `ZT Bottle ${Date.now()}`,
-      volumeMl: 7,
+      name: `ZT Bottle ${stamp}`,
+      volumeMl: 7 + (stamp % 1000) / 10000,
       material: "glass",
-      color: "",
+      color: `zt${stamp}`,
       cap: "",
       defaultCost: 2,
       isActive: true,

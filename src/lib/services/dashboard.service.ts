@@ -19,8 +19,23 @@ function pctChange(current: number, previous: number) {
   const absLabel =
     abs === 0 ? "0 с." : `${abs > 0 ? "+" : ""}${abs} с.`;
   if (previous === 0) {
-    if (current === 0) return { pct: 0, label: "0%", abs, absLabel };
-    return { pct: 100, label: "+100%", abs, absLabel };
+    if (current === 0)
+      return {
+        pct: 0,
+        label: "0%",
+        abs,
+        absLabel,
+        current,
+        previous,
+      };
+    return {
+      pct: 100,
+      label: "+100%",
+      abs,
+      absLabel,
+      current,
+      previous,
+    };
   }
   const pct = Math.round(((current - previous) / previous) * 100);
   return {
@@ -28,6 +43,8 @@ function pctChange(current: number, previous: number) {
     label: `${pct > 0 ? "+" : ""}${pct}%`,
     abs,
     absLabel,
+    current,
+    previous,
   };
 }
 
@@ -66,7 +83,7 @@ export async function getDashboardPayload(companyId: string) {
         include: { items: true },
       }),
       prisma.store.findMany({
-        where: { companyId, isActive: true },
+        where: { companyId, isActive: true, kind: "BRANCH" },
         orderBy: { name: "asc" },
         select: { id: true, name: true },
       }),
@@ -93,6 +110,13 @@ export async function getDashboardPayload(companyId: string) {
   );
   const today = withNetProfit(todayGross, expensesToday.total);
   const yday = withNetProfit(ydayGross, expensesYday.total);
+
+  const packagingCost = expensesToday.packaging;
+  const operationalExpenses = expensesToday.operational;
+  // Net must equal gross − packaging − operational (same as − total expenses)
+  const netCheck =
+    Math.round((today.grossProfit - packagingCost - operationalExpenses) * 100) /
+    100;
 
   // Weight vs piece split for today
   let weightSold = 0;
@@ -143,7 +167,14 @@ export async function getDashboardPayload(companyId: string) {
       id: store.id,
       name: store.name,
       revenue: m.revenue,
+      cogs: m.cogs,
       grossProfit: m.grossProfit,
+      packagingCost: Math.round(
+        (expensesToday.byStorePackaging.get(store.id) ?? 0) * 100
+      ) / 100,
+      operationalExpenses: Math.round(
+        (expensesToday.byStoreOperational.get(store.id) ?? 0) * 100
+      ) / 100,
       expenses: m.expenses,
       netProfit: m.netProfit,
       profit: m.netProfit,
@@ -186,7 +217,8 @@ export async function getDashboardPayload(companyId: string) {
     .slice(0, 12);
 
   const weekStart = startOfDay(new Date(now.getTime() - 6 * 86400000));
-  const [warehouseBalances, salesWeek, weekExpenses] = await Promise.all([
+  const monthStart = startOfDay(new Date(now.getTime() - 29 * 86400000));
+  const [warehouseBalances, salesMonth, monthExpenses] = await Promise.all([
     warehouse
       ? prisma.stockBalance.findMany({
           where: {
@@ -201,7 +233,7 @@ export async function getDashboardPayload(companyId: string) {
       where: {
         store: { companyId },
         status: { in: ["COMPLETED", "PARTIAL_RETURN"] },
-        createdAt: { gte: weekStart, lte: now },
+        createdAt: { gte: monthStart, lte: now },
       },
       select: {
         id: true,
@@ -218,13 +250,18 @@ export async function getDashboardPayload(companyId: string) {
     }),
     sumAllocatedExpenses({
       companyId,
-      from: weekStart,
+      from: monthStart,
       to: todayStart,
     }),
   ]);
 
+  const salesWeek = salesMonth.filter((s) => s.createdAt >= weekStart);
+  const weekExpenses = {
+    byDay: monthExpenses.byDay,
+  };
+
   const returnLinesWeek = await loadApprovedReturnLines(
-    salesWeek.map((s) => s.id)
+    salesMonth.map((s) => s.id)
   );
 
   const warehouseUnits = warehouseBalances.reduce(
@@ -255,6 +292,26 @@ export async function getDashboardPayload(companyId: string) {
     );
     const dayExp = weekExpenses.byDay.get(dayKey) ?? 0;
     netSparkline.push(
+      Math.round((dayGross.grossProfit - dayExp) * 100) / 100
+    );
+  }
+
+  const netSparklineMonth: number[] = [];
+  const sparklineLabelsMonth: string[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const day = startOfDay(new Date(now.getTime() - i * 86400000));
+    const next = new Date(day.getTime() + 86400000);
+    const dayKey = day.toISOString().slice(0, 10);
+    sparklineLabelsMonth.push(dayKey);
+    const daySales = salesMonth.filter(
+      (s) => s.createdAt >= day && s.createdAt < next
+    );
+    const dayGross = saleGrossMetricsNetOfReturnsSync(
+      daySales,
+      returnLinesWeek
+    );
+    const dayExp = monthExpenses.byDay.get(dayKey) ?? 0;
+    netSparklineMonth.push(
       Math.round((dayGross.grossProfit - dayExp) * 100) / 100
     );
   }
@@ -335,7 +392,7 @@ export async function getDashboardPayload(companyId: string) {
           : ("dashboard.cartOrReceipt" as const),
         originalTotal: original,
         finalTotal: Math.round((original - discountAmt) * 100) / 100,
-        href: "/dashboard#decisions",
+        href: "/discounts",
       };
     }),
     ...pendingReturns.map((r) => {
@@ -394,7 +451,7 @@ export async function getDashboardPayload(companyId: string) {
       problems.push({
         key: "discount",
         labelKey: "dashboard.problemDiscount",
-        href: "/dashboard#decisions",
+        href: "/discounts",
         tone: "danger",
       });
     }
@@ -415,10 +472,17 @@ export async function getDashboardPayload(companyId: string) {
       });
     }
     return { ...store, problems, pendingDiscount: discountN, pendingReturn: returnN };
-  });
+  }).sort((a, b) => b.netProfit - a.netProfit);
+
+  const storesNetSum = Math.round(
+    storeToday.reduce((s, st) => s + st.netProfit, 0) * 100
+  ) / 100;
 
   const decisionSummary = {
-    total: decisions.length,
+    /** Decisions that need Approve/Reject (not informational alerts). */
+    total:
+      decisions.filter((d) => d.type === "DISCOUNT" || d.type === "RETURN")
+        .length,
     discount: decisions.filter((d) => d.type === "DISCOUNT").length,
     return: decisions.filter((d) => d.type === "RETURN").length,
     lowStock: lowStockFiltered.length,
@@ -434,8 +498,9 @@ export async function getDashboardPayload(companyId: string) {
       tone: "warning" as const,
       titleKey: d.titleKey,
       message: `${d.storeName} · ${d.actorName}`,
-      href: d.type === "DISCOUNT" ? "/dashboard#decisions" : "/returns",
+      href: d.type === "DISCOUNT" ? "/discounts" : "/returns",
       createdAt: d.createdAt,
+      needsDecision: true,
     })),
     ...lowStockFiltered.slice(0, 5).map((b) => ({
       id: `stock-${b.id}`,
@@ -450,8 +515,9 @@ export async function getDashboardPayload(companyId: string) {
       message: `${b.product.name} · ${decimalToNumber(b.quantity)}${b.product.unit?.symbol ?? ""}`,
       href: `/warehouse/${b.product.id}`,
       createdAt: new Date().toISOString(),
+      needsDecision: false,
     })),
-  ].slice(0, 5);
+  ].slice(0, 8);
 
   const recent = await prisma.activityLog.findMany({
     where: { companyId },
@@ -464,9 +530,25 @@ export async function getDashboardPayload(companyId: string) {
     generatedAt: now.toISOString(),
     today: {
       ...today,
+      cogs: today.cogs,
+      packagingCost,
+      operationalExpenses,
       expenses: expensesToday.total,
+      netFromLayers: netCheck,
+      storesNetSum,
+      storesNetMatchesNetwork:
+        Math.abs(storesNetSum - today.netProfit) < 0.05,
       weightSold: Math.round(weightSold * 1000) / 1000,
       pieceSold: Math.round(pieceSold * 1000) / 1000,
+      yesterday: {
+        revenue: yday.revenue,
+        grossProfit: yday.grossProfit,
+        netProfit: yday.netProfit,
+        expenses: expensesYday.total,
+        packagingCost: expensesYday.packaging,
+        operationalExpenses: expensesYday.operational,
+        cogs: yday.cogs,
+      },
       deltas: {
         revenue: pctChange(today.revenue, yday.revenue),
         profit: pctChange(today.netProfit, yday.netProfit),
@@ -486,6 +568,8 @@ export async function getDashboardPayload(companyId: string) {
       sparkline,
       netSparkline,
       sparklineLabels,
+      netSparklineMonth,
+      sparklineLabelsMonth,
     },
     stores: storeToday,
     lowStock: lowStockFiltered.map((b) => ({

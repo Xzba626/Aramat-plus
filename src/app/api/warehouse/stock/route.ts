@@ -1,4 +1,4 @@
-import { LocationType } from "@prisma/client";
+import { LocationType, ProductKind } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
 import { requireOwnerOrManager } from "@/lib/rbac";
 import { jsonOk, handleApiError } from "@/lib/api";
@@ -21,16 +21,21 @@ export async function GET(req: Request) {
       return jsonOk(data);
     }
 
+    // Defense in depth: packaging already stripped in getWarehouseStock.
+    const sellable = data.items.filter(
+      (i) => i.product.kind !== ProductKind.PACKAGING
+    );
+
     const reserved = await reservedQtyByProduct({
       companyId: user!.companyId,
       locationType: LocationType.WAREHOUSE,
       locationId: data.warehouse.id,
-      productIds: data.items.map((i) => i.productId),
+      productIds: sellable.map((i) => i.productId),
     });
 
     return jsonOk({
       ...data,
-      items: data.items.map((item) => {
+      items: sellable.map((item) => {
         const physical = decimalToNumber(item.quantity as never);
         const held = reserved.get(item.productId) ?? 0;
         return {

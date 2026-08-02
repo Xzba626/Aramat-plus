@@ -108,19 +108,24 @@ export default function ReferencesPage() {
 
   return (
     <>
-      <PageHeader title={t("settingsSub.references")} subtitle={t("settingsSub.references")} />
+      <PageHeader title={t("settingsSub.references")} subtitle={t("settingsPage.referencesDesc")} />
       <div className="max-w-3xl">
-        <RefSection title={t("wh.categoriesTitle")} path="/api/categories" t={t} />
-        <RefSection title={t("wh.brandsTitle")} path="/api/brands" t={t} />
-        <RefSection title={t("wh.stockTitle")} path="/api/units" extraFields="symbol" t={t} />
-        <Card className="mb-6 p-4 text-sm text-muted">
-          {t("wh.referencesProductTypesNote")}{" "}
-          <Link href="/warehouse/product-types" className="font-semibold text-brand">
-            {t("nav.productsTypes")} →
-          </Link>
+        <Card className="mb-6 space-y-2 p-4 text-sm text-muted">
+          <p>
+            {t("wh.referencesCategoriesNote")}{" "}
+            <Link href="/warehouse/categories" className="font-semibold text-brand">
+              {t("nav.productsCategories")} →
+            </Link>
+          </p>
+          <p>
+            {t("settingsPage.expensesMovedHint")}{" "}
+            <Link href="/stores" className="font-semibold text-brand">
+              {t("nav.stores")} →
+            </Link>
+          </p>
         </Card>
+        <RefSection title={t("wh.stockTitle")} path="/api/units" extraFields="symbol" t={t} />
         <RefSection title={t("wh.historyTitle")} path="/api/operation-types" extraFields="code" t={t} />
-        <RefSection title={t("storeDetail.expenses")} path="/api/expense-types" t={t} />
       </div>
     </>
   );

@@ -50,7 +50,7 @@ export const productSchema = z.object({
   sku: z.string().max(80).optional().nullable(),
   barcode: z.string().max(80).optional().nullable(),
   description: z.string().max(2000).optional().nullable(),
-  imageUrl: z.string().max(500).optional().nullable(),
+  imageUrl: z.string().max(2_000_000).optional().nullable(),
   categoryId: z.string().optional().nullable(),
   brandId: z.string().optional().nullable(),
   unitId: z.string().optional().nullable(),
@@ -66,6 +66,7 @@ export const batchSchema = z.object({
   costPerUnit: z.coerce.number().positive(),
   receivedAt: z.coerce.date().optional(),
   notes: z.string().max(500).optional().nullable(),
+  // Kept for API/DB compat — UI no longer sends suppliers (Part 4).
   supplierId: z.string().cuid().optional().nullable(),
 });
 
@@ -172,11 +173,10 @@ export const reservationCreateSchema = z.object({
 export const packagingSkuSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   volumeMl: z.coerce.number().positive(),
-  material: z.string().max(60).optional().nullable(),
+  material: z.enum(["glass", "plastic"]).optional().nullable(),
   color: z.string().max(60).optional().nullable(),
-  cap: z.string().max(60).optional().nullable(),
   skuCode: z.string().max(80).optional().nullable(),
-  defaultCost: z.coerce.number().positive().optional().nullable(),
+  defaultCost: z.coerce.number().nonnegative().optional().nullable(),
   isDefaultForVolume: z.boolean().optional(),
   isActive: z.boolean().optional(),
 });

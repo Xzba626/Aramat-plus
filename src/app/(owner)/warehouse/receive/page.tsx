@@ -10,58 +10,28 @@ import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
 
 type Product = { id: string; name: string; salePrice?: number };
-type Supplier = { id: string; name: string; phone?: string | null };
 
 export default function ReceivePurchasePage() {
   const router = useRouter();
   const search = useSearchParams();
   const { t, formatMoney } = useI18n();
   const [products, setProducts] = useState<Product[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [mode, setMode] = useState<"existing" | "new">(
     search.get("mode") === "new" ? "new" : "existing"
   );
-  const [supplierId, setSupplierId] = useState("");
-  const [newSupplierName, setNewSupplierName] = useState("");
-  const [newSupplierPhone, setNewSupplierPhone] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [qty, setQty] = useState("");
   const [cost, setCost] = useState("");
 
-  async function loadRefs() {
-    const [pRes, sRes] = await Promise.all([
-      fetch("/api/products?status=active"),
-      fetch("/api/suppliers?active=1"),
-    ]);
-    const pData = await pRes.json();
-    const sData = await sRes.json();
-    setProducts(Array.isArray(pData) ? pData : []);
-    setSuppliers(Array.isArray(sData) ? sData : []);
-  }
-
   useEffect(() => {
-    loadRefs();
+    fetch("/api/products?status=active")
+      .then((r) => r.json())
+      .then((pData) => setProducts(Array.isArray(pData) ? pData : []));
   }, []);
 
   const total =
     Number(qty) > 0 && Number(cost) > 0 ? Number(qty) * Number(cost) : 0;
-
-  async function resolveSupplierId(): Promise<string | null> {
-    if (supplierId) return supplierId;
-    if (!newSupplierName.trim()) return null;
-    const res = await fetch("/api/suppliers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: newSupplierName.trim(),
-        phone: newSupplierPhone.trim() || null,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "SUPPLIER_CREATE_FAILED");
-    return data.id as string;
-  }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -70,7 +40,6 @@ export default function ReceivePurchasePage() {
     const fd = new FormData(e.currentTarget);
 
     try {
-      const sid = await resolveSupplierId();
       const productId = String(fd.get("productId") || "");
       if (!productId) {
         setError(t("errors.PRODUCT_NOT_FOUND"));
@@ -85,7 +54,6 @@ export default function ReceivePurchasePage() {
           quantity: Number(fd.get("quantity")),
           costPerUnit: Number(fd.get("costPerUnit")),
           notes: String(fd.get("notes") || "") || null,
-          supplierId: sid,
           receivedAt: fd.get("receivedAt")
             ? new Date(String(fd.get("receivedAt"))).toISOString()
             : undefined,
@@ -101,7 +69,12 @@ export default function ReceivePurchasePage() {
       router.push("/warehouse/purchases");
       router.refresh();
     } catch (err) {
-      setError(apiErrorMessage(err instanceof Error ? err.message : "INTERNAL_ERROR", t));
+      setError(
+        apiErrorMessage(
+          err instanceof Error ? err.message : "INTERNAL_ERROR",
+          t
+        )
+      );
       setLoading(false);
     }
   }
@@ -122,51 +95,6 @@ export default function ReceivePurchasePage() {
 
       <Card className="p-5">
         <form onSubmit={onSubmit} className="space-y-4">
-          <SectionTitle>{t("wh.receiveStepSupplier")}</SectionTitle>
-          <div>
-            <FieldLabel>{t("wh.supplier")}</FieldLabel>
-            <select
-              className="w-full"
-              value={supplierId}
-              onChange={(e) => {
-                setSupplierId(e.target.value);
-                if (e.target.value) {
-                  setNewSupplierName("");
-                  setNewSupplierPhone("");
-                }
-              }}
-            >
-              <option value="">{t("wh.supplierSelectOrNew")}</option>
-              {suppliers.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                  {s.phone ? ` · ${s.phone}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-          {!supplierId ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <FieldLabel>{t("wh.supplierNewName")}</FieldLabel>
-                <input
-                  className="w-full"
-                  value={newSupplierName}
-                  onChange={(e) => setNewSupplierName(e.target.value)}
-                  placeholder={t("wh.supplierOptional")}
-                />
-              </div>
-              <div>
-                <FieldLabel>{t("wh.supplierPhone")}</FieldLabel>
-                <input
-                  className="w-full"
-                  value={newSupplierPhone}
-                  onChange={(e) => setNewSupplierPhone(e.target.value)}
-                />
-              </div>
-            </div>
-          ) : null}
-
           <SectionTitle>{t("wh.receiveStepProduct")}</SectionTitle>
           <div className="flex gap-2">
             <button
@@ -198,16 +126,16 @@ export default function ReceivePurchasePage() {
               <p className="mb-3">{t("wh.receiveNewProductHint")}</p>
               <Link href="/warehouse/new?next=/warehouse/receive">
                 <Button type="button" fullWidth={false}>
-                  {t("warehouse.productCreateBtn")}
+                  {t("wh.receiveNewProduct")}
                 </Button>
               </Link>
             </div>
           ) : (
             <div>
-              <FieldLabel>{t("wh.colName")}</FieldLabel>
+              <FieldLabel>{t("purchases.product")}</FieldLabel>
               <select name="productId" required className="w-full" defaultValue="">
                 <option value="" disabled>
-                  {t("wh.colName")}
+                  {t("purchases.selectProduct")}
                 </option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -223,7 +151,7 @@ export default function ReceivePurchasePage() {
               <SectionTitle>{t("wh.receiveStepDetails")}</SectionTitle>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <FieldLabel>{t("warehouse.productBatchQty")}</FieldLabel>
+                  <FieldLabel>{t("purchases.quantity")}</FieldLabel>
                   <input
                     name="quantity"
                     type="number"
@@ -236,12 +164,12 @@ export default function ReceivePurchasePage() {
                   />
                 </div>
                 <div>
-                  <FieldLabel>{t("warehouse.productCost")}</FieldLabel>
+                  <FieldLabel>{t("purchases.costPerUnit")}</FieldLabel>
                   <input
                     name="costPerUnit"
                     type="number"
-                    step="any"
-                    min="0.01"
+                    step="0.01"
+                    min="0"
                     required
                     className="w-full"
                     value={cost}
@@ -251,11 +179,13 @@ export default function ReceivePurchasePage() {
               </div>
               {total > 0 ? (
                 <p className="text-sm font-semibold text-ink">
-                  {t("wh.receiveTotal")}: {formatMoney(total)}
+                  {t("purchases.lineTotal", {
+                    amount: formatMoney(total),
+                  })}
                 </p>
               ) : null}
               <div>
-                <FieldLabel>{t("journalPage.colDate")}</FieldLabel>
+                <FieldLabel>{t("purchases.date")}</FieldLabel>
                 <input
                   name="receivedAt"
                   type="date"
@@ -264,16 +194,16 @@ export default function ReceivePurchasePage() {
                 />
               </div>
               <div>
-                <FieldLabel>{t("warehouse.productBatchNotes")}</FieldLabel>
+                <FieldLabel>{t("purchases.comment")}</FieldLabel>
                 <input
                   name="notes"
                   className="w-full"
-                  placeholder={t("warehouse.productBatchNotes")}
+                  placeholder={t("purchases.commentPlaceholder")}
                 />
               </div>
               {error ? <p className="text-sm text-danger">{error}</p> : null}
               <Button type="submit" disabled={loading}>
-                {loading ? t("warehouse.productSaving") : t("wh.receiveConfirm")}
+                {loading ? t("common.loading") : t("wh.receiveConfirm")}
               </Button>
             </>
           ) : null}

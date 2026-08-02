@@ -1,7 +1,12 @@
 import { AccountingType, type PrismaClient } from "@prisma/client";
 import { resolveAccountingTypeFromProductTypeName } from "@/lib/product-accounting";
+import { DEFAULT_CATEGORIES } from "@/lib/product-category";
 
 export { resolveAccountingTypeFromProductTypeName } from "@/lib/product-accounting";
+export {
+  DEFAULT_CATEGORIES,
+  resolveAccountingTypeFromCategoryName,
+} from "@/lib/product-category";
 
 const DEFAULT_PRODUCT_TYPES = [
   "Парфюм",
@@ -41,6 +46,24 @@ export async function resolveProductAccountingType(
   clientAccountingType: AccountingType
 ): Promise<AccountingType> {
   return clientAccountingType;
+}
+
+/** Ensure company has default warehouse categories (idempotent). */
+export async function ensureDefaultCategories(
+  prisma: PrismaClient,
+  companyId: string
+) {
+  const existing = await prisma.category.findMany({
+    where: { companyId },
+    select: { name: true },
+  });
+  const have = new Set(existing.map((c) => c.name));
+  const missing = DEFAULT_CATEGORIES.filter((n) => !have.has(n));
+  if (missing.length === 0) return;
+  await prisma.category.createMany({
+    data: missing.map((name) => ({ name, companyId })),
+    skipDuplicates: true,
+  });
 }
 
 /** Ensure company has analytics product types (idempotent). */

@@ -77,10 +77,12 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
     writeOffs,
     allReceiptBatches,
   ] = await Promise.all([
-    prisma.product.count({ where: { companyId, isActive: true } }),
+    prisma.product.count({
+      where: { companyId, isActive: true, kind: "STANDARD" },
+    }),
     prisma.category.count({ where: { companyId, isArchived: false } }),
     prisma.product.findMany({
-      where: { companyId, isActive: true },
+      where: { companyId, isActive: true, kind: "STANDARD" },
       select: {
         id: true,
         name: true,

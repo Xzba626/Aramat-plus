@@ -1,8 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { Role } from "@prisma/client";
-import { useSession } from "next-auth/react";
 import { Card } from "@/components/ui/card";
 import {
   ModuleSection,
@@ -12,8 +10,6 @@ import { useT } from "@/components/i18n/i18n-provider";
 
 export default function SettingsPage() {
   const t = useT();
-  const { data: session } = useSession();
-  const isOwner = session?.user?.role === Role.OWNER;
 
   const cards = [
     {
@@ -36,9 +32,8 @@ export default function SettingsPage() {
       titleKey: "settingsPage.wipe",
       descKey: "settingsPage.wipeDesc",
       danger: true,
-      ownerOnly: true,
     },
-  ].filter((card) => isOwner || !("ownerOnly" in card && card.ownerOnly));
+  ];
 
   return (
     <ModuleWorkspace
@@ -51,7 +46,7 @@ export default function SettingsPage() {
             <Link key={card.href} href={card.href}>
               <Card
                 className={`h-full p-5 transition hover:border-brand/30 ${
-                  "danger" in card && card.danger ? "border-danger/20" : ""
+                  card.danger ? "border-danger/20" : ""
                 }`}
               >
                 <div className="text-sm font-bold text-ink">{t(card.titleKey)}</div>
@@ -61,6 +56,17 @@ export default function SettingsPage() {
           ))}
         </div>
       </ModuleSection>
+      <p className="mt-4 text-sm text-muted">
+        {t("settingsPage.expensesMovedHint")}{" "}
+        <Link href="/stores" className="font-semibold text-brand">
+          {t("nav.stores")} →
+        </Link>
+        {" · "}
+        {t("settingsPage.notificationsMovedHint")}{" "}
+        <Link href="/notifications" className="font-semibold text-brand">
+          {t("nav.notifications")} →
+        </Link>
+      </p>
     </ModuleWorkspace>
   );
 }

@@ -1,9 +1,10 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager, requireOwner } from "@/lib/rbac";
+import { requireOwnerOrManager } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { categorySchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity } from "@/lib/services/activity-log.service";
+import { ensureDefaultCategories } from "@/lib/services/product-nomenclature.service";
 
 export async function GET(req: Request) {
   try {
@@ -11,7 +12,12 @@ export async function GET(req: Request) {
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
 
-    const archived = new URL(req.url).searchParams.get("archived");
+    const url = new URL(req.url);
+    if (url.searchParams.get("seedDefaults") === "1") {
+      await ensureDefaultCategories(prisma, user!.companyId);
+    }
+
+    const archived = url.searchParams.get("archived");
     const items = await prisma.category.findMany({
       where: {
         companyId: user!.companyId,
@@ -21,9 +27,18 @@ export async function GET(req: Request) {
             ? {}
             : { isArchived: false }),
       },
+      include: {
+        _count: { select: { products: true } },
+      },
       orderBy: { name: "asc" },
     });
-    return jsonOk(items);
+    return jsonOk(
+      items.map((c) => ({
+        ...c,
+        productCount: c._count.products,
+        canDelete: c._count.products === 0,
+      }))
+    );
   } catch (err) {
     return handleApiError(err);
   }
@@ -101,7 +116,38 @@ export async function PATCH(req: Request) {
   }
 }
 
-/** Hard delete запрещён спецификацией — только архив */
-export async function DELETE() {
-  return handleApiError(new Error("ARCHIVE_ONLY"));
+/** Hard delete only when no products reference the category. */
+export async function DELETE(req: Request) {
+  try {
+    const user = await getSessionUser();
+    const denied = requireOwnerOrManager(user);
+    if (denied) return denied;
+
+    const id =
+      new URL(req.url).searchParams.get("id") ||
+      ((await req.json().catch(() => ({}))) as { id?: string }).id;
+    if (!id) return handleApiError(new Error("ID_REQUIRED"));
+
+    const existing = await prisma.category.findFirst({
+      where: { id, companyId: user!.companyId },
+      include: { _count: { select: { products: true } } },
+    });
+    if (!existing) return handleApiError(new Error("NOT_FOUND"));
+    if (existing._count.products > 0) {
+      return handleApiError(new Error("CATEGORY_IN_USE"));
+    }
+
+    await prisma.category.delete({ where: { id } });
+    await logActivity({
+      userId: user!.id,
+      companyId: user!.companyId,
+      action: "CATEGORY_DELETE",
+      entityType: "Category",
+      entityId: id,
+      comment: existing.name,
+    });
+    return jsonOk({ ok: true });
+  } catch (err) {
+    return handleApiError(err);
+  }
 }

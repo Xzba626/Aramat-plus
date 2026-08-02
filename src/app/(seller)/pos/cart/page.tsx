@@ -35,9 +35,10 @@ export default function PosCartPage() {
   const clear = usePosCart((s) => s.clear);
   const payment = usePosCart((s) => s.paymentMethod);
   const setPayment = usePosCart((s) => s.setPaymentMethod);
-  const discount = usePosCart((s) => s.discount);
+    const discount = usePosCart((s) => s.discount);
   const setDiscount = usePosCart((s) => s.setDiscount);
   const syncDiscountWithCart = usePosCart((s) => s.syncDiscountWithCart);
+  const serverReservationId = usePosCart((s) => s.serverReservationId);
   const hydrated = usePosCart((s) => s._hasHydrated);
   const subtotal = usePosCart((s) =>
     s.lines.reduce((n, l) => n + l.salePrice * l.quantity, 0)
@@ -150,6 +151,7 @@ export default function PosCartPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         paymentMethod: payment,
+        reservationId: serverReservationId || undefined,
         discountRequestId:
           activeDiscount?.status === "APPROVED"
             ? activeDiscount.id
@@ -320,6 +322,7 @@ export default function PosCartPage() {
           {l.accountingType === "WEIGHT" ? (
             <div className="border-t border-border pt-2">
               <FieldLabel>{t("pos.selectBottle")}</FieldLabel>
+              <p className="mt-0.5 text-[11px] text-muted">{t("pos.bottleHint")}</p>
               {bottlesLoading ? (
                 <p className="mt-1 text-xs text-muted">{t("common.loading")}</p>
               ) : bottles.length === 0 ? (

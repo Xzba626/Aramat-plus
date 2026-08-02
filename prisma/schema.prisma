@@ -167,6 +167,7 @@ model PackagingSku {
   /// glass | plastic | … (empty string = unspecified)
   material    String   @default("glass")
   color       String   @default("")
+  /// Deprecated — kept for DB compat; always "". Cap is not a catalog field.
   cap         String   @default("")
   skuCode     String?
   defaultCost Decimal? @db.Decimal(12, 4)
@@ -178,7 +179,7 @@ model PackagingSku {
   company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   products Product[]
 
-  @@unique([companyId, volumeMl, material, color, cap])
+  @@unique([companyId, volumeMl, material, color])
   @@index([companyId, volumeMl])
   @@index([companyId, isActive])
 }
@@ -636,7 +637,8 @@ model Reservation {
   locationType LocationType
   locationId   String
   status       ReservationStatus @default(ACTIVE)
-  expiresAt    DateTime
+  /// Null = no TTL (held until sale or cancel). Legacy rows may still have a date.
+  expiresAt    DateTime?
   createdById  String
   saleId       String?           @unique
   customerNote String?

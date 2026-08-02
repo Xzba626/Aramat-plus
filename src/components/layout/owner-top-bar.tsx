@@ -70,9 +70,10 @@ export function OwnerTopBar({
         {/* Mobile: hamburger + brand */}
         <button
           type="button"
-          onClick={onMenu}
+          onClick={() => onMenu?.()}
           className="rounded-xl p-2 text-muted hover:bg-page hover:text-ink lg:hidden"
           aria-label={t("common.menu")}
+          data-owner-menu
         >
           <Menu className="h-5 w-5" strokeWidth={1.75} />
         </button>
@@ -116,7 +117,7 @@ export function OwnerTopBar({
 
         <form
           onSubmit={onSearchSubmit}
-          className="hidden max-w-[240px] flex-1 items-center gap-2 rounded-xl border border-border bg-page px-3 py-2 md:flex lg:max-w-xs"
+          className="flex max-w-[140px] flex-1 items-center gap-2 rounded-xl border border-border bg-page px-2 py-1.5 sm:max-w-[200px] sm:px-3 sm:py-2 lg:max-w-xs"
         >
           <Search className="h-4 w-4 shrink-0 text-muted" aria-hidden />
           <input

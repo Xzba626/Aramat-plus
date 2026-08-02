@@ -32,6 +32,9 @@ export const ACTION_KEYS: Record<string, string> = {
   WRITE_OFF: "actions.writeOff",
   EXPENSE_CREATE: "actions.expenseCreate",
   CATEGORY_CREATE: "actions.categoryCreate",
+  CATEGORY_ARCHIVE: "actions.categoryArchive",
+  CATEGORY_RESTORE: "actions.categoryRestore",
+  CATEGORY_DELETE: "actions.categoryDelete",
   BRAND_CREATE: "actions.brandCreate",
   SUPPLIER_CREATE: "actions.supplierCreate",
   SUPPLIER_UPDATE: "actions.supplierUpdate",
@@ -57,6 +60,7 @@ export const ENTITY_KEYS: Record<string, string> = {
   Category: "entities.category",
   Brand: "entities.brand",
   Supplier: "entities.supplier",
+  PackagingSku: "entities.packagingSku",
 };
 
 export const SALE_STATUS_KEYS: Record<string, string> = {
@@ -117,7 +121,7 @@ export function entityHref(
   action?: string | null
 ): string | null {
   if (action === "DISCOUNT_REQUEST" || entityType === "DiscountRequest") {
-    return "/dashboard#decisions";
+    return "/discounts";
   }
   if (action === "RETURN_REQUEST" || entityType === "SaleReturn") {
     return entityId ? `/returns` : "/returns";

@@ -245,19 +245,35 @@ export async function createStoreTransfer(params: {
         },
       });
 
-      return tx.transfer.findUniqueOrThrow({
-        where: { id: transfer.id },
-        include: {
-          items: { include: { product: true } },
-          toStore: true,
-          fromWarehouse: true,
-          fromStore: true,
-          createdBy: { select: { id: true, name: true } },
-        },
-      });
+      return {
+        result: await tx.transfer.findUniqueOrThrow({
+          where: { id: transfer.id },
+          include: {
+            items: { include: { product: true } },
+            toStore: true,
+            fromWarehouse: true,
+            fromStore: true,
+            createdBy: { select: { id: true, name: true } },
+          },
+        }),
+        packagingProductIds: params.items.map((i) => i.productId),
+        storeId: toStore.id,
+        storeName: toStore.name,
+      };
     },
     { maxWait: 15_000, timeout: 60_000 }
   );
+
+  void checkLowBottleStockAfterTransfer({
+    companyId: params.companyId,
+    storeId: txResult.storeId,
+    storeName: txResult.storeName,
+    productIds: txResult.packagingProductIds,
+  }).catch((err) =>
+    console.error("[createStoreTransfer] bottle low-stock notify failed", err)
+  );
+
+  return txResult.result;
 }
 
 export async function listTransfers(companyId: string) {

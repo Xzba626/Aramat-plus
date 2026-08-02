@@ -23,7 +23,6 @@ export type PackagingSkuInput = {
   volumeMl: number;
   material?: string | null;
   color?: string | null;
-  cap?: string | null;
   skuCode?: string | null;
   defaultCost?: number | null;
   isDefaultForVolume?: boolean;
@@ -31,12 +30,10 @@ export type PackagingSkuInput = {
 };
 
 function normalizeMaterial(v?: string | null) {
-  return (v?.trim() || "glass").toLowerCase();
+  const m = (v?.trim() || "glass").toLowerCase();
+  return m === "plastic" ? "plastic" : "glass";
 }
 function normalizeColor(v?: string | null) {
-  return v?.trim() || "";
-}
-function normalizeCap(v?: string | null) {
   return v?.trim() || "";
 }
 
@@ -76,7 +73,8 @@ export async function ensurePackagingProduct(packagingSkuId: string) {
       packagingSkuId: sku.id,
       accountingType: AccountingType.PIECE,
       unitId,
-      salePrice: planCost > 0 ? planCost : 0.01, // not sold as revenue; placeholder
+      // Never sold to customer — salePrice must stay 0 (schema requires a value).
+      salePrice: 0,
       defaultCostPerUnit: planCost > 0 ? planCost : null,
       isActive: sku.isActive,
     },
@@ -164,7 +162,6 @@ export async function listPackagingSkus(
       volumeMl: decimalToNumber(s.volumeMl),
       material: s.material,
       color: s.color,
-      cap: s.cap,
       skuCode: s.skuCode,
       defaultCost:
         s.defaultCost != null ? decimalToNumber(s.defaultCost) : null,
@@ -185,7 +182,6 @@ export async function createPackagingSku(params: {
 }) {
   const material = normalizeMaterial(params.data.material);
   const color = normalizeColor(params.data.color);
-  const cap = normalizeCap(params.data.cap);
   const volumeMl = params.data.volumeMl;
   if (!(volumeMl > 0)) {
     throw new Error("INVALID_VOLUME");
@@ -200,7 +196,7 @@ export async function createPackagingSku(params: {
       volumeMl,
       material,
       color,
-      cap,
+      cap: "",
       skuCode: params.data.skuCode ?? null,
       defaultCost: params.data.defaultCost ?? null,
       isDefaultForVolume: params.data.isDefaultForVolume ?? false,
@@ -239,7 +235,6 @@ export async function updatePackagingSku(params: {
   if (params.data.material != null)
     data.material = normalizeMaterial(params.data.material);
   if (params.data.color != null) data.color = normalizeColor(params.data.color);
-  if (params.data.cap != null) data.cap = normalizeCap(params.data.cap);
   if (params.data.skuCode !== undefined) data.skuCode = params.data.skuCode;
   if (params.data.defaultCost !== undefined)
     data.defaultCost = params.data.defaultCost;
@@ -262,8 +257,9 @@ export async function updatePackagingSku(params: {
     data: {
       name: sku.name,
       isActive: sku.isActive,
+      salePrice: 0,
       ...(sku.defaultCost != null
-        ? { defaultCostPerUnit: sku.defaultCost, salePrice: sku.defaultCost }
+        ? { defaultCostPerUnit: sku.defaultCost }
         : {}),
     },
   });

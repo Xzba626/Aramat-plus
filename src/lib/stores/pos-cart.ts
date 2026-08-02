@@ -41,8 +41,10 @@ type PosCartState = {
   notes: string;
   customerNote: string;
   discount: PosDiscountState | null;
+  serverReservationId: string | null;
   _hasHydrated: boolean;
   setHasHydrated: (v: boolean) => void;
+  setServerReservationId: (id: string | null) => void;
   /**
    * Bind cart namespace to seller+store. Different pairs = independent carts.
    * Triggers rehydrate from IndexedDB for that namespace.
@@ -187,6 +189,7 @@ const emptyCart = {
   notes: "",
   customerNote: "",
   discount: null as PosDiscountState | null,
+  serverReservationId: null as string | null,
 };
 
 export const usePosCart = create<PosCartState>()(
@@ -198,6 +201,8 @@ export const usePosCart = create<PosCartState>()(
       _hasHydrated: false,
 
       setHasHydrated: (v) => set({ _hasHydrated: v }),
+
+      setServerReservationId: (id) => set({ serverReservationId: id }),
 
       bindSession: async (sellerId, storeId) => {
         const prev = get();
@@ -341,6 +346,7 @@ export const usePosCart = create<PosCartState>()(
           ...emptyCart,
           sellerId: get().sellerId,
           storeId: get().storeId,
+          serverReservationId: null,
         }),
 
       count: () => get().lines.reduce((s, l) => s + l.quantity, 0),

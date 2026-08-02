@@ -83,13 +83,18 @@ export default function PosHistoryPage() {
       return;
     }
 
+    if (!reason.trim() || reason.trim().length < 3) {
+      toast(t("pos.returnReasonRequired"));
+      return;
+    }
+
     const res = await fetch("/api/returns", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         saleId: returnFor.id,
-        reasonCode,
-        reason: reason.trim() || undefined,
+        reasonCode: "OTHER",
+        reason: reason.trim(),
         items,
       }),
     });
@@ -186,23 +191,6 @@ export default function PosHistoryPage() {
               </button>
             </div>
             <form onSubmit={submitReturn} className="space-y-3">
-              <div>
-                <FieldLabel>{t("pos.reason")}</FieldLabel>
-                <select
-                  value={reasonCode}
-                  onChange={(e) =>
-                    setReasonCode(e.target.value as (typeof REASON_CODES)[number])
-                  }
-                  required
-                  className="w-full rounded-xl border border-border bg-page px-3 py-2 text-sm"
-                >
-                  {REASON_CODES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
               {returnFor.items.map((it) => (
                 <div key={it.id}>
                   <FieldLabel>
@@ -225,11 +213,15 @@ export default function PosHistoryPage() {
                 </div>
               ))}
               <div>
-                <FieldLabel>{t("pos.reason")}</FieldLabel>
+                <FieldLabel>{t("pos.returnReasonRequired")}</FieldLabel>
                 <textarea
-                  rows={2}
+                  required
+                  minLength={3}
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
+                  rows={3}
+                  className="w-full rounded-xl border border-border px-3 py-2 text-sm"
+                  placeholder={t("pos.returnReasonPlaceholder")}
                 />
               </div>
               <p className="text-xs text-muted">{t("pos.returnHint")}</p>

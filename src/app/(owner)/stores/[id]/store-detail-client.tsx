@@ -3,6 +3,8 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Role } from "@prisma/client";
+import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
@@ -133,6 +135,8 @@ export default function StoreDetailClient() {
   const router = useRouter();
   const tab = search.get("tab") || "overview";
   const { t, formatMoney, formatDate, formatDateTime } = useI18n();
+  const { data: session } = useSession();
+  const isOwner = session?.user?.role === Role.OWNER;
 
   const [store, setStore] = useState<StoreDetail | null>(null);
   const [error, setError] = useState("");
@@ -150,7 +154,9 @@ export default function StoreDetailClient() {
   }, [load]);
 
   const isOwnerDirect = store?.kind === "OWNER_DIRECT";
-  const tabs = isOwnerDirect ? OWNER_TAB_KEYS : BRANCH_TAB_KEYS;
+  const tabs = (isOwnerDirect ? OWNER_TAB_KEYS : BRANCH_TAB_KEYS).filter(
+    (tabItem) => tabItem.id !== "expenses" || isOwner
+  );
 
   if (!store) {
     return (
@@ -218,7 +224,7 @@ export default function StoreDetailClient() {
       {tab === "discounts" ? <DiscountsTab storeId={id} t={t} formatMoney={formatMoney} formatDateTime={formatDateTime} /> : null}
       {tab === "returns" ? <ReturnsTab storeId={id} t={t} formatDateTime={formatDateTime} /> : null}
       {tab === "revisions" && !isOwnerDirect ? <RevisionsTab storeId={id} t={t} formatDateTime={formatDateTime} /> : null}
-      {tab === "expenses" && !isOwnerDirect && store ? (
+      {tab === "expenses" && !isOwnerDirect && store && isOwner ? (
         <StoreExpensesPanel
           storeId={store.id}
           t={t}
@@ -991,6 +997,7 @@ function StoreExpensesPanel({
     Array<{ id: string; name: string }>
   >([]);
   const [showForm, setShowForm] = useState(false);
+  const [newTypeName, setNewTypeName] = useState("");
   const [q, setQ] = useState("");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [msg, setMsg] = useState("");
@@ -1048,6 +1055,26 @@ function StoreExpensesPanel({
   });
   const total = filtered.reduce((s, r) => s + r.amount, 0);
 
+  async function onAddType(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
+    const name = newTypeName.trim();
+    if (!name) return;
+    const res = await fetch("/api/expense-types", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t, "common.error"));
+      return;
+    }
+    setNewTypeName("");
+    setMsg(t("storeDetail.expenseTypeAdded"));
+    await reload();
+  }
+
   async function onAdd(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -1091,6 +1118,7 @@ function StoreExpensesPanel({
             {formatMoney(total)}
           </div>
           <p className="mt-1 text-xs text-muted">{t("storeDetail.expensesHint")}</p>
+          <p className="mt-1 text-xs text-muted">{t("storeDetail.expensesOwnerOnly")}</p>
         </div>
         <Button
           type="button"
@@ -1099,6 +1127,34 @@ function StoreExpensesPanel({
         >
           {showForm ? t("common.cancel") : t("storeDetail.addExpense")}
         </Button>
+      </Card>
+
+      <Card className="max-w-lg space-y-3 p-4">
+        <SectionTitle>{t("storeDetail.expenseTypesTitle")}</SectionTitle>
+        <p className="text-xs text-muted">{t("storeDetail.expenseTypesHint")}</p>
+        {expenseTypes.length === 0 ? (
+          <p className="text-sm text-muted">{t("common.noData")}</p>
+        ) : (
+          <ul className="space-y-1 text-sm text-ink">
+            {expenseTypes.map((typeItem) => (
+              <li key={typeItem.id} className="border-b border-border py-1.5 last:border-0">
+                {typeItem.name}
+              </li>
+            ))}
+          </ul>
+        )}
+        <form onSubmit={onAddType} className="flex flex-wrap gap-2">
+          <input
+            value={newTypeName}
+            onChange={(e) => setNewTypeName(e.target.value)}
+            placeholder={t("storeDetail.expenseTypePlaceholder")}
+            className="min-w-[160px] flex-1 rounded-xl border border-border bg-card px-3 py-2 text-sm"
+            required
+          />
+          <Button type="submit" variant="secondary" fullWidth={false}>
+            {t("storeDetail.addExpenseType")}
+          </Button>
+        </form>
       </Card>
 
       {msg ? <p className="text-sm text-success">{msg}</p> : null}

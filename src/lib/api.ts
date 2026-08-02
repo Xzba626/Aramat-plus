@@ -48,6 +48,7 @@ export function handleApiError(err: unknown) {
       "COST_REQUIRED_FOR_STOCK",
       "CART_CHANGED",
       "CART_TOTAL_MISMATCH",
+      "CATEGORY_IN_USE",
       "DISCOUNT_ALREADY_USED",
       "DISCOUNT_EXCEEDS_TOTAL",
       "DISCOUNT_NOT_APPROVED",

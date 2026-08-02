@@ -61,7 +61,6 @@ export default function PurchaseHistoryPage() {
             <thead className="bg-surface text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="px-4 py-3 font-semibold">{t("journalPage.colDate")}</th>
-                <th className="px-4 py-3 font-semibold">{t("wh.supplier")}</th>
                 <th className="px-4 py-3 font-semibold">{t("wh.colName")}</th>
                 <th className="px-4 py-3 font-semibold">{t("wh.colQty")}</th>
                 {showFinance ? (
@@ -77,7 +76,6 @@ export default function PurchaseHistoryPage() {
               {items.map((row) => (
                 <tr key={row.id} className="hover:bg-surface/50">
                   <td className="px-4 py-3 text-muted">{formatDate(row.receivedAt)}</td>
-                  <td className="px-4 py-3">{row.supplier?.name ?? "—"}</td>
                   <td className="px-4 py-3">
                     <Link
                       href={`/warehouse/${row.productId}`}

@@ -49,16 +49,25 @@ function TodayKpi({
   delta,
   vsYesterdayLabel,
   subtitle,
+  comparison,
 }: {
   label: string;
   hintKey: string;
   value: string;
   emptyLabel?: string;
-  delta?: { pct: number; label: string; abs: number; absLabel?: string };
+  delta?: {
+    pct: number;
+    label: string;
+    abs: number;
+    absLabel?: string;
+    current?: number;
+    previous?: number;
+  };
   vsYesterdayLabel: string;
   subtitle?: string;
+  comparison?: { today: number; yesterday: number; diff: number } | null;
 }) {
-  const { formatMoney } = useI18n();
+  const { formatMoney, t } = useI18n();
   const isEmpty = value === "—" || value === "0 с." || value === "0";
   const signedDelta =
     delta && delta.abs !== 0
@@ -85,6 +94,15 @@ function TodayKpi({
           </p>
           {subtitle ? (
             <p className="mt-1 text-xs text-muted">{subtitle}</p>
+          ) : null}
+          {comparison ? (
+            <p className="mt-2 text-[11px] leading-snug text-muted">
+              {t("dashboard.compareTodayYesterday", {
+                today: formatMoney(comparison.today, { short: true }),
+                yesterday: formatMoney(comparison.yesterday, { short: true }),
+                diff: `${comparison.diff > 0 ? "+" : comparison.diff < 0 ? "−" : ""}${formatMoney(Math.abs(comparison.diff), { short: true })}`,
+              })}
+            </p>
           ) : null}
           {delta ? (
             <>
@@ -137,6 +155,7 @@ export function OwnerDashboardClient({
   const [data, setData] = useState(initial);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [hour, setHour] = useState(12);
+  const [chartRange, setChartRange] = useState<"7d" | "30d">("7d");
   const canDecide = userRole === Role.OWNER;
 
   const refreshStats = useCallback(async () => {
@@ -185,12 +204,22 @@ export function OwnerDashboardClient({
     sparkline: [0, 0, 0, 0, 0, 0, today.revenue],
     netSparkline: [0, 0, 0, 0, 0, 0, today.netProfit ?? today.profit],
     sparklineLabels: [] as string[],
+    netSparklineMonth: [] as number[],
+    sparklineLabelsMonth: [] as string[],
   };
 
   const chartValues =
-    pulse.netSparkline && pulse.netSparkline.length
-      ? pulse.netSparkline
-      : pulse.sparkline;
+    chartRange === "30d" &&
+    pulse.netSparklineMonth &&
+    pulse.netSparklineMonth.length
+      ? pulse.netSparklineMonth
+      : pulse.netSparkline && pulse.netSparkline.length
+        ? pulse.netSparkline
+        : pulse.sparkline;
+  const chartLabels =
+    chartRange === "30d" && pulse.sparklineLabelsMonth?.length
+      ? pulse.sparklineLabelsMonth
+      : pulse.sparklineLabels ?? [];
   const chartMax = Math.max(...chartValues.map((v) => Math.abs(v)), 1);
 
   const sortedStores = useMemo(
@@ -208,7 +237,7 @@ export function OwnerDashboardClient({
 
   const decisionChips: DecisionChip[] = [
     {
-      href: "/dashboard#decisions",
+      href: "/discounts",
       count: decisionSummary.discount,
       labelKey: "dashboard.chipDiscounts",
       icon: Bell,
@@ -221,6 +250,9 @@ export function OwnerDashboardClient({
       icon: RotateCcw,
       tone: "danger",
     },
+  ];
+
+  const infoChips: DecisionChip[] = [
     {
       href: "/warehouse/stock",
       count: decisionSummary.lowStock ?? pulse.lowStockCount,
@@ -237,11 +269,7 @@ export function OwnerDashboardClient({
     },
   ];
 
-  const attentionTotal =
-    decisionSummary.discount +
-    decisionSummary.return +
-    (decisionSummary.lowStock ?? 0) +
-    (decisionSummary.revision ?? 0);
+  const attentionTotal = decisionSummary.discount + decisionSummary.return;
 
   const traffic = useMemo((): {
     level: TrafficLevel;
@@ -334,7 +362,7 @@ export function OwnerDashboardClient({
       {/* Today — money */}
       <section>
         <ZoneHeader title={t("dashboard.zoneToday")} />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <TodayKpi
             label={t("dashboard.revenueLabel")}
             hintKey="todayRevenue"
@@ -342,6 +370,15 @@ export function OwnerDashboardClient({
             emptyLabel={t("dashboard.noSalesYet")}
             delta={hasSales ? today.deltas.revenue : undefined}
             vsYesterdayLabel={t("dashboard.vsYesterday")}
+            comparison={
+              hasSales
+                ? {
+                    today: today.revenue,
+                    yesterday: today.yesterday?.revenue ?? 0,
+                    diff: today.deltas.revenue.abs,
+                  }
+                : null
+            }
           />
           <TodayKpi
             label={t("dashboard.grossProfitLabel")}
@@ -354,67 +391,155 @@ export function OwnerDashboardClient({
             emptyLabel={t("dashboard.noProfitYet")}
             delta={hasSales ? today.deltas.grossProfit : undefined}
             vsYesterdayLabel={t("dashboard.vsYesterday")}
+            subtitle={
+              hasSales
+                ? `${t("dashboard.costLabel")}: ${formatMoney(today.cogs ?? 0, { short: true })}`
+                : undefined
+            }
+            comparison={
+              hasSales
+                ? {
+                    today: today.grossProfit ?? today.profit,
+                    yesterday: today.yesterday?.grossProfit ?? 0,
+                    diff: today.deltas.grossProfit.abs,
+                  }
+                : null
+            }
           />
           <TodayKpi
             label={t("dashboard.netProfit")}
             hintKey="dashboardProfit"
-            value={
-              hasSales
-                ? formatMoney(today.netProfit ?? today.profit, { short: true })
-                : "—"
-            }
+            value={formatMoney(today.netProfit ?? today.profit, { short: true })}
             emptyLabel={t("dashboard.noProfitYet")}
-            delta={hasSales ? today.deltas.netProfit : undefined}
+            delta={today.deltas.netProfit}
             vsYesterdayLabel={t("dashboard.vsYesterday")}
-            subtitle={
-              today.expenses != null && today.expenses > 0
-                ? `${t("dashboard.expensesLabel")}: ${formatMoney(today.expenses, { short: true })}`
-                : undefined
-            }
-          />
-          <TodayKpi
-            label={t("dashboard.expensesLabel")}
-            hintKey="dashboardProfit"
-            value={formatMoney(today.expenses ?? 0, { short: true })}
-            emptyLabel={undefined}
-            vsYesterdayLabel={t("dashboard.vsYesterday")}
+            comparison={{
+              today: today.netProfit ?? today.profit,
+              yesterday: today.yesterday?.netProfit ?? 0,
+              diff: today.deltas.netProfit.abs,
+            }}
           />
         </div>
+
+        <div className="mt-3 rounded-[18px] border border-border bg-card p-4 shadow-[var(--shadow-card)]">
+          <p className="text-xs font-bold uppercase tracking-wide text-muted">
+            {t("dashboard.expenseLayersTitle")}
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted">
+                {t("dashboard.cogsLayer")}
+              </p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
+                {formatMoney(today.cogs ?? 0, { short: true })}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted">
+                {t("dashboard.packagingLayer")}
+              </p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
+                {formatMoney(today.packagingCost ?? 0, { short: true })}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted">
+                {t("dashboard.operationalLayer")}
+              </p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
+                {formatMoney(today.operationalExpenses ?? 0, { short: true })}
+              </p>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-muted">
+            {t("dashboard.expenseLayersHint", {
+              total: formatMoney(today.expenses ?? 0, { short: true }),
+            })}
+          </p>
+        </div>
+
         {chartValues.length > 0 ? (
           <div className="mt-4 rounded-[18px] border border-border bg-card p-4 shadow-[var(--shadow-card)]">
-            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-muted">
-              {t("dashboard.weekNetProfit")}
-            </p>
-            <div className="flex items-end gap-1 sm:gap-2">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-muted">
+                {t("dashboard.weekNetProfit")}
+              </p>
+              <div className="flex gap-1 rounded-full border border-border p-0.5">
+                <button
+                  type="button"
+                  className={cn(
+                    "rounded-full px-3 py-1 text-[11px] font-semibold",
+                    chartRange === "7d"
+                      ? "bg-brand text-white"
+                      : "text-muted hover:text-ink"
+                  )}
+                  onClick={() => setChartRange("7d")}
+                >
+                  {t("dashboard.chart7d")}
+                </button>
+                <button
+                  type="button"
+                  className={cn(
+                    "rounded-full px-3 py-1 text-[11px] font-semibold",
+                    chartRange === "30d"
+                      ? "bg-brand text-white"
+                      : "text-muted hover:text-ink"
+                  )}
+                  onClick={() => setChartRange("30d")}
+                >
+                  {t("dashboard.chart30d")}
+                </button>
+              </div>
+            </div>
+            <div className="flex items-end gap-0.5 sm:gap-1 overflow-x-auto">
               {chartValues.map((val, i) => {
                 const barPct = Math.max(4, (Math.abs(val) / chartMax) * 100);
-                const dayLabel = pulse.sparklineLabels?.[i];
+                const dayLabel = chartLabels[i];
                 const weekday = dayLabel
-                  ? new Date(`${dayLabel}T12:00:00`).toLocaleDateString(undefined, {
-                      weekday: "short",
-                    })
+                  ? new Date(`${dayLabel}T12:00:00`).toLocaleDateString(
+                      undefined,
+                      {
+                        weekday: chartRange === "7d" ? "short" : undefined,
+                        day: chartRange === "30d" ? "numeric" : undefined,
+                      }
+                    )
                   : String(i + 1);
                 return (
                   <div
                     key={dayLabel ?? i}
-                    className="flex min-w-0 flex-1 flex-col items-center gap-1"
+                    className={cn(
+                      "flex min-w-0 flex-col items-center gap-1",
+                      chartRange === "30d" ? "w-2 shrink-0 sm:w-2.5" : "flex-1"
+                    )}
                   >
-                    <span className="text-[9px] tabular-nums text-muted sm:text-[10px]">
-                      {formatMoney(val, { short: true })}
-                    </span>
-                    <div className="flex h-16 w-full items-end justify-center sm:h-20">
+                    {chartRange === "7d" ? (
+                      <span className="text-[9px] tabular-nums text-muted sm:text-[10px]">
+                        {formatMoney(val, { short: true })}
+                      </span>
+                    ) : null}
+                    <div
+                      className={cn(
+                        "flex w-full items-end justify-center",
+                        chartRange === "30d" ? "h-14" : "h-16 sm:h-20"
+                      )}
+                    >
                       <div
                         className={cn(
-                          "w-full max-w-[28px] rounded-t-md sm:max-w-[36px]",
+                          "w-full rounded-t-md",
+                          chartRange === "7d" && "max-w-[28px] sm:max-w-[36px]",
                           val >= 0 ? "bg-brand/75" : "bg-danger/60"
                         )}
                         style={{ height: `${barPct}%` }}
-                        title={formatMoney(val, { short: true })}
+                        title={`${dayLabel ?? ""}: ${formatMoney(val, { short: true })}`}
                       />
                     </div>
-                    <span className="truncate text-[9px] text-muted sm:text-[10px]">
-                      {weekday}
-                    </span>
+                    {chartRange === "7d" || i % 5 === 0 ? (
+                      <span className="truncate text-[8px] text-muted sm:text-[10px]">
+                        {weekday}
+                      </span>
+                    ) : (
+                      <span className="h-3" />
+                    )}
                   </div>
                 );
               })}
@@ -423,14 +548,18 @@ export function OwnerDashboardClient({
         ) : null}
       </section>
 
-      {/* Need decisions — chips + queue */}
+      {/* Request center — decisions vs informational alerts */}
       <section id="decisions">
         <ZoneHeader
           title={t("dashboard.needDecision")}
-          subtitle={t("dashboard.attentionSubtitle")}
+          subtitle={t("dashboard.requestCenterBreakdown", {
+            total: attentionTotal,
+            returns: decisionSummary.return,
+            discounts: decisionSummary.discount,
+          })}
         />
 
-        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-2">
           {decisionChips.map((chip) => {
             const Icon = chip.icon;
             const active = chip.count > 0;
@@ -442,6 +571,42 @@ export function OwnerDashboardClient({
                   "rounded-[16px] border p-3 transition hover:shadow-[var(--shadow-card)]",
                   active && chip.tone === "danger" && "border-danger/25 bg-danger/5",
                   active && chip.tone === "alert" && "border-zone-alert/25 bg-zone-alert-soft",
+                  !active && "border-border bg-card"
+                )}
+              >
+                <div className="flex items-center gap-2 text-muted">
+                  <Icon className="h-4 w-4" strokeWidth={1.75} />
+                  <span className="text-[11px] font-semibold uppercase tracking-wide">
+                    {t(chip.labelKey)}
+                  </span>
+                </div>
+                <p
+                  className={cn(
+                    "mt-2 text-2xl font-bold tabular-nums",
+                    active ? "text-ink" : "text-muted"
+                  )}
+                >
+                  {chip.count}
+                </p>
+              </Link>
+            );
+          })}
+        </div>
+
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
+          {t("dashboard.infoAlerts")}
+        </p>
+        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-2">
+          {infoChips.map((chip) => {
+            const Icon = chip.icon;
+            const active = chip.count > 0;
+            return (
+              <Link
+                key={chip.labelKey}
+                href={chip.href}
+                className={cn(
+                  "rounded-[16px] border p-3 transition hover:shadow-[var(--shadow-card)]",
+                  active && "border-zone-alert/25 bg-zone-alert-soft",
                   !active && "border-border bg-card"
                 )}
               >
@@ -580,81 +745,75 @@ export function OwnerDashboardClient({
 
       {/* Stores */}
       <section>
-        <ZoneHeader title={t("dashboard.storesToday")} />
+        <ZoneHeader
+          title={t("dashboard.storesToday")}
+          subtitle={t("dashboard.storesNetSum", {
+            amount: formatMoney(today.storesNetSum ?? today.netProfit ?? 0, {
+              short: true,
+            }),
+          })}
+        />
         {sortedStores.length === 0 && pulse.storesTotal === 0 ? (
           <p className="text-sm text-muted">{t("dashboard.noStores")}</p>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {sortedStores.map((s) => {
-              const problems = "problems" in s && Array.isArray(s.problems) ? s.problems : [];
-              const topName =
-                "topProductName" in s ? (s.topProductName as string | null) : null;
+          <ol className="space-y-2">
+            {sortedStores.map((s, idx) => {
+              const problems =
+                "problems" in s && Array.isArray(s.problems) ? s.problems : [];
+              const net = s.netProfit ?? s.profit ?? 0;
+              const packagingCost =
+                "packagingCost" in s
+                  ? ((s as { packagingCost?: number }).packagingCost ?? 0)
+                  : 0;
               return (
-                <div
+                <li
                   key={s.id}
                   className={cn(
-                    "rounded-[18px] border bg-card p-4 shadow-[var(--shadow-card)]",
-                    s.id === data.bestStoreId && s.revenue > 0
-                      ? "border-zone-money/30"
-                      : s.id === data.worstStoreId && data.stores.length > 1
-                        ? "border-zone-alert/25"
+                    "flex flex-wrap items-center justify-between gap-3 rounded-[18px] border bg-card px-4 py-3 shadow-[var(--shadow-card)]",
+                    net < 0
+                      ? "border-danger/25"
+                      : s.id === data.bestStoreId && s.revenue > 0
+                        ? "border-zone-money/30"
                         : "border-border"
                   )}
                 >
-                  <Link href={`/stores/${s.id}`} className="block">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-base font-bold text-ink">
-                          {s.name}
-                        </p>
-                        <p className="mt-0.5 text-xs text-muted">
-                          {t("dashboard.salesN", { n: s.salesCount })}
-                        </p>
-                      </div>
-                      {s.id === data.bestStoreId && s.revenue > 0 ? (
-                        <TrendingUp className="h-4 w-4 shrink-0 text-zone-money-deep" />
-                      ) : (
-                        <Store className="h-4 w-4 shrink-0 text-muted" />
-                      )}
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted">
-                          {t("dashboard.revenueLabel")}
-                        </p>
-                        <p className="font-semibold tabular-nums text-ink">
-                          {s.revenue > 0
-                            ? formatMoney(s.revenue, { short: true })
-                            : "—"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted">
-                          {t("dashboard.profitLabel")}
-                        </p>
-                        <p className="font-semibold tabular-nums text-zone-money-deep">
-                          {s.revenue > 0
-                            ? formatMoney(s.netProfit ?? s.profit, { short: true })
-                            : "—"}
-                        </p>
-                      </div>
-                    </div>
-                    {topName ? (
-                      <p className="mt-2 text-xs text-muted">
-                        {t("dashboard.bestProductLabel")}:{" "}
-                        <span className="font-semibold text-ink">{topName}</span>
+                  <Link
+                    href={`/stores/${s.id}`}
+                    className="flex min-w-0 flex-1 items-center gap-3"
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-page text-sm font-bold tabular-nums text-muted">
+                      {idx + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate font-bold text-ink">{s.name}</p>
+                      <p className="text-xs text-muted">
+                        {t("dashboard.salesN", { n: s.salesCount })}
+                        {packagingCost > 0
+                          ? ` · ${t("dashboard.packagingLayer")}: ${formatMoney(packagingCost, { short: true })}`
+                          : ""}
                       </p>
-                    ) : null}
+                    </div>
                   </Link>
+                  <p
+                    className={cn(
+                      "text-base font-bold tabular-nums",
+                      net < 0 ? "text-danger" : "text-zone-money-deep"
+                    )}
+                  >
+                    {net > 0 ? "+" : net < 0 ? "−" : ""}
+                    {formatMoney(Math.abs(net), { short: true })}
+                  </p>
                   {problems.length > 0 ? (
-                    <ul className="mt-3 space-y-1 border-t border-border pt-2">
+                    <ul className="w-full space-y-1 border-t border-border pt-2">
                       {problems.map((p) => (
                         <li key={p.key}>
                           <Link
                             href={p.href}
                             className={cn(
                               "text-xs font-semibold hover:underline",
-                              p.tone === "danger" ? "text-danger" : "text-zone-alert"
+                              p.tone === "danger"
+                                ? "text-danger"
+                                : "text-zone-alert"
                             )}
                           >
                             ↓ {t(p.labelKey)}
@@ -663,10 +822,10 @@ export function OwnerDashboardClient({
                       ))}
                     </ul>
                   ) : null}
-                </div>
+                </li>
               );
             })}
-          </div>
+          </ol>
         )}
       </section>
 

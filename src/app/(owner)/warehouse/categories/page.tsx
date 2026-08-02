@@ -12,6 +12,8 @@ type Cat = {
   name: string;
   lowStockThreshold: string | number;
   isArchived: boolean;
+  productCount?: number;
+  canDelete?: boolean;
 };
 
 export default function WarehouseCategoriesPage() {
@@ -19,11 +21,12 @@ export default function WarehouseCategoriesPage() {
   const [items, setItems] = useState<Cat[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState("");
+  const [msg, setMsg] = useState("");
   const [name, setName] = useState("");
 
   async function load() {
     const res = await fetch(
-      `/api/categories?archived=${showArchived ? "1" : "0"}`
+      `/api/categories?seedDefaults=1&archived=${showArchived ? "1" : "0"}`
     );
     const data = await res.json();
     setItems(Array.isArray(data) ? data : []);
@@ -37,6 +40,7 @@ export default function WarehouseCategoriesPage() {
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     setError("");
+    setMsg("");
     const res = await fetch("/api/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -52,6 +56,7 @@ export default function WarehouseCategoriesPage() {
   }
 
   async function archive(id: string, isArchived: boolean) {
+    setError("");
     await fetch("/api/categories", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -60,11 +65,27 @@ export default function WarehouseCategoriesPage() {
     load();
   }
 
+  async function remove(id: string) {
+    setError("");
+    setMsg("");
+    if (!window.confirm(t("wh.categoryDeleteHint"))) return;
+    const res = await fetch(`/api/categories?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t));
+      return;
+    }
+    setMsg(t("actions.categoryDelete"));
+    load();
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader
         title={t("wh.categoriesTitle")}
-        subtitle={t("wh.centralWarehouse")}
+        subtitle={t("wh.categoriesSubtitle")}
         actions={
           <Button
             type="button"
@@ -76,6 +97,9 @@ export default function WarehouseCategoriesPage() {
           </Button>
         }
       />
+
+      {error ? <p className="text-sm text-danger">{error}</p> : null}
+      {msg ? <p className="text-sm text-success">{msg}</p> : null}
 
       {!showArchived ? (
         <Card className="max-w-md p-4">
@@ -96,28 +120,46 @@ export default function WarehouseCategoriesPage() {
               </Button>
             </div>
           </form>
-          {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
         </Card>
       ) : null}
 
       <div className="space-y-2">
         {items.map((c) => (
-          <Card key={c.id} className="flex items-center justify-between gap-3 p-4">
+          <Card key={c.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
             <div>
               <div className="font-semibold text-ink">{c.name}</div>
               <div className="text-xs text-muted">
                 {t("wh.filterLow")}: {Number(c.lowStockThreshold)}
+                {typeof c.productCount === "number"
+                  ? ` · ${c.productCount} ${t("nav.products").toLowerCase()}`
+                  : ""}
               </div>
+              {!c.canDelete && !c.isArchived ? (
+                <p className="mt-1 text-[11px] text-muted">{t("wh.categoryInUse")}</p>
+              ) : null}
             </div>
-            <Button
-              type="button"
-              variant="secondary"
-              fullWidth={false}
-              size="sm"
-              onClick={() => archive(c.id, !c.isArchived)}
-            >
-              {c.isArchived ? t("wh.restore") : t("wh.brandsArchive")}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                fullWidth={false}
+                size="sm"
+                onClick={() => archive(c.id, !c.isArchived)}
+              >
+                {c.isArchived ? t("wh.restore") : t("wh.categoryArchive")}
+              </Button>
+              {c.canDelete ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  fullWidth={false}
+                  size="sm"
+                  onClick={() => remove(c.id)}
+                >
+                  {t("wh.categoryDelete")}
+                </Button>
+              ) : null}
+            </div>
           </Card>
         ))}
         {items.length === 0 ? (

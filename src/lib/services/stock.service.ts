@@ -210,7 +210,13 @@ export async function getWarehouseStock(companyId: string, warehouseId?: string)
     orderBy: { updatedAt: "desc" },
   });
 
-  const productIds = balances.map((b) => b.productId);
+  // Exclude packaging consumables from merchandise stock lists (POS / sellable views
+  // filter again; overview KPIs use STANDARD-only queries).
+  const merchandise = balances.filter(
+    (b) => b.product.kind !== "PACKAGING"
+  );
+
+  const productIds = merchandise.map((b) => b.productId);
   const batches = await prisma.batch.findMany({
     where: {
       productId: { in: productIds },
@@ -230,7 +236,7 @@ export async function getWarehouseStock(companyId: string, warehouseId?: string)
 
   return {
     warehouse,
-    items: balances.map((bal) => ({
+    items: merchandise.map((bal) => ({
       ...bal,
       batches: batchesByProduct.get(bal.productId) ?? [],
     })),

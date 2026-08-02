@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   BarChart3,
+  Bell,
   Boxes,
   Home,
   Package,
@@ -30,16 +31,17 @@ import { useT } from "@/components/i18n/i18n-provider";
 const ICONS: Record<string, LucideIcon> = {
   home: Home,
   finance: Wallet,
+  reports: BarChart3,
   stores: Store,
   warehouse: Boxes,
   sales: ShoppingBag,
   users: Users,
+  notifications: Bell,
   settings: Settings,
   // legacy aliases
   products: Package,
   purchases: PackagePlus,
   inventory: Boxes,
-  reports: BarChart3,
   analytics: BarChart3,
 };
 
@@ -188,9 +190,11 @@ export function OwnerSidebar({
       />
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-sidebar text-sidebar-text transition-transform duration-200 lg:translate-x-0",
-          open ? "translate-x-0" : "-translate-x-full"
+          "fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-sidebar text-sidebar-text transition-transform duration-200",
+          open ? "translate-x-0" : "-translate-x-full",
+          "lg:translate-x-0"
         )}
+        data-drawer-open={open ? "1" : "0"}
       >
         <div className="border-b border-white/8 px-4 py-4">
           <Link href="/dashboard" className="flex items-center gap-3" onClick={onClose}>

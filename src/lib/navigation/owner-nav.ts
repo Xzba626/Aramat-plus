@@ -42,8 +42,13 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
       { href: "/analytics?view=network", labelKey: "nav.financeRevenue" },
       { href: "/analytics?view=expenses", labelKey: "nav.financeExpenses" },
       { href: "/analytics?view=network&focus=net", labelKey: "nav.financeNetProfit" },
-      { href: "/reports", labelKey: "nav.reports" },
     ],
+  },
+  {
+    id: "reports",
+    labelKey: "nav.reports",
+    href: "/reports",
+    icon: "reports",
   },
   {
     id: "stores",
@@ -67,7 +72,7 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
       { href: "/warehouse", labelKey: "nav.inventoryOverview" },
       { href: "/warehouse/receive", labelKey: "nav.purchasesReceive" },
       { href: "/warehouse/packaging", labelKey: "nav.packaging" },
-      { href: "/warehouse/batches", labelKey: "nav.purchasesBatches" },
+      { href: "/warehouse/purchases", labelKey: "nav.purchasesHistory" },
       { href: "/warehouse/transfers", labelKey: "nav.inventoryTransfers" },
       { href: "/warehouse/return-in", labelKey: "nav.inventoryReturnIn" },
       {
@@ -80,7 +85,6 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
       { href: "/warehouse/products", labelKey: "nav.productsCatalog" },
       { href: "/warehouse/categories", labelKey: "nav.productsCategories" },
       { href: "/warehouse/brands", labelKey: "nav.productsBrands" },
-      { href: "/warehouse/product-types", labelKey: "nav.productsTypes" },
     ],
   },
   {
@@ -91,6 +95,7 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     children: [
       { href: "/returns", labelKey: "nav.salesReturns" },
       { href: "/discounts", labelKey: "nav.salesDiscounts" },
+      { href: "/reservations", labelKey: "nav.reservations" },
     ],
   },
   {
@@ -105,18 +110,24 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     ],
   },
   {
+    id: "notifications",
+    labelKey: "nav.notifications",
+    href: "/notifications",
+    icon: "notifications",
+  },
+  {
     id: "settings",
     labelKey: "nav.settingsWorkspace",
     href: "/settings",
     icon: "settings",
     children: [
-      { href: "/settings", labelKey: "nav.settingsHub" },
+      { href: "/settings/company", labelKey: "nav.settingsBackup" },
+      { href: "/settings/password", labelKey: "nav.settingsPassword" },
       {
         href: "/settings/wipe",
         labelKey: "nav.settingsDemo",
         roles: [Role.OWNER],
       },
-      { href: "/settings/company", labelKey: "nav.settingsBackup" },
     ],
   },
 ];
@@ -150,7 +161,8 @@ export function isPathActive(pathname: string, href: string): boolean {
   } else if (pathOnly === "/analytics") {
     pathOk = pathname === "/analytics" || pathname.startsWith("/analytics");
   } else if (pathOnly === "/settings") {
-    pathOk = pathname === "/settings" || pathname.startsWith("/settings/");
+    // Exact only — avoid "Настройки → Настройки" when any /settings/* is open
+    pathOk = pathname === "/settings" || pathname === "/settings/";
   } else if (pathOnly === "/returns") {
     pathOk = pathname === "/returns" || pathname.startsWith("/returns/");
   } else if (pathOnly === "/revision") {
@@ -214,7 +226,7 @@ export function sectionForPath(pathname: string): OwnerNavSection | undefined {
   }
 
   if (pathname.startsWith("/reports")) {
-    return OWNER_NAV_SECTIONS.find((s) => s.id === "finance");
+    return OWNER_NAV_SECTIONS.find((s) => s.id === "reports");
   }
 
   if (
@@ -236,7 +248,11 @@ export function sectionForPath(pathname: string): OwnerNavSection | undefined {
     return OWNER_NAV_SECTIONS.find((s) => s.id === "team");
   }
 
-  if (pathname.startsWith("/settings") || pathname.startsWith("/notifications")) {
+  if (pathname.startsWith("/notifications")) {
+    return OWNER_NAV_SECTIONS.find((s) => s.id === "notifications");
+  }
+
+  if (pathname.startsWith("/settings")) {
     return OWNER_NAV_SECTIONS.find((s) => s.id === "settings");
   }
 

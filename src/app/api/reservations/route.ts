@@ -82,6 +82,7 @@ export async function POST(req: Request) {
       createdById: user.id,
       items: body.items,
       customerNote: body.customerNote ?? undefined,
+      // No default TTL — hold until sale/cancel unless client passes ttlMinutes
       ttlMs: body.ttlMinutes ? body.ttlMinutes * 60 * 1000 : undefined,
     });
 

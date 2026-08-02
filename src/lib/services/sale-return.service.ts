@@ -157,12 +157,21 @@ export async function createSaleReturn(params: {
     },
   });
 
-  const productNames = sale.items.map((i) => i.product.name).join(", ");
+  const productNames = lines
+    .map((l) => {
+      const saleItem = sale.items.find((i) => i.id === l.saleItemId);
+      return saleItem?.product.name;
+    })
+    .filter(Boolean)
+    .join(", ");
+  const reasonText =
+    params.reason?.trim() ||
+    (reasonCode ? String(reasonCode) : "без причины");
   await notifyCompanyRoles({
     companyId: params.companyId,
     type: "RETURN_REQUEST",
-    title: "notif.returnRequest",
-    message: `${requester.name} · ${sale.store.name} · ${productNames || sale.id}`,
+    title: "Запрос на возврат",
+    message: `Запрос на возврат — ${sale.store.name}, чек №${sale.id.slice(-8).toUpperCase()}, ${productNames || "товары"}, ${reasonText}`,
     entityType: "SaleReturn",
     entityId: ret.id,
   });

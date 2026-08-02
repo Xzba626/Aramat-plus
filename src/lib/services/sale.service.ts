@@ -204,7 +204,7 @@ export async function createSale(params: {
         const product = productById.get(line.productId);
         if (!product) throw new Error("PRODUCT_NOT_FOUND");
         if (product.kind === "PACKAGING") {
-          throw new Error("VALIDATION_ERROR");
+          throw new Error("PACKAGING_NOT_FOR_SALE");
         }
 
         const qty = new Prisma.Decimal(line.quantity);
@@ -348,6 +348,10 @@ export async function createSale(params: {
               salePrice: true,
               costPerUnit: true,
               isGift: true,
+              isDecant: true,
+              packagingProductId: true,
+              packagingQuantity: true,
+              packagingCostPerUnit: true,
             },
           },
         },

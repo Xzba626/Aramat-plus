@@ -75,7 +75,7 @@ const LINKS = [
   },
   {
     href: "/settings/company",
-    labelKey: "nav.settings",
+    labelKey: "nav.settingsBackup",
     icon: Building2,
     tone: "neutral" as const,
   },
@@ -93,7 +93,7 @@ const LINKS = [
   },
   {
     href: "/settings",
-    labelKey: "common.settings",
+    labelKey: "nav.settingsWorkspace",
     icon: Settings,
     tone: "neutral" as const,
   },

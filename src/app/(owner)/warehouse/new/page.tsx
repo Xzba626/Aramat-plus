@@ -1,13 +1,13 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { apiErrorMessage, labelProductType } from "@/lib/i18n/labels";
+import { apiErrorMessage } from "@/lib/i18n/labels";
+import { resolveAccountingTypeFromCategoryName } from "@/lib/product-category";
 import { ImagePlus } from "lucide-react";
 
 type RefItem = { id: string; name: string };
@@ -16,13 +16,16 @@ export default function NewProductPage() {
   const router = useRouter();
   const { t, formatMoney } = useI18n();
   const [brands, setBrands] = useState<RefItem[]>([]);
-  const [types, setTypes] = useState<RefItem[]>([]);
+  const [categories, setCategories] = useState<RefItem[]>([]);
   const [brandId, setBrandId] = useState("");
-  const [productTypeId, setProductTypeId] = useState("");
+  const [categoryId, setCategoryId] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [brandBusy, setBrandBusy] = useState(false);
-  const [accountingType, setAccountingType] = useState<"PIECE" | "WEIGHT">("PIECE");
+  const [accountingType, setAccountingType] = useState<"PIECE" | "WEIGHT">(
+    "PIECE"
+  );
+  const [saleMethodTouched, setSaleMethodTouched] = useState(false);
   const [salePrice, setSalePrice] = useState("");
   const [cost, setCost] = useState("");
   const [initialQty, setInitialQty] = useState("");
@@ -40,12 +43,21 @@ export default function NewProductPage() {
   useEffect(() => {
     Promise.all([
       fetch("/api/brands").then((r) => r.json()),
-      fetch("/api/product-types").then((r) => r.json()),
-    ]).then(([b, pt]) => {
+      fetch("/api/categories?seedDefaults=1").then((r) => r.json()),
+    ]).then(([b, cats]) => {
       setBrands(Array.isArray(b) ? b : []);
-      setTypes(Array.isArray(pt) ? pt : []);
+      setCategories(Array.isArray(cats) ? cats : []);
     });
   }, []);
+
+  function onCategoryChange(id: string) {
+    setCategoryId(id);
+    const cat = categories.find((c) => c.id === id);
+    const suggested = resolveAccountingTypeFromCategoryName(cat?.name);
+    if (suggested && !saleMethodTouched) {
+      setAccountingType(suggested);
+    }
+  }
 
   const unitLabel =
     accountingType === "WEIGHT" ? t("warehouse.unitMl") : t("warehouse.unitPcs");
@@ -94,7 +106,10 @@ export default function NewProductPage() {
     const fd = new FormData();
     fd.append("file", file);
     try {
-      const res = await fetch("/api/products/upload", { method: "POST", body: fd });
+      const res = await fetch("/api/products/upload", {
+        method: "POST",
+        body: fd,
+      });
       const data = await res.json();
       if (!res.ok) {
         setError(apiErrorMessage(data.error, t));
@@ -112,6 +127,12 @@ export default function NewProductPage() {
     setLoading(true);
     setError("");
     const fd = new FormData(e.currentTarget);
+
+    if (!categoryId) {
+      setError(t("errors.VALIDATION_ERROR"));
+      setLoading(false);
+      return;
+    }
 
     let resolvedBrandId = brandId || null;
     if (newBrand) {
@@ -149,7 +170,7 @@ export default function NewProductPage() {
       name: String(fd.get("name") || ""),
       description: String(fd.get("description") || "") || null,
       brandId: resolvedBrandId,
-      productTypeId: productTypeId || null,
+      categoryId,
       accountingType,
       imageUrl,
       salePrice: Number(salePrice),
@@ -210,11 +231,10 @@ export default function NewProductPage() {
             <FieldLabel>{t("warehouse.productPhoto")}</FieldLabel>
             <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-border bg-page px-4 py-4 text-sm text-muted hover:border-brand/40">
               {imageUrl ? (
-                <Image
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
                   src={imageUrl}
                   alt=""
-                  width={64}
-                  height={64}
                   className="h-16 w-16 rounded-lg object-cover"
                 />
               ) : (
@@ -304,27 +324,31 @@ export default function NewProductPage() {
           </div>
 
           <div>
-            <FieldLabel>{t("warehouse.productType")}</FieldLabel>
+            <FieldLabel>{t("warehouse.productCategory")}</FieldLabel>
             <select
-              name="productTypeId"
-              value={productTypeId}
-              onChange={(e) => setProductTypeId(e.target.value)}
+              name="categoryId"
+              value={categoryId}
+              onChange={(e) => onCategoryChange(e.target.value)}
               className="w-full"
               required
             >
               <option value="">—</option>
-              {types.map((pt) => (
-                <option key={pt.id} value={pt.id}>
-                  {labelProductType(pt.name, t)}
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-muted">{t("warehouse.productTypeHint")}</p>
+            <p className="mt-1 text-xs text-muted">
+              {t("warehouse.productCategoryHint")}
+            </p>
           </div>
 
           <div>
             <FieldLabel>{t("warehouse.productSellHow")}</FieldLabel>
-            <p className="mb-2 text-xs text-muted">{t("warehouse.productSellManualHint")}</p>
+            <p className="mb-2 text-xs text-muted">
+              {t("warehouse.productSellManualHint")}
+            </p>
             <div className="grid gap-2 sm:grid-cols-2">
               <label
                 className={`cursor-pointer rounded-xl border px-3 py-3 text-sm ${
@@ -337,7 +361,10 @@ export default function NewProductPage() {
                   type="radio"
                   className="sr-only"
                   checked={accountingType === "PIECE"}
-                  onChange={() => setAccountingType("PIECE")}
+                  onChange={() => {
+                    setSaleMethodTouched(true);
+                    setAccountingType("PIECE");
+                  }}
                 />
                 {t("warehouse.productSellPiece")}
               </label>
@@ -352,7 +379,10 @@ export default function NewProductPage() {
                   type="radio"
                   className="sr-only"
                   checked={accountingType === "WEIGHT"}
-                  onChange={() => setAccountingType("WEIGHT")}
+                  onChange={() => {
+                    setSaleMethodTouched(true);
+                    setAccountingType("WEIGHT");
+                  }}
                 />
                 {t("warehouse.productSellVolume")}
               </label>
@@ -390,7 +420,9 @@ export default function NewProductPage() {
                 onChange={(e) => setCost(e.target.value)}
                 className="w-full"
               />
-              <p className="mt-1 text-xs text-muted">{t("warehouse.productCostHint")}</p>
+              <p className="mt-1 text-xs text-muted">
+                {t("warehouse.productCostHint")}
+              </p>
             </div>
             <div>
               <FieldLabel>
@@ -405,7 +437,9 @@ export default function NewProductPage() {
                 onChange={(e) => setSalePrice(e.target.value)}
                 className="w-full"
               />
-              <p className="mt-1 text-xs text-muted">{t("warehouse.productSaleHint")}</p>
+              <p className="mt-1 text-xs text-muted">
+                {t("warehouse.productSaleHint")}
+              </p>
             </div>
           </div>
 
@@ -420,7 +454,9 @@ export default function NewProductPage() {
 
           {error ? <p className="text-sm text-danger">{error}</p> : null}
           <Button type="submit" disabled={loading || brandBusy || uploading}>
-            {loading ? t("warehouse.productSaving") : t("warehouse.productCreateBtn")}
+            {loading
+              ? t("warehouse.productSaving")
+              : t("warehouse.productCreateBtn")}
           </Button>
         </form>
       </Card>

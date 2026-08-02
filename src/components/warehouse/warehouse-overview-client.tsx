@@ -164,7 +164,6 @@ export function WarehouseOverviewClient({
     { href: "/warehouse/purchases", labelKey: "warehouse.actionPurchaseHistory" },
     { href: "/warehouse/stock", labelKey: "warehouse.actionStock" },
     { href: "/warehouse/products", labelKey: "warehouse.actionCatalog" },
-    { href: "/warehouse/suppliers", labelKey: "warehouse.actionSuppliers" },
   ];
 
   return (

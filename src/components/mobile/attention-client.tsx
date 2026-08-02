@@ -50,7 +50,7 @@ export function AttentionClient() {
     for (const d of data.decisions) {
       list.push({
         id: `dec-${d.type}-${d.id}`,
-        href: "/dashboard#decisions",
+        href: d.type === "DISCOUNT" ? "/discounts" : "/returns",
         label: t("dashboard.attentionDecision", { title: t(d.titleKey) }),
         tone: "alert",
       });
