@@ -210,10 +210,14 @@ export function OwnerDashboardClient({
         badge: t("dashboard.trafficYellow"),
       };
     }
-    if (today.deltas.revenue.pct > 0 && !today.deltas.revenue.isNew) {
+    if (today.deltas.revenue.abs > 0 && !today.deltas.revenue.isNew) {
       return {
         level: "green",
-        text: t("dashboard.statusSalesUp", { pct: today.deltas.revenue.label }),
+        text: t("dashboard.statusSalesUpAbs", {
+          amount: formatMoney(Math.abs(today.deltas.revenue.abs), {
+            short: true,
+          }),
+        }),
         badge: t("dashboard.trafficGreen"),
       };
     }
@@ -226,6 +230,7 @@ export function OwnerDashboardClient({
     data.lowStock,
     data.stores,
     decisionSummary.total,
+    formatMoney,
     pulse.lowStockCount,
     t,
     today.deltas.revenue,
@@ -281,10 +286,7 @@ export function OwnerDashboardClient({
 
       {/* Today — finance funnel (same math as before, clearer layout) */}
       <section>
-        <ZoneHeader
-          title={t("dashboard.zoneToday")}
-          subtitle={t("dashboard.funnelSectionHint")}
-        />
+        <ZoneHeader title={t("dashboard.zoneToday")} />
         <FinanceFunnel
           scope="network"
           revenue={today.revenue}
@@ -292,6 +294,10 @@ export function OwnerDashboardClient({
           grossProfit={today.grossProfit ?? today.profit}
           expenses={today.expenses ?? 0}
           netProfit={today.netProfit ?? today.profit}
+          expenseLayers={{
+            packaging: today.packagingCost ?? 0,
+            operational: today.operationalExpenses ?? 0,
+          }}
           storeExpenses={data.stores.map((s) => ({
             id: s.id,
             name: s.name,
