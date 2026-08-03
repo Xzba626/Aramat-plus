@@ -1,0 +1,93 @@
+{
+  "at": "2026-08-03T15:49:03.582Z",
+  "fail": 0,
+  "pass": 13,
+  "partial": 0,
+  "pending": 1,
+  "rows": [
+    {
+      "section": "THUMB",
+      "case": "variant_mapping",
+      "status": "PASS",
+      "detail": "thumb=/uploads/products/demo-thumb.webp medium=/uploads/products/demo-md.webp full=/uploads/products/demo.webp"
+    },
+    {
+      "section": "THUMB",
+      "case": "getProductImageUrl_pos_uses_thumb",
+      "status": "PASS",
+      "detail": "/uploads/products/demo-thumb.webp"
+    },
+    {
+      "section": "ANDROID",
+      "case": "octet_stream_jpg_allowed",
+      "status": "PASS",
+      "detail": "application/octet-stream + .jpg"
+    },
+    {
+      "section": "ANDROID",
+      "case": "heic_rejected_gate",
+      "status": "PASS",
+      "detail": "heic not in allowed list"
+    },
+    {
+      "section": "VALIDATION",
+      "case": "strip_huge_data_url",
+      "status": "PASS",
+      "detail": "{\"imageUrl\":null,\"stripped\":true}"
+    },
+    {
+      "section": "UPLOAD",
+      "case": "octet_stream_upload",
+      "status": "PASS",
+      "detail": "http=201 body={\"imageUrl\":\"/uploads/products/1785772134715-l1fdie3i-md.webp\",\"variants\":{\"full\":\"/uploads/products/1785772134715-l1fdie3i.webp\",\"medium\":\"/uploads/products/1785772134715-l1fdie3i-md.webp\",\"thumb\":\"/"
+    },
+    {
+      "section": "THUMB",
+      "case": "served_thumb_smaller_than_full",
+      "status": "PASS",
+      "detail": "thumb=1298 medium=112842 full=781310"
+    },
+    {
+      "section": "ANDROID",
+      "case": "heic_clear_error",
+      "status": "PASS",
+      "detail": "http=400 error=IMAGE_HEIC_UNSUPPORTED"
+    },
+    {
+      "section": "VALIDATION",
+      "case": "create_strips_bad_image_keeps_product",
+      "status": "PASS",
+      "detail": "http=201 id=cmsdemh18000bum40t148eorr imageUrl=null warn=IMAGE_STRIPPED"
+    },
+    {
+      "section": "MIGRATION",
+      "case": "data_url_migration",
+      "status": "PASS",
+      "detail": "migrated=1 failed=0 leftover=0"
+    },
+    {
+      "section": "PERF",
+      "case": "pos_catalog_no_giant_data_url",
+      "status": "PASS",
+      "detail": "items=1 withImg=1 jsonBytes=1021 ms=2157"
+    },
+    {
+      "section": "PERF",
+      "case": "stress_100_500_1000",
+      "status": "PENDING",
+      "detail": "current_pos_items=1 (seed 1000 for full stress)"
+    },
+    {
+      "section": "PWA",
+      "case": "sw_uploads_cache",
+      "status": "PASS",
+      "detail": "cache-first for /uploads/"
+    },
+    {
+      "section": "COMPRESSION",
+      "case": "service_processAndSave",
+      "status": "PASS",
+      "detail": "{\"input\":506846,\"full\":482112,\"medium\":156378,\"thumb\":5408}"
+    }
+  ]
+}

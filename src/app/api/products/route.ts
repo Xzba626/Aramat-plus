@@ -12,6 +12,7 @@ import {
   resolveProductAccountingType,
   resolveUnitId,
 } from "@/lib/services/product-nomenclature.service";
+import { sanitizeIncomingImageUrl } from "@/lib/services/product-image.service";
 
 export async function GET(req: Request) {
   try {
@@ -114,7 +115,11 @@ export async function POST(req: Request) {
     if (denied) return denied;
 
     const data = await req.json();
-    const body = productSchema.parse(data);
+    const { imageUrl: safeImage, stripped } = sanitizeIncomingImageUrl(
+      data.imageUrl
+    );
+    const body = productSchema.parse({ ...data, imageUrl: safeImage });
+    const imageStripped = stripped;
     const initialQty =
       data.initialQuantity != null ? Number(data.initialQuantity) : null;
     const costPerUnit =
@@ -218,7 +223,10 @@ export async function POST(req: Request) {
         stockBalances: true,
       },
     });
-    return jsonOk(full, 201);
+    return jsonOk(
+      imageStripped ? { ...full, imageWarning: "IMAGE_STRIPPED" } : full,
+      201
+    );
   } catch (err) {
     return handleApiError(err);
   }

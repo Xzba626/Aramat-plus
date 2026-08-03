@@ -13,6 +13,22 @@ export function jsonError(message: string, status = 400) {
 /** Never leak raw Prisma / stack traces to the client. */
 export function handleApiError(err: unknown) {
   if (err instanceof ZodError) {
+    const imageIssue = err.issues.find(
+      (i) =>
+        i.message === "IMAGE_URL_INVALID" ||
+        i.path.includes("imageUrl")
+    );
+    if (imageIssue?.message === "IMAGE_URL_INVALID") {
+      return jsonError("IMAGE_URL_INVALID", 400);
+    }
+    if (
+      imageIssue &&
+      err.issues.every(
+        (i) => i.path.includes("imageUrl") || i.message === "IMAGE_URL_INVALID"
+      )
+    ) {
+      return jsonError("IMAGE_URL_INVALID", 400);
+    }
     return jsonError("VALIDATION_ERROR", 400);
   }
 
@@ -62,6 +78,8 @@ export function handleApiError(err: unknown) {
       "ID_REQUIRED",
       "IMAGE_PROCESS_FAILED",
       "IMAGE_URL_INVALID",
+      "IMAGE_HEIC_UNSUPPORTED",
+      "IMAGE_COMPRESS_FAILED",
       "INVALID_FILE_TYPE",
       "INSUFFICIENT_AVAILABLE",
       "INSUFFICIENT_BATCH_STOCK",

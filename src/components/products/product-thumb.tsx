@@ -1,14 +1,21 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { productImageSrc } from "@/lib/product-image-src";
+import {
+  getProductImageUrl,
+  type ProductImageSize,
+} from "@/lib/services/product-image.service";
 
 type Props = {
+  /** Raw stored imageUrl (medium path or legacy). Prefer passing product + size via ProductCard. */
   src?: string | null;
   name: string;
   className?: string;
   imgClassName?: string;
+  /** Visual box size — maps to thumb/medium/full delivery. */
   size?: "sm" | "md" | "lg";
+  /** Override which file variant to request. */
+  imageSize?: ProductImageSize;
 };
 
 const SIZE: Record<NonNullable<Props["size"]>, string> = {
@@ -17,19 +24,28 @@ const SIZE: Record<NonNullable<Props["size"]>, string> = {
   lg: "h-24 w-full",
 };
 
-/** Shared product photo thumb — object-cover, no distortion. */
+function boxToImageSize(
+  box: NonNullable<Props["size"]>,
+  override?: ProductImageSize
+): ProductImageSize {
+  if (override) return override;
+  // sm → thumb (~300), md → medium (~800), lg → full only for explicit detail/lightbox
+  if (box === "sm") return "thumb";
+  if (box === "lg") return "full";
+  return "medium";
+}
+
+/** Shared product photo thumb — object-cover, no distortion. Always size-aware. */
 export function ProductThumb({
   src,
   name,
   className,
   imgClassName,
   size = "md",
+  imageSize,
 }: Props) {
   const initial = (name.trim().slice(0, 1) || "?").toUpperCase();
-  const resolved = productImageSrc(
-    src,
-    size === "sm" ? "thumb" : size === "lg" ? "full" : "card"
-  );
+  const resolved = getProductImageUrl({ imageUrl: src }, boxToImageSize(size, imageSize));
 
   return (
     <div
@@ -41,7 +57,7 @@ export function ProductThumb({
       )}
     >
       {resolved ? (
-        // eslint-disable-next-line @next/next/no-img-element -- data URLs / arbitrary host uploads
+        // eslint-disable-next-line @next/next/no-img-element -- data URLs / local uploads
         <img
           src={resolved}
           alt={name}

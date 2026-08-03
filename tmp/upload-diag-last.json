@@ -1,0 +1,33 @@
+{
+  "at": "2026-08-03T15:34:04.381Z",
+  "step": "success",
+  "fileFieldType": "object",
+  "isFile": true,
+  "isBlob": true,
+  "constructorName": "File",
+  "filename": "d.webp",
+  "mimetype": "image/webp",
+  "size": 981,
+  "allowed": true,
+  "bufferLength": 981,
+  "magic": "ffd8ffdb0043000604050605",
+  "uploadDir": "C:\\Users\\Layoqat\\Desktop\\Aramat plus\\public\\uploads\\products",
+  "meta": {
+    "format": "jpeg",
+    "width": 400,
+    "height": 300,
+    "space": "srgb",
+    "hasAlpha": false
+  },
+  "outBytes": {
+    "full": 308,
+    "md": 302,
+    "thumb": 226
+  },
+  "paths": {
+    "fullPath": "C:\\Users\\Layoqat\\Desktop\\Aramat plus\\public\\uploads\\products\\1785771244326-hybfhp05.webp",
+    "mdPath": "C:\\Users\\Layoqat\\Desktop\\Aramat plus\\public\\uploads\\products\\1785771244326-hybfhp05-md.webp",
+    "thumbPath": "C:\\Users\\Layoqat\\Desktop\\Aramat plus\\public\\uploads\\products\\1785771244326-hybfhp05-thumb.webp"
+  },
+  "imageUrl": "/uploads/products/1785771244326-hybfhp05-md.webp"
+}

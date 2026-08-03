@@ -1,0 +1,56 @@
+[
+  {
+    "name": "octet-stream.jpg",
+    "type": "application/octet-stream",
+    "http": 400,
+    "error": "INVALID_FILE_TYPE",
+    "diagStep": "mime_rejected",
+    "diagMime": "application/octet-stream",
+    "diagAllowed": false
+  },
+  {
+    "name": "photo.JPG",
+    "type": "application/octet-stream",
+    "http": 400,
+    "error": "INVALID_FILE_TYPE",
+    "diagStep": "mime_rejected",
+    "diagMime": "application/octet-stream",
+    "diagAllowed": false
+  },
+  {
+    "name": "noext",
+    "type": "application/octet-stream",
+    "http": 400,
+    "error": "INVALID_FILE_TYPE",
+    "diagStep": "mime_rejected",
+    "diagMime": "application/octet-stream",
+    "diagAllowed": false
+  },
+  {
+    "name": "photo.heic",
+    "type": "image/heic",
+    "http": 400,
+    "error": "INVALID_FILE_TYPE",
+    "diagStep": "mime_rejected",
+    "diagMime": "image/heic",
+    "diagAllowed": false
+  },
+  {
+    "name": "photo.jpg",
+    "type": "image/jpg",
+    "http": 201,
+    "error": null,
+    "diagStep": "success",
+    "diagMime": "image/jpg",
+    "diagAllowed": true
+  },
+  {
+    "name": "photo.jpeg",
+    "type": "image/jpeg",
+    "http": 201,
+    "error": null,
+    "diagStep": "success",
+    "diagMime": "image/jpeg",
+    "diagAllowed": true
+  }
+]

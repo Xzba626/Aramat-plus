@@ -1,0 +1,131 @@
+{
+  "at": "2026-08-03T15:31:23.847Z",
+  "sharpLocal": {
+    "ok": true,
+    "versions": {
+      "aom": "3.14.1",
+      "archive": "3.8.7",
+      "cairo": "1.18.4",
+      "cgif": "0.5.3",
+      "exif": "0.6.26",
+      "expat": "2.8.1",
+      "ffi": "3.5.2",
+      "fontconfig": "2.18.1",
+      "freetype": "2.14.3",
+      "fribidi": "1.0.16",
+      "glib": "2.89.0",
+      "harfbuzz": "14.2.1",
+      "heif": "1.23.0",
+      "highway": "1.4.0",
+      "imagequant": "2.4.1",
+      "lcms": "2.19.1",
+      "mozjpeg": "0826579",
+      "pango": "1.57.1",
+      "pixman": "0.46.4",
+      "png": "1.6.58",
+      "proxy-libintl": "0.5",
+      "rsvg": "2.62.3",
+      "tiff": "732665c",
+      "uhdr": "13a058f",
+      "vips": "8.18.3",
+      "webp": "1.6.0",
+      "xml2": "2.15.3",
+      "zlib-ng": "2.3.3",
+      "sharp": "0.35.3"
+    },
+    "jpegBytes": 17895,
+    "jpegMeta": {
+      "format": "jpeg",
+      "w": 2000,
+      "h": 1500
+    },
+    "webpBytes": 5426,
+    "pngBytes": 8592
+  },
+  "filesystem": {
+    "exists": true,
+    "path": "C:\\Users\\Layoqat\\Desktop\\Aramat plus\\public\\uploads\\products",
+    "writable": true
+  },
+  "http": {
+    "jpeg_small_11kb": {
+      "http": 201,
+      "ms": 987,
+      "body": {
+        "imageUrl": "/uploads/products/1785771091954-vfwp8d7u-md.webp",
+        "variants": {
+          "full": "/uploads/products/1785771091954-vfwp8d7u.webp",
+          "medium": "/uploads/products/1785771091954-vfwp8d7u-md.webp",
+          "thumb": "/uploads/products/1785771091954-vfwp8d7u-thumb.webp"
+        },
+        "bytes": {
+          "input": 297,
+          "full": 78,
+          "medium": 78,
+          "thumb": 88
+        }
+      }
+    },
+    "jpeg_1_8mb": {
+      "http": 201,
+      "ms": 1504,
+      "body": {
+        "imageUrl": "/uploads/products/1785771092428-tgf3kopv-md.webp",
+        "variants": {
+          "full": "/uploads/products/1785771092428-tgf3kopv.webp",
+          "medium": "/uploads/products/1785771092428-tgf3kopv-md.webp",
+          "thumb": "/uploads/products/1785771092428-tgf3kopv-thumb.webp"
+        },
+        "bytes": {
+          "input": 6736997,
+          "full": 716172,
+          "medium": 95170,
+          "thumb": 820
+        }
+      }
+    },
+    "png": {
+      "http": 201,
+      "ms": 471,
+      "body": {
+        "imageUrl": "/uploads/products/1785771093853-pdkc4nvv-md.webp",
+        "variants": {
+          "full": "/uploads/products/1785771093853-pdkc4nvv.webp",
+          "medium": "/uploads/products/1785771093853-pdkc4nvv-md.webp",
+          "thumb": "/uploads/products/1785771093853-pdkc4nvv-thumb.webp"
+        },
+        "bytes": {
+          "input": 8592,
+          "full": 948,
+          "medium": 952,
+          "thumb": 214
+        }
+      }
+    },
+    "webp_like_client_compress": {
+      "http": 201,
+      "ms": 550,
+      "body": {
+        "imageUrl": "/uploads/products/1785771094203-m24rsuiu-md.webp",
+        "variants": {
+          "full": "/uploads/products/1785771094203-m24rsuiu.webp",
+          "medium": "/uploads/products/1785771094203-m24rsuiu-md.webp",
+          "thumb": "/uploads/products/1785771094203-m24rsuiu-thumb.webp"
+        },
+        "bytes": {
+          "input": 5426,
+          "full": 3492,
+          "medium": 946,
+          "thumb": 206
+        }
+      }
+    },
+    "jpeg_empty_mime": {
+      "http": 400,
+      "ms": 269,
+      "body": {
+        "error": "INVALID_FILE_TYPE"
+      }
+    }
+  }
+}

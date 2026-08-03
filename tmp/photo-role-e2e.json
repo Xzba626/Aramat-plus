@@ -1,0 +1,17 @@
+{
+  "managerStockHttp": 200,
+  "managerRowCount": 1,
+  "managerImageUrl": "/uploads/products/1785769393100-40gvwy96-md.webp",
+  "managerKeys": [
+    "items",
+    "total",
+    "page",
+    "pageSize",
+    "pages"
+  ],
+  "sellerPosHttp": 200,
+  "sellerItems": 1,
+  "sellerImageUrl": "/uploads/products/1785769393100-40gvwy96-md.webp",
+  "sameAsOwner": true,
+  "fileHttp": 200
+}

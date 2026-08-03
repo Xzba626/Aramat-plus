@@ -6,6 +6,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Role } from "@prisma/client";
 import { PageHeader } from "@/components/ui/page-header";
+import { getProductImageUrl } from "@/lib/services/product-image.service";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/i18n-provider";
@@ -67,8 +68,12 @@ export default function ProductDetailPage() {
       let prepared: File;
       try {
         prepared = await compressImageFile(file);
-      } catch {
-        setError(t("errors.IMAGE_COMPRESS_FAILED"));
+      } catch (e) {
+        const code =
+          e instanceof Error && e.message === "IMAGE_HEIC_UNSUPPORTED"
+            ? "IMAGE_HEIC_UNSUPPORTED"
+            : "IMAGE_COMPRESS_FAILED";
+        setError(t(`errors.${code}`));
         setPhotoBusy(false);
         return;
       }
@@ -272,7 +277,9 @@ export default function ProductDetailPage() {
             {product.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={product.imageUrl}
+                src={
+                  getProductImageUrl(product, "medium") ?? product.imageUrl
+                }
                 alt=""
                 className="h-full w-full object-cover"
               />

@@ -67,7 +67,10 @@ export function ProductCard({
   asButton,
 }: Props) {
   const { t, formatMoney } = useI18n();
+  /** Stored medium path (or legacy); ProductThumb picks thumb/medium by box size. */
   const imageUrl = resolveProductImageUrl(product);
+  /** POS / dense grids → thumb; warehouse/store cards → medium. Never full on cards. */
+  const thumbBox = mode === "pos" ? "sm" : "md";
   const brandName = product.brand?.name ?? null;
   const categoryName = product.category?.name ?? null;
   const typeName = product.productType?.name
@@ -163,8 +166,12 @@ export function ProductCard({
       <ProductThumb
         src={imageUrl}
         name={product.name}
-        size="lg"
-        className={mode === "pos" ? "mb-2" : "mb-3"}
+        size={thumbBox}
+        imageSize={mode === "pos" ? "thumb" : "medium"}
+        className={cn(
+          mode === "pos" ? "mb-2 h-28 w-full" : "mb-3 h-36 w-full",
+          "aspect-[4/3] !h-auto"
+        )}
       />
       {meta}
     </>

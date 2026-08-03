@@ -110,8 +110,12 @@ export default function NewProductPage() {
       let prepared: File;
       try {
         prepared = await compressImageFile(file);
-      } catch {
-        setError(t("errors.IMAGE_COMPRESS_FAILED"));
+      } catch (e) {
+        const code =
+          e instanceof Error && e.message === "IMAGE_HEIC_UNSUPPORTED"
+            ? "IMAGE_HEIC_UNSUPPORTED"
+            : "IMAGE_COMPRESS_FAILED";
+        setError(t(`errors.${code}`));
         setUploading(false);
         return;
       }

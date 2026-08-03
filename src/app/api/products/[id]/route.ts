@@ -10,6 +10,7 @@ import {
   resolveUnitId,
 } from "@/lib/services/product-nomenclature.service";
 import { hardDeleteProductCascade } from "@/lib/services/archive-retention.service";
+import { sanitizeIncomingImageUrl } from "@/lib/services/product-image.service";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -47,7 +48,14 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (denied) return denied;
     const { id } = await ctx.params;
     const raw = await req.json();
-    const body = productSchema.partial().parse(raw);
+    const { imageUrl: safeImage, stripped } = sanitizeIncomingImageUrl(
+      raw.imageUrl
+    );
+    const body = productSchema.partial().parse({
+      ...raw,
+      ...(raw.imageUrl !== undefined ? { imageUrl: safeImage } : {}),
+    });
+    const imageStripped = stripped;
 
     const existing = await prisma.product.findFirst({
       where: { id, companyId: user!.companyId },
@@ -164,7 +172,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
         },
       },
     });
-    return jsonOk(item);
+    return jsonOk(
+      imageStripped ? { ...item, imageWarning: "IMAGE_STRIPPED" } : item
+    );
   } catch (err) {
     return handleApiError(err);
   }
