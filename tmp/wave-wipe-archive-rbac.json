@@ -1,0 +1,41 @@
+{
+  "at": "2026-08-03T11:44:28.687Z",
+  "before": {
+    "products": 32,
+    "sales": 8,
+    "branches": 2,
+    "sellers": 3,
+    "packaging": 7,
+    "expenses": 8,
+    "notifications": 13
+  },
+  "after": {
+    "products": 0,
+    "sales": 0,
+    "branches": 0,
+    "sellers": 0,
+    "packaging": 0,
+    "expenses": 0,
+    "notifications": 0,
+    "batches": 0,
+    "transfers": 0,
+    "ownerDirect": 1,
+    "warehouse": 1,
+    "units": 2
+  },
+  "wipeResult": {
+    "ok": true,
+    "ownerEmail": "owner@aromat.plus",
+    "ownerPasswordReset": true
+  },
+  "storeArchiveDelete": "PASS",
+  "productRetentionPurge": {
+    "days": 30,
+    "cutoff": "2026-07-04T11:45:20.852Z",
+    "products": 1,
+    "categories": 0,
+    "brands": 0,
+    "stores": 0
+  },
+  "pass": true
+}

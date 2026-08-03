@@ -254,6 +254,8 @@ model Store {
   kind            StoreKind   @default(BRANCH)
   status          StoreStatus @default(ACTIVE)
   isArchived      Boolean     @default(false)
+  /// Set when archived; used for retention purge. Cleared on restore.
+  archivedAt      DateTime?
   openedAt        DateTime?
   managerId       String?
   isActive        Boolean     @default(true)
@@ -286,6 +288,7 @@ model Category {
   companyId          String
   lowStockThreshold  Decimal  @default(50) @db.Decimal(12, 3)
   isArchived         Boolean  @default(false)
+  archivedAt         DateTime?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -302,6 +305,7 @@ model Brand {
   companyId  String
   imageUrl   String?
   isArchived Boolean  @default(false)
+  archivedAt DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -409,6 +413,8 @@ model Product {
   defaultCostPerUnit Decimal?   @db.Decimal(12, 2)
   minStock       Decimal        @default(0) @db.Decimal(14, 3)
   isActive       Boolean        @default(true)
+  /// Set when soft-archived (isActive=false); cleared on restore.
+  archivedAt     DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 

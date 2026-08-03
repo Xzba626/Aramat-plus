@@ -3,9 +3,12 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { BrandMark } from "@/components/company/brand-mark";
+import { useCompanyBrand } from "@/components/company/company-brand-provider";
 
 export function SplashScreen({ visible }: { visible: boolean }) {
   const { t } = useI18n();
+  const { companyName } = useCompanyBrand();
 
   return (
     <div
@@ -17,14 +20,14 @@ export function SplashScreen({ visible }: { visible: boolean }) {
       <div className="animate-[fadeIn_0.8s_ease-out] flex flex-col items-center text-center">
         <Image
           src="/logo-aramat-plus.png"
-          alt="ARAMAT PLUS"
+          alt={companyName}
           width={120}
           height={120}
           className="mb-6 h-24 w-24 rounded-2xl object-contain"
           priority
         />
         <h1 className="text-2xl font-bold tracking-tight text-white">
-          AROMAT <span className="text-brand">PLUS</span>
+          <BrandMark />
         </h1>
         <p className="mt-1 text-sm text-white/50">{t("splash.tagline")}</p>
         <p className="mt-8 text-base font-medium text-white/80">

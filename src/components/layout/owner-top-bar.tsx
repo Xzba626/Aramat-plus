@@ -11,6 +11,8 @@ import { sectionTitleKeyForPath } from "@/lib/navigation/owner-nav";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { labelRole } from "@/lib/i18n/labels";
+import { BrandMark } from "@/components/company/brand-mark";
+import { useCompanyBrand } from "@/components/company/company-brand-provider";
 
 function initials(name: string) {
   return name
@@ -33,6 +35,7 @@ export function OwnerTopBar({
 }) {
   const pathname = usePathname();
   const { t, formatDate, formatTime } = useI18n();
+  const { companyName } = useCompanyBrand();
   const sectionTitle = t(sectionTitleKeyForPath(pathname));
   const [profileOpen, setProfileOpen] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
@@ -79,7 +82,7 @@ export function OwnerTopBar({
         <Link
           href="/dashboard"
           className="hidden shrink-0 items-center gap-2 lg:flex"
-          title="AROMAT PLUS"
+          title={companyName}
         >
           <Image
             src="/logo-aramat-plus.png"
@@ -88,9 +91,7 @@ export function OwnerTopBar({
             height={28}
             className="h-7 w-7 rounded-md object-contain"
           />
-          <span className="text-sm font-bold text-ink">
-            AROMAT <span className="text-brand">PLUS</span>
-          </span>
+          <BrandMark className="text-sm text-ink" />
         </Link>
 
         <div className="mx-0.5 hidden h-6 w-px bg-border lg:block" />

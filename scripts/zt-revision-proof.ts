@@ -290,6 +290,21 @@ async function main() {
     "\nPASS: ZT Revision — empty fact → blind → submit pending → owner diffs → approve FIFO / manager metadata-only"
   );
   console.log(`  expected=${expected} fact=${fact} diff=${fact - expected} finalStock=${qty}`);
+
+  // Cleanup proof artifacts so they never pollute owner analytics
+  await prisma.inventoryItem.deleteMany({ where: { productId: product.id } });
+  await prisma.inventorySession.delete({ where: { id: session.id } }).catch(() => undefined);
+  await prisma.stockBalance.deleteMany({ where: { productId: product.id } });
+  await prisma.batch.deleteMany({ where: { productId: product.id } });
+  await prisma.transferItem.deleteMany({ where: { productId: product.id } });
+  await prisma.saleItem.deleteMany({ where: { productId: product.id } });
+  await prisma.product.delete({ where: { id: product.id } }).catch(async () => {
+    await prisma.product.update({
+      where: { id: product.id },
+      data: { isActive: false },
+    });
+  });
+  console.log("  cleaned up ZT Rev product", product.id);
 }
 
 main()

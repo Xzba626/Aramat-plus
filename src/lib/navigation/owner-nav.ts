@@ -367,7 +367,7 @@ export function sectionTitleKeyForPath(pathname: string): string {
   if (isProductCardPath(pathname)) return "nav.productCard";
 
   const section = sectionForPath(pathname);
-  if (!section) return "app.brand";
+  if (!section) return "common.erpSection";
 
   if (section.children) {
     const child = section.children.find((c) => isPathActive(pathname, c.href));

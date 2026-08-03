@@ -6,6 +6,10 @@ import {
   withNetProfit,
   type ReturnLineAdj,
 } from "@/lib/services/profit.service";
+import {
+  isMerchandiseProduct,
+  merchandiseProductWhere,
+} from "@/lib/product-kind";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -69,6 +73,7 @@ export async function getAnalyticsBreakdown(
             select: {
               id: true,
               name: true,
+              kind: true,
               categoryId: true,
               productTypeId: true,
               accountingType: true,
@@ -193,6 +198,8 @@ export async function getAnalyticsBreakdown(
 
     for (const item of sale.items) {
       if (item.isGift) continue;
+      // Bottles are consumables (PACKAGING), never merchandise rankings
+      if (!isMerchandiseProduct(item.product)) continue;
       const qty =
         decimalToNumber(item.quantity) - (retQtyBySaleItem.get(item.id) ?? 0);
       if (qty <= 0) continue;
@@ -258,10 +265,10 @@ export async function getAnalyticsBreakdown(
     .sort((a, b) => a.sold - b.sold)
     .slice(0, 20);
 
-  // Products with stock but zero sales in period
+  // Merchandise with zero sales in period (never include PACKAGING bottles)
   const soldIds = new Set(productMap.keys());
   const activeProducts = await prisma.product.findMany({
-    where: { companyId, isActive: true },
+    where: merchandiseProductWhere({ companyId, isActive: true }),
     select: { id: true, name: true },
     take: 500,
   });

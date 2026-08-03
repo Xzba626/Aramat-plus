@@ -155,11 +155,16 @@ export default function StoresPage() {
     load();
   }
 
-  async function deleteStore(id: string) {
+  async function deleteStore(id: string, permanent: boolean) {
     setError("");
-    const res = await fetch(`/api/stores?id=${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    });
+    if (permanent) {
+      if (!window.confirm(t("storesPage.deleteForeverConfirm"))) return;
+    }
+    const q = permanent ? "&force=1" : "";
+    const res = await fetch(
+      `/api/stores?id=${encodeURIComponent(id)}${q}`,
+      { method: "DELETE" }
+    );
     const data = await res.json();
     if (!res.ok) {
       setError(apiErrorMessage(data.error, t, "storesPage.error"));
@@ -421,32 +426,34 @@ export default function StoresPage() {
                 {isOwner ? (
                   <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
                     {s.isArchived ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        fullWidth={false}
-                        onClick={() => archiveStore(s.id, false)}
-                      >
-                        {t("storesPage.restore")}
-                      </Button>
+                      <>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          fullWidth={false}
+                          onClick={() => archiveStore(s.id, false)}
+                        >
+                          {t("storesPage.restore")}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="danger"
+                          fullWidth={false}
+                          onClick={() => deleteStore(s.id, true)}
+                        >
+                          {t("storesPage.deleteForever")}
+                        </Button>
+                      </>
                     ) : (
                       <Button
                         type="button"
                         variant="secondary"
                         fullWidth={false}
-                        onClick={() => archiveStore(s.id, true)}
+                        onClick={() => deleteStore(s.id, false)}
                       >
-                        {t("storesPage.archive")}
+                        {t("storesPage.delete")}
                       </Button>
                     )}
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      fullWidth={false}
-                      onClick={() => deleteStore(s.id)}
-                    >
-                      {t("storesPage.deleteSafe")}
-                    </Button>
                   </div>
                 ) : null}
               </Card>

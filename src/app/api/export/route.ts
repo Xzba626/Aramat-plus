@@ -80,6 +80,11 @@ export async function GET(req: Request) {
     const companyId = user!.companyId;
     const locale = resolveExportLocale(req);
     const t = exportTranslate(locale);
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { name: true },
+    });
+    const creator = company?.name?.trim() || "Aramat Plus";
 
     const suffix =
       type === "sales" || type === "analytics" || type === "expenses"
@@ -89,7 +94,7 @@ export async function GET(req: Request) {
 
     if (type === "products") {
       const rows = await prisma.product.findMany({
-        where: { companyId },
+        where: { companyId, kind: "STANDARD" },
         include: {
           category: true,
           productType: true,
@@ -99,6 +104,7 @@ export async function GET(req: Request) {
       });
       const buffer = await buildXlsxBuffer({
         sheetName: t("exportCsv.sheetProducts"),
+        creator,
         columns: [
           { header: t("exportCsv.colName"), key: "name", width: 28 },
           { header: t("exportCsv.colSku"), key: "sku", width: 14 },
@@ -145,6 +151,7 @@ export async function GET(req: Request) {
       });
       const buffer = await buildXlsxBuffer({
         sheetName: t("exportCsv.sheetSales"),
+        creator,
         columns: [
           { header: t("exportCsv.colDateTime"), key: "dt", width: 24 },
           { header: t("exportCsv.colStore"), key: "store", width: 20 },
@@ -188,6 +195,7 @@ export async function GET(req: Request) {
       });
       const buffer = await buildXlsxBuffer({
         sheetName: t("exportCsv.sheetExpenses"),
+        creator,
         columns: [
           { header: t("exportCsv.colExpenseType"), key: "type", width: 18 },
           { header: t("exportCsv.colStore"), key: "store", width: 18 },
@@ -254,6 +262,7 @@ export async function GET(req: Request) {
 
       const buffer = await buildXlsxBuffer({
         sheetName: t("exportCsv.sheetAnalytics"),
+        creator,
         columns: [
           { header: t("exportCsv.colMetric"), key: "metric", width: 28 },
           { header: t("exportCsv.colValue"), key: "value", width: 24 },

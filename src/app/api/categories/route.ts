@@ -94,7 +94,10 @@ export async function PATCH(req: Request) {
         name: body.name,
         lowStockThreshold: body.lowStockThreshold,
         ...(typeof data.isArchived === "boolean"
-          ? { isArchived: data.isArchived }
+          ? {
+              isArchived: data.isArchived,
+              archivedAt: data.isArchived ? new Date() : null,
+            }
           : {}),
       },
     });
@@ -116,23 +119,42 @@ export async function PATCH(req: Request) {
   }
 }
 
-/** Hard delete only when no products reference the category. */
+/** Delete = soft-archive. force=1 = permanent (only if unused). */
 export async function DELETE(req: Request) {
   try {
     const user = await getSessionUser();
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
 
+    const url = new URL(req.url);
     const id =
-      new URL(req.url).searchParams.get("id") ||
+      url.searchParams.get("id") ||
       ((await req.json().catch(() => ({}))) as { id?: string }).id;
     if (!id) return handleApiError(new Error("ID_REQUIRED"));
+    const force = url.searchParams.get("force") === "1";
 
     const existing = await prisma.category.findFirst({
       where: { id, companyId: user!.companyId },
       include: { _count: { select: { products: true } } },
     });
     if (!existing) return handleApiError(new Error("NOT_FOUND"));
+
+    if (!force) {
+      const item = await prisma.category.update({
+        where: { id },
+        data: { isArchived: true, archivedAt: new Date() },
+      });
+      await logActivity({
+        userId: user!.id,
+        companyId: user!.companyId,
+        action: "CATEGORY_ARCHIVE",
+        entityType: "Category",
+        entityId: id,
+        comment: item.name,
+      });
+      return jsonOk({ ok: true, archived: true });
+    }
+
     if (existing._count.products > 0) {
       return handleApiError(new Error("CATEGORY_IN_USE"));
     }
@@ -146,7 +168,7 @@ export async function DELETE(req: Request) {
       entityId: id,
       comment: existing.name,
     });
-    return jsonOk({ ok: true });
+    return jsonOk({ ok: true, purged: true });
   } catch (err) {
     return handleApiError(err);
   }

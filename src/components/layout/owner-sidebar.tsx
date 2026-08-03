@@ -27,6 +27,8 @@ import {
   type OwnerNavSection,
 } from "@/lib/navigation/owner-nav";
 import { useT } from "@/components/i18n/i18n-provider";
+import { BrandMark } from "@/components/company/brand-mark";
+import { useCompanyBrand } from "@/components/company/company-brand-provider";
 
 const ICONS: Record<string, LucideIcon> = {
   home: Home,
@@ -176,6 +178,7 @@ export function OwnerSidebar({
   onNavigate?: () => void;
 }) {
   const t = useT();
+  const { companyName } = useCompanyBrand();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const sections = filterNavForRole(role as Role);
@@ -208,7 +211,12 @@ export function OwnerSidebar({
         data-drawer-open={open ? "1" : "0"}
       >
         <div className="border-b border-white/8 px-4 py-4">
-          <Link href="/dashboard" className="flex items-center gap-3" onClick={onNavigate}>
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-3"
+            onClick={onNavigate}
+            title={companyName}
+          >
             <Image
               src="/logo-aramat-plus.png"
               alt=""
@@ -219,7 +227,7 @@ export function OwnerSidebar({
             />
             <div className="min-w-0">
               <div className="truncate text-sm font-bold leading-tight text-white">
-                AROMAT <span className="text-brand">PLUS</span>
+                <BrandMark accentClassName="text-brand" />
               </div>
               <div className="truncate text-[10px] tracking-wide text-white/40">
                 {t("app.tagline")}

@@ -1,5 +1,5 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager } from "@/lib/rbac";
+import { requireOwner } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { costSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
@@ -12,7 +12,7 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function POST(req: Request, ctx: Ctx) {
   try {
     const user = await getSessionUser();
-    const denied = requireOwnerOrManager(user);
+    const denied = requireOwner(user);
     if (denied) return denied;
     const { id } = await ctx.params;
     const body = costSchema.parse(await req.json());

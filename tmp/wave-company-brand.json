@@ -1,0 +1,14 @@
+{
+  "at": "2026-08-03T11:23:57.811Z",
+  "saveRoundTrip": true,
+  "restoredTo": "Aramat Plus",
+  "resolveCompanyName": true,
+  "brandMarkSplit": {
+    "head": "Aramat",
+    "accent": "Plus"
+  },
+  "i18nBrandAramat": true,
+  "hardcodedChromeLeft": [],
+  "logoNote": "public/logo-aramat-plus.png already spells ARAMAT (A) in the bitmap — no O typo in logo file",
+  "pass": true
+}

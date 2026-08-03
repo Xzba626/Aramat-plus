@@ -55,23 +55,40 @@ export default function WarehouseCategoriesPage() {
     load();
   }
 
-  async function archive(id: string, isArchived: boolean) {
+  /** Active → archive (unified Delete pattern). */
+  async function softDelete(id: string) {
+    setError("");
+    setMsg("");
+    const res = await fetch(`/api/categories?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t));
+      return;
+    }
+    setMsg(t("actions.categoryArchive"));
+    load();
+  }
+
+  async function restore(id: string) {
     setError("");
     await fetch("/api/categories", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, isArchived }),
+      body: JSON.stringify({ id, isArchived: false }),
     });
     load();
   }
 
-  async function remove(id: string) {
+  async function purge(id: string) {
     setError("");
     setMsg("");
-    if (!window.confirm(t("wh.categoryDeleteHint"))) return;
-    const res = await fetch(`/api/categories?id=${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    });
+    if (!window.confirm(t("wh.categoryDeleteForeverHint"))) return;
+    const res = await fetch(
+      `/api/categories?id=${encodeURIComponent(id)}&force=1`,
+      { method: "DELETE" }
+    );
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       setError(apiErrorMessage(data.error, t));
@@ -125,7 +142,10 @@ export default function WarehouseCategoriesPage() {
 
       <div className="space-y-2">
         {items.map((c) => (
-          <Card key={c.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <Card
+            key={c.id}
+            className="flex flex-wrap items-center justify-between gap-3 p-4"
+          >
             <div>
               <div className="font-semibold text-ink">{c.name}</div>
               <div className="text-xs text-muted">
@@ -134,31 +154,47 @@ export default function WarehouseCategoriesPage() {
                   ? ` · ${c.productCount} ${t("nav.products").toLowerCase()}`
                   : ""}
               </div>
-              {!c.canDelete && !c.isArchived ? (
-                <p className="mt-1 text-[11px] text-muted">{t("wh.categoryInUse")}</p>
+              {c.isArchived && !c.canDelete ? (
+                <p className="mt-1 text-[11px] text-muted">
+                  {t("wh.categoryInUse")}
+                </p>
               ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                fullWidth={false}
-                size="sm"
-                onClick={() => archive(c.id, !c.isArchived)}
-              >
-                {c.isArchived ? t("wh.restore") : t("wh.categoryArchive")}
-              </Button>
-              {c.canDelete ? (
+              {c.isArchived ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    fullWidth={false}
+                    size="sm"
+                    onClick={() => restore(c.id)}
+                  >
+                    {t("wh.restore")}
+                  </Button>
+                  {c.canDelete ? (
+                    <Button
+                      type="button"
+                      variant="danger"
+                      fullWidth={false}
+                      size="sm"
+                      onClick={() => purge(c.id)}
+                    >
+                      {t("wh.deleteForever")}
+                    </Button>
+                  ) : null}
+                </>
+              ) : (
                 <Button
                   type="button"
                   variant="secondary"
                   fullWidth={false}
                   size="sm"
-                  onClick={() => remove(c.id)}
+                  onClick={() => softDelete(c.id)}
                 >
-                  {t("wh.categoryDelete")}
+                  {t("wh.delete")}
                 </Button>
-              ) : null}
+              )}
             </div>
           </Card>
         ))}

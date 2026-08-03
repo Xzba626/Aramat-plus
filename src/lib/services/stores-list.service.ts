@@ -137,7 +137,12 @@ export async function listStoresForCompany(
 
       if (locationId) {
         const balances = await prisma.stockBalance.findMany({
-          where: { locationType, locationId, quantity: { gt: 0 } },
+          where: {
+            locationType,
+            locationId,
+            quantity: { gt: 0 },
+            product: { kind: "STANDARD" },
+          },
         });
         skuCount = balances.length;
         unitsTotal = balances.reduce((s, b) => s + decimalToNumber(b.quantity), 0);
@@ -147,6 +152,7 @@ export async function listStoresForCompany(
             locationType,
             locationId,
             quantity: { gt: 0 },
+            product: { kind: "STANDARD" },
           },
           select: { quantity: true, costPerUnit: true },
         });

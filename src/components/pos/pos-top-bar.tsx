@@ -8,16 +8,25 @@ import { Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { BrandMark } from "@/components/company/brand-mark";
+import { useCompanyBrand } from "@/components/company/company-brand-provider";
 
 export function PosTopBar({
   storeName,
+  companyName: companyNameProp,
 }: {
   storeName?: string | null;
+  companyName?: string | null;
 }) {
   const { data } = useSession();
   const { t, formatDate, formatTime } = useI18n();
+  const { companyName, setCompanyName } = useCompanyBrand();
   const [now, setNow] = useState(() => new Date());
   const [online, setOnline] = useState(true);
+
+  useEffect(() => {
+    if (companyNameProp) setCompanyName(companyNameProp);
+  }, [companyNameProp, setCompanyName]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -52,8 +61,8 @@ export function PosTopBar({
             priority
           />
           <div className="min-w-0">
-            <div className="truncate text-sm font-bold text-ink">
-              ARAMAT <span className="text-brand">PLUS</span>
+            <div className="truncate text-sm font-bold text-ink" title={companyName}>
+              <BrandMark />
             </div>
             <div className="truncate text-xs text-muted">
               {storeName || t("common.store")} ·{" "}

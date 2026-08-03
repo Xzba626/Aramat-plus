@@ -9,6 +9,7 @@ import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { breadcrumbsForPath } from "@/lib/navigation/owner-nav";
 import { useOwnerHotkeys } from "@/lib/hooks/use-owner-hotkeys";
 import { cn } from "@/lib/utils";
+import { useCompanyBrand } from "@/components/company/company-brand-provider";
 
 const DESKTOP_MIN = 1024;
 
@@ -20,19 +21,38 @@ export function OwnerShell({
   children,
   userName,
   role,
+  companyName,
 }: {
   children: ReactNode;
   userName: string;
   role: string;
+  companyName?: string | null;
 }) {
   const pathname = usePathname();
   const crumbs = breadcrumbsForPath(pathname);
   useOwnerHotkeys();
   const [navOpen, setNavOpen] = useState(true);
+  const { setCompanyName } = useCompanyBrand();
+
+  useEffect(() => {
+    if (companyName) setCompanyName(companyName);
+  }, [companyName, setCompanyName]);
 
   useEffect(() => {
     setNavOpen(window.innerWidth >= DESKTOP_MIN);
   }, []);
+
+  // Opportunistic archive TTL purge (once per browser session, OWNER only)
+  useEffect(() => {
+    if (role !== "OWNER") return;
+    try {
+      if (sessionStorage.getItem("archive-purge-ran") === "1") return;
+      sessionStorage.setItem("archive-purge-ran", "1");
+    } catch {
+      /* private mode */
+    }
+    void fetch("/api/settings/archive-retention").catch(() => undefined);
+  }, [role]);
 
   function toggleNav() {
     setNavOpen((v) => !v);

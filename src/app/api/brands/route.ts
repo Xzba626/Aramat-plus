@@ -74,7 +74,10 @@ export async function PATCH(req: Request) {
         name: body.name,
         imageUrl: body.imageUrl === undefined ? undefined : body.imageUrl,
         ...(typeof data.isArchived === "boolean"
-          ? { isArchived: data.isArchived }
+          ? {
+              isArchived: data.isArchived,
+              archivedAt: data.isArchived ? new Date() : null,
+            }
           : {}),
       },
     });
@@ -94,6 +97,38 @@ export async function PATCH(req: Request) {
   }
 }
 
-export async function DELETE() {
-  return handleApiError(new Error("ARCHIVE_ONLY"));
+export async function DELETE(req: Request) {
+  try {
+    const user = await getSessionUser();
+    const denied = requireOwnerOrManager(user);
+    if (denied) return denied;
+    const id = new URL(req.url).searchParams.get("id");
+    if (!id) return handleApiError(new Error("ID_REQUIRED"));
+    const force = new URL(req.url).searchParams.get("force") === "1";
+    const existing = await prisma.brand.findFirst({
+      where: { id, companyId: user!.companyId },
+    });
+    if (!existing) return handleApiError(new Error("BRAND_NOT_FOUND"));
+    if (force) {
+      const used = await prisma.product.count({ where: { brandId: id } });
+      if (used > 0) return handleApiError(new Error("ARCHIVE_ONLY"));
+      await prisma.brand.delete({ where: { id } });
+      return jsonOk({ ok: true, purged: true });
+    }
+    const item = await prisma.brand.update({
+      where: { id },
+      data: { isArchived: true, archivedAt: new Date() },
+    });
+    await logActivity({
+      userId: user!.id,
+      companyId: user!.companyId,
+      action: "BRAND_ARCHIVE",
+      entityType: "Brand",
+      entityId: id,
+      comment: item.name,
+    });
+    return jsonOk({ ok: true, archived: true });
+  } catch (err) {
+    return handleApiError(err);
+  }
 }

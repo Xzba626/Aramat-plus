@@ -29,6 +29,7 @@ type Product = {
   salePrice: string | number;
   defaultCostPerUnit?: string | number | null;
   accountingType: string;
+  isActive?: boolean;
   brand?: { name: string } | null;
   unit?: { symbol: string } | null;
   category?: { name: string } | null;
@@ -43,8 +44,8 @@ export default function ProductDetailPage() {
   const search = useSearchParams();
   const { data: session } = useSession();
   const { t, formatMoney, formatDateTime } = useI18n();
-  const showCost =
-    session?.user?.role === Role.OWNER || session?.user?.role === Role.MANAGER;
+  const isOwner = session?.user?.role === Role.OWNER;
+  const showCost = isOwner || session?.user?.role === Role.MANAGER;
   const [product, setProduct] = useState<Product | null>(null);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
@@ -154,7 +155,7 @@ export default function ProductDetailPage() {
       return;
     }
 
-    if (!keepPrice && newSalePrice) {
+    if (!keepPrice && newSalePrice && isOwner) {
       await fetch(`/api/products/${id}/price`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -190,11 +191,73 @@ export default function ProductDetailPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
-      <PageHeader title={product.name} />
+      <PageHeader
+        title={product.name}
+        actions={
+          isOwner ? (
+            <div className="flex flex-wrap gap-2">
+              {product.isActive !== false ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  fullWidth={false}
+                  onClick={async () => {
+                    if (!window.confirm(t("wh.productDeleteConfirm"))) return;
+                    const res = await fetch(`/api/products/${id}`, {
+                      method: "DELETE",
+                    });
+                    if (res.ok) router.push("/warehouse/products?status=archived");
+                  }}
+                >
+                  {t("wh.delete")}
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    fullWidth={false}
+                    onClick={async () => {
+                      await fetch(`/api/products/${id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ isActive: true }),
+                      });
+                      load();
+                    }}
+                  >
+                    {t("wh.restore")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    fullWidth={false}
+                    onClick={async () => {
+                      if (!window.confirm(t("wh.productDeleteForeverConfirm")))
+                        return;
+                      const res = await fetch(`/api/products/${id}?force=1`, {
+                        method: "DELETE",
+                      });
+                      if (res.ok) router.push("/warehouse/products");
+                    }}
+                  >
+                    {t("wh.deleteForever")}
+                  </Button>
+                </>
+              )}
+            </div>
+          ) : null
+        }
+      />
 
       <Card className="p-5 sm:p-6">
         <div className="mb-4 flex items-start gap-4">
-          <label className="relative block h-20 w-20 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-border bg-page">
+          <label
+            className={cn(
+              "relative block h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-border bg-page",
+              isOwner ? "cursor-pointer" : "cursor-default"
+            )}
+          >
             {product.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -207,17 +270,23 @@ export default function ProductDetailPage() {
                 {t("warehouse.productPhoto")}
               </span>
             )}
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="sr-only"
-              disabled={photoBusy}
-              onChange={(e) => onPhotoChange(e.target.files?.[0] ?? null)}
-            />
+            {isOwner ? (
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="sr-only"
+                disabled={photoBusy}
+                onChange={(e) => onPhotoChange(e.target.files?.[0] ?? null)}
+              />
+            ) : null}
           </label>
-          <p className="text-xs text-muted">
-            {photoBusy ? t("warehouse.productPhotoUploading") : t("warehouse.productPhotoUpload")}
-          </p>
+          {isOwner ? (
+            <p className="text-xs text-muted">
+              {photoBusy
+                ? t("warehouse.productPhotoUploading")
+                : t("warehouse.productPhotoUpload")}
+            </p>
+          ) : null}
         </div>
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <div>
@@ -353,10 +422,11 @@ export default function ProductDetailPage() {
                 type="checkbox"
                 checked={keepPrice}
                 onChange={(e) => setKeepPrice(e.target.checked)}
+                disabled={!isOwner}
               />
               {t("warehouse.productBatchKeepPrice")}
             </label>
-            {!keepPrice ? (
+            {isOwner && !keepPrice ? (
               <div>
                 <FieldLabel>{t("warehouse.productSalePrice")}</FieldLabel>
                 <input

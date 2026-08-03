@@ -7,6 +7,10 @@ import {
   saleGrossMetricsNetOfReturnsSync,
   withNetProfit,
 } from "@/lib/services/profit.service";
+import {
+  isMerchandiseProduct,
+  merchandiseProductWhere,
+} from "@/lib/product-kind";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -79,7 +83,9 @@ export async function getDashboardPayload(companyId: string) {
         },
         include: {
           items: {
-            include: { product: { select: { id: true, name: true } } },
+            include: {
+              product: { select: { id: true, name: true, kind: true } },
+            },
           },
           store: { select: { id: true, name: true } },
         },
@@ -140,13 +146,14 @@ export async function getDashboardPayload(companyId: string) {
   ];
   if (productIds.length) {
     const products = await prisma.product.findMany({
-      where: { id: { in: productIds } },
+      where: merchandiseProductWhere({ id: { in: productIds } }),
       select: { id: true, accountingType: true },
     });
     const typeMap = new Map(products.map((p) => [p.id, p.accountingType]));
     for (const sale of salesToday) {
       for (const it of sale.items) {
         if (it.isGift) continue;
+        if (!isMerchandiseProduct(it.product)) continue;
         const qty = decimalToNumber(it.quantity);
         if (typeMap.get(it.productId) === "WEIGHT") weightSold += qty;
         else pieceSold += qty;
@@ -164,6 +171,7 @@ export async function getDashboardPayload(companyId: string) {
     for (const sale of storeSales) {
       for (const it of sale.items) {
         if (it.isGift) continue;
+        if (!isMerchandiseProduct(it.product)) continue;
         const rev =
           decimalToNumber(it.quantity) * decimalToNumber(it.salePrice);
         const prev = productRev.get(it.productId);
@@ -204,7 +212,7 @@ export async function getDashboardPayload(companyId: string) {
         where: {
           locationType: LocationType.WAREHOUSE,
           locationId: warehouse.id,
-          product: { companyId, isActive: true },
+          product: merchandiseProductWhere({ companyId, isActive: true }),
         },
         include: {
           product: {
@@ -240,6 +248,7 @@ export async function getDashboardPayload(companyId: string) {
             locationType: LocationType.WAREHOUSE,
             locationId: warehouse.id,
             quantity: { gt: 0 },
+            product: merchandiseProductWhere({ companyId }),
           },
           select: { quantity: true },
         })

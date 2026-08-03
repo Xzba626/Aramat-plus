@@ -141,7 +141,12 @@ export async function getStoreDetail(companyId: string, storeId: string) {
   let skuCount = 0;
   if (locationId) {
     skuCount = await prisma.stockBalance.count({
-      where: { locationType, locationId, quantity: { gt: 0 } },
+      where: {
+        locationType,
+        locationId,
+        quantity: { gt: 0 },
+        product: { kind: "STANDARD" },
+      },
     });
   }
 
@@ -222,14 +227,15 @@ export async function getStoreStockPaged(
     where: {
       locationType: loc.locationType,
       locationId: loc.locationId,
-      ...(query.categoryId || query.brandId
-        ? {
-            product: {
+      product: {
+        kind: "STANDARD",
+        ...(query.categoryId || query.brandId
+          ? {
               ...(query.categoryId ? { categoryId: query.categoryId } : {}),
               ...(query.brandId ? { brandId: query.brandId } : {}),
-            },
-          }
-        : {}),
+            }
+          : {}),
+      },
     },
     include: {
       product: {

@@ -1,0 +1,52 @@
+{
+  "mode": "APPLY",
+  "at": "2026-08-03T11:14:17.540Z",
+  "note": "ZT* / WaveG* rows are leftovers from local Cursor proof scripts that wrote into the same DB the owner uses (no separate test DB).",
+  "products": [
+    {
+      "id": "cmsd3muxj0009ky0492nt8uhc",
+      "name": "100 мл",
+      "sku": null,
+      "kind": "PACKAGING",
+      "isActive": true,
+      "companyId": "cmsak3myr0000umaks2m7dvl3",
+      "createdAt": "2026-08-03T10:41:21.176Z"
+    },
+    {
+      "id": "cmscyxrgb0001umrwrmectju3",
+      "name": "ZT Rev 1785745791801",
+      "sku": null,
+      "kind": "STANDARD",
+      "isActive": true,
+      "companyId": "cmsak3myr0000umaks2m7dvl3",
+      "createdAt": "2026-08-03T08:29:51.803Z"
+    },
+    {
+      "id": "cmscwnc300003um0gjqx4y325",
+      "name": "ZT Rev 1785741946090",
+      "sku": null,
+      "kind": "STANDARD",
+      "isActive": true,
+      "companyId": "cmsak3myr0000umaks2m7dvl3",
+      "createdAt": "2026-08-03T07:25:46.092Z"
+    }
+  ],
+  "brands": [],
+  "categories": [],
+  "stores": [],
+  "packagingActiveSample": [
+    {
+      "id": "cmsbk5vi3000nla04r01a1ush",
+      "name": "Флакон 5 мл · стекло"
+    },
+    {
+      "id": "cmsbk5w5k000tla044p77ped9",
+      "name": "Флакон 10 мл · стекло"
+    },
+    {
+      "id": "cmsd3muxj0009ky0492nt8uhc",
+      "name": "100 мл"
+    }
+  ],
+  "packagingActiveCount": 3
+}

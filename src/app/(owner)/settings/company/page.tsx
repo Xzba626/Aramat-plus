@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/module-workspace";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
+import { notifyCompanyBrandUpdated } from "@/components/company/company-brand-provider";
 
 type CompanyForm = {
   id: string;
@@ -32,12 +33,20 @@ export default function CompanySettingsPage() {
   const [masterMsg, setMasterMsg] = useState("");
   const [masterError, setMasterError] = useState("");
   const [masterSaving, setMasterSaving] = useState(false);
+  const [retentionDays, setRetentionDays] = useState(30);
+  const [retentionMsg, setRetentionMsg] = useState("");
+  const [retentionSaving, setRetentionSaving] = useState(false);
 
   useEffect(() => {
-    Promise.all([fetch("/api/company"), fetch("/api/settings/wipe-master")])
-      .then(async ([companyRes, masterRes]) => {
+    Promise.all([
+      fetch("/api/company"),
+      fetch("/api/settings/wipe-master"),
+      fetch("/api/settings/archive-retention"),
+    ])
+      .then(async ([companyRes, masterRes, retRes]) => {
         const d = await companyRes.json();
         const m = await masterRes.json();
+        const r = await retRes.json();
         if (d?.id) setForm({ id: d.id, name: d.name, currency: d.currency });
         else setError(apiErrorMessage(d.error, t, "common.error"));
         if (masterRes.ok) {
@@ -45,6 +54,7 @@ export default function CompanySettingsPage() {
           setMasterHint(m.hint ?? null);
           setMasterHintInput(m.hint ?? "");
         }
+        if (retRes.ok && typeof r.days === "number") setRetentionDays(r.days);
         setLoading(false);
       })
       .catch(() => {
@@ -52,6 +62,25 @@ export default function CompanySettingsPage() {
         setLoading(false);
       });
   }, [t]);
+
+  async function onSaveRetention(e: FormEvent) {
+    e.preventDefault();
+    setRetentionSaving(true);
+    setRetentionMsg("");
+    const res = await fetch("/api/settings/archive-retention", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ days: retentionDays }),
+    });
+    const data = await res.json();
+    setRetentionSaving(false);
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t, "common.error"));
+      return;
+    }
+    setRetentionDays(data.days);
+    setRetentionMsg(t("settingsSub.archiveRetentionSaved"));
+  }
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
@@ -71,6 +100,7 @@ export default function CompanySettingsPage() {
       return;
     }
     setForm({ id: data.id, name: data.name, currency: data.currency });
+    notifyCompanyBrandUpdated(data.name);
     setMsg(t("settingsSub.save"));
   }
 
@@ -182,6 +212,34 @@ export default function CompanySettingsPage() {
           ) : (
             <p className="text-sm text-danger">{error || t("common.error")}</p>
           )}
+        </Card>
+      </ModuleSection>
+
+      <ModuleSection title={t("settingsSub.archiveRetention")}>
+        <Card className="max-w-xl space-y-3 p-5">
+          <p className="text-sm text-muted">
+            {t("settingsSub.archiveRetentionHint")}
+          </p>
+          <form onSubmit={onSaveRetention} className="flex flex-wrap items-end gap-3">
+            <div>
+              <FieldLabel>{t("settingsSub.archiveRetention")}</FieldLabel>
+              <input
+                type="number"
+                min={1}
+                max={3650}
+                className="w-32 rounded-xl border border-border bg-page px-3 py-2.5 text-sm"
+                value={retentionDays}
+                onChange={(e) => setRetentionDays(Number(e.target.value) || 30)}
+                required
+              />
+            </div>
+            <Button type="submit" fullWidth={false} disabled={retentionSaving}>
+              {retentionSaving ? t("common.loading") : t("settingsSub.save")}
+            </Button>
+          </form>
+          {retentionMsg ? (
+            <p className="text-sm text-success">{retentionMsg}</p>
+          ) : null}
         </Card>
       </ModuleSection>
 

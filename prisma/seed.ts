@@ -1,10 +1,15 @@
 import { PrismaClient, AccountingType, Role, LocationType, StoreKind } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import {
+  SEED_OWNER_EMAIL,
+  SEED_OWNER_NAME,
+  SEED_OWNER_PASSWORD,
+} from "../src/lib/seed-defaults";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("Seeding Aromat Plus…");
+  console.log("Seeding Aramat Plus…");
 
   await prisma.activityLog.deleteMany();
   await prisma.notification.deleteMany();
@@ -37,7 +42,7 @@ async function main() {
   await prisma.company.deleteMany();
 
   const company = await prisma.company.create({
-    data: { name: "Aromat Plus", currency: "TJS" },
+    data: { name: "Aramat Plus", currency: "TJS" },
   });
 
   const warehouse = await prisma.warehouse.create({
@@ -117,14 +122,14 @@ async function main() {
     },
   });
 
-  const ownerHash = await bcrypt.hash("owner1234", 10);
+  const ownerHash = await bcrypt.hash(SEED_OWNER_PASSWORD, 10);
   const managerHash = await bcrypt.hash("manager1234", 10);
   const sellerHash = await bcrypt.hash("seller1234", 10);
 
   const owner = await prisma.user.create({
     data: {
-      email: "owner@aromat.plus",
-      name: "Владелец",
+      email: SEED_OWNER_EMAIL,
+      name: SEED_OWNER_NAME,
       passwordHash: ownerHash,
       role: Role.OWNER,
       companyId: company.id,
@@ -350,7 +355,7 @@ async function main() {
   }
 
   console.log("Seed complete.");
-  console.log("  Owner:   owner@aromat.plus / owner1234");
+  console.log(`  Owner:   ${SEED_OWNER_EMAIL} / ${SEED_OWNER_PASSWORD}`);
   console.log("  Manager: manager@aromat.plus / manager1234");
   console.log("  Seller:  seller@aromat.plus / seller1234");
   console.log(`  Warehouse: ${warehouse.name}`);

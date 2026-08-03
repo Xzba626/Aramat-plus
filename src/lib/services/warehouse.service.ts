@@ -101,6 +101,7 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
       where: {
         locationType: LocationType.WAREHOUSE,
         locationId: warehouse.id,
+        product: { companyId, kind: "STANDARD" },
       },
       include: {
         product: { select: { id: true, name: true, minStock: true, salePrice: true, isActive: true } },
@@ -199,6 +200,7 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
       locationType: LocationType.WAREHOUSE,
       locationId: warehouse.id,
       quantity: { gt: 0 },
+      product: { companyId, kind: "STANDARD" },
     },
     select: { quantity: true, costPerUnit: true },
   });
@@ -339,7 +341,7 @@ export async function getWarehouseStockBreakdown(companyId: string, showFinance:
         { locationType: LocationType.WAREHOUSE, locationId: warehouse.id },
         { locationType: LocationType.STORE },
       ],
-      product: { companyId },
+      product: { companyId, kind: "STANDARD" },
     },
     include: {
       product: {

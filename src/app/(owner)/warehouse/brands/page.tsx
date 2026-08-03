@@ -49,12 +49,41 @@ export default function WarehouseBrandsPage() {
     load();
   }
 
-  async function archive(id: string, isArchived: boolean) {
+  async function softDelete(id: string) {
+    setError("");
+    const res = await fetch(`/api/brands?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t));
+      return;
+    }
+    load();
+  }
+
+  async function restore(id: string) {
+    setError("");
     await fetch("/api/brands", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, isArchived }),
+      body: JSON.stringify({ id, isArchived: false }),
     });
+    load();
+  }
+
+  async function purge(id: string) {
+    setError("");
+    if (!window.confirm(t("wh.brandDeleteForeverHint"))) return;
+    const res = await fetch(
+      `/api/brands?id=${encodeURIComponent(id)}&force=1`,
+      { method: "DELETE" }
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t));
+      return;
+    }
     load();
   }
 
@@ -98,24 +127,56 @@ export default function WarehouseBrandsPage() {
         </Card>
       ) : null}
 
+      {error && showArchived ? (
+        <p className="text-sm text-danger">{error}</p>
+      ) : null}
+
       <div className="space-y-2">
         {items.map((b) => (
-          <Card key={b.id} className="flex items-center justify-between gap-3 p-4">
+          <Card
+            key={b.id}
+            className="flex items-center justify-between gap-3 p-4"
+          >
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-soft text-lg">
                 🏷
               </div>
               <div className="font-semibold text-ink">{b.name}</div>
             </div>
-            <Button
-              type="button"
-              variant="secondary"
-              fullWidth={false}
-              size="sm"
-              onClick={() => archive(b.id, !b.isArchived)}
-            >
-              {b.isArchived ? t("wh.restore") : t("wh.brandsArchive")}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {b.isArchived ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    fullWidth={false}
+                    size="sm"
+                    onClick={() => restore(b.id)}
+                  >
+                    {t("wh.restore")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    fullWidth={false}
+                    size="sm"
+                    onClick={() => purge(b.id)}
+                  >
+                    {t("wh.deleteForever")}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  fullWidth={false}
+                  size="sm"
+                  onClick={() => softDelete(b.id)}
+                >
+                  {t("wh.delete")}
+                </Button>
+              )}
+            </div>
           </Card>
         ))}
         {items.length === 0 ? (

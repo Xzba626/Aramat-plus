@@ -7,11 +7,14 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { FieldLabel, Card } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { BrandMark } from "@/components/company/brand-mark";
+import { useCompanyBrand } from "@/components/company/company-brand-provider";
 
 export default function LoginPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useI18n();
+  const { companyName } = useCompanyBrand();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -45,12 +48,15 @@ export default function LoginPageClient() {
         <div className="mb-6 flex flex-col items-center text-center">
           <Image
             src="/logo-aramat-plus.png"
-            alt="ARAMAT PLUS"
+            alt={companyName}
             width={220}
             height={80}
             className="mb-4 h-auto w-[200px] rounded-xl"
             priority
           />
+          <h1 className="mb-1 text-xl font-bold text-ink">
+            <BrandMark />
+          </h1>
           <p className="text-sm text-muted">{t("login.tagline")}</p>
         </div>
 

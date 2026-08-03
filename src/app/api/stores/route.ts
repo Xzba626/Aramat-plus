@@ -78,6 +78,7 @@ export async function PATCH(req: Request) {
           companyId: user!.companyId,
           storeId: id,
           actorId: user!.id,
+          force: data.force === true,
         })
       );
     }
@@ -149,13 +150,16 @@ export async function DELETE(req: Request) {
     const user = await getSessionUser();
     const denied = requireOwner(user);
     if (denied) return denied;
-    const id = new URL(req.url).searchParams.get("id");
+    const url = new URL(req.url);
+    const id = url.searchParams.get("id");
     if (!id) return handleApiError(new Error("ID_REQUIRED"));
+    const force = url.searchParams.get("force") === "1";
     return jsonOk(
       await hardDeleteStore({
         companyId: user!.companyId,
         storeId: id,
         actorId: user!.id,
+        force,
       })
     );
   } catch (err) {

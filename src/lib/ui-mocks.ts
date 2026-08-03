@@ -182,10 +182,10 @@ export const MOCK_OWNER_POS_CATALOG = [
 ];
 
 export const MOCK_COMPANY = {
-  name: "AROMAT PLUS",
-  legalName: "ООО «Аромат Плюс»",
+  name: "Aramat Plus",
+  legalName: "ООО «Арамат Плюс»",
   phone: "+992 90 000 00 00",
-  email: "office@aromat.plus",
+  email: "office@aramat.plus",
   address: "Душанбе, Таджикистан",
   currency: "TJS (сомони)",
   timezone: "Asia/Dushanbe",

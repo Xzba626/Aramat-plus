@@ -114,8 +114,9 @@ export async function archiveStore(params: {
     where: { id: store.id },
     data: {
       isArchived: params.archive,
-      isActive: params.archive ? false : store.isActive,
-      status: params.archive ? StoreStatus.CLOSED : store.status,
+      isActive: params.archive ? false : true,
+      status: params.archive ? StoreStatus.CLOSED : StoreStatus.ACTIVE,
+      archivedAt: params.archive ? new Date() : null,
     },
   });
 
@@ -135,28 +136,37 @@ export async function hardDeleteStore(params: {
   companyId: string;
   storeId: string;
   actorId: string;
+  /** Permanent purge (cascade). Without force → soft-archive. */
+  force?: boolean;
 }) {
   const store = await prisma.store.findFirst({
     where: { id: params.storeId, companyId: params.companyId },
   });
   if (!store) throw new Error("STORE_NOT_FOUND");
   if (store.kind === StoreKind.OWNER_DIRECT) throw new Error("VALIDATION_ERROR");
-  if (await storeHasHistory(store.id)) throw new Error("ARCHIVE_ONLY");
 
-  await prisma.$transaction(async (tx) => {
-    await tx.store.delete({ where: { id: store.id } });
-    await logActivity({
-      tx,
-      userId: params.actorId,
-      companyId: params.companyId,
-      action: "STORE_UPDATE",
-      entityType: "Store",
-      entityId: store.id,
-      comment: `delete:${store.name}`,
-    });
+  // Unified pattern: "Delete" = archive first
+  if (!params.force) {
+    if (!store.isArchived) {
+      await archiveStore({
+        companyId: params.companyId,
+        storeId: store.id,
+        actorId: params.actorId,
+        archive: true,
+      });
+    }
+    return { ok: true as const, archived: true as const };
+  }
+
+  const { forceDeleteStoreCascade } = await import(
+    "@/lib/services/archive-retention.service"
+  );
+  await forceDeleteStoreCascade({
+    companyId: params.companyId,
+    storeId: store.id,
+    actorId: params.actorId,
   });
-
-  return { ok: true };
+  return { ok: true as const, purged: true as const };
 }
 
 /** True if user has sales/history/bindings — archive only. */

@@ -3,6 +3,11 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { verifyWipeMasterPassword } from "@/lib/services/wipe-master.service";
+import {
+  SEED_OWNER_EMAIL,
+  SEED_OWNER_NAME,
+  SEED_OWNER_PASSWORD,
+} from "@/lib/seed-defaults";
 
 export const CRM_WIPE_PHRASE = "WIPE";
 
@@ -10,9 +15,11 @@ type Tx = Prisma.TransactionClient;
 
 /**
  * Owner-only CRM wipe.
- * KEEP: Company, Owner account (never deleted), Warehouse, Setting, Unit/ProductType/OperationType/ExpenseType,
+ * KEEP: Company, Owner account row (credentials reset to seed), Warehouse,
+ *        Setting (incl. wipe master / retention), Unit/ProductType/OperationType/ExpenseType,
  *        OWNER_DIRECT store shell.
  * WIPE: operational + catalog data, BRANCH stores, non-owner users, journals.
+ * After wipe: owner email/password = seed defaults (factory login).
  */
 export async function wipeCompanyOperationalData(params: {
   companyId: string;
@@ -40,9 +47,23 @@ export async function wipeCompanyOperationalData(params: {
 
   await verifyWipeMasterPassword(params.companyId, params.masterPassword);
 
+  const passwordHash = await bcrypt.hash(SEED_OWNER_PASSWORD, 10);
+
   await prisma.$transaction(
     async (tx) => {
       await wipeInTransaction(tx, params.companyId);
+      // Factory credentials — owner must re-login with seed email/password
+      await tx.user.update({
+        where: { id: owner.id },
+        data: {
+          email: SEED_OWNER_EMAIL,
+          name: SEED_OWNER_NAME,
+          passwordHash,
+          failedLoginCount: 0,
+          lockedUntil: null,
+          storeId: null,
+        },
+      });
     },
     { maxWait: 15_000, timeout: 120_000 }
   );
@@ -53,10 +74,14 @@ export async function wipeCompanyOperationalData(params: {
     action: "CRM_WIPE",
     entityType: "Company",
     entityId: params.companyId,
-    comment: "Operational CRM data wiped; Owner/settings kept",
+    comment: `Wiped; owner reset to ${SEED_OWNER_EMAIL}`,
   });
 
-  return { ok: true as const };
+  return {
+    ok: true as const,
+    ownerEmail: SEED_OWNER_EMAIL,
+    ownerPasswordReset: true as const,
+  };
 }
 
 async function wipeInTransaction(tx: Tx, companyId: string) {
@@ -131,7 +156,6 @@ async function wipeInTransaction(tx: Tx, companyId: string) {
     data: { managerId: null },
   });
 
-  // Clear store bindings on remaining users before deleting non-owners
   await tx.user.updateMany({
     where: { companyId },
     data: { storeId: null },
@@ -140,13 +164,11 @@ async function wipeInTransaction(tx: Tx, companyId: string) {
   await tx.user.deleteMany({
     where: { companyId, role: { not: Role.OWNER } },
   });
-  // Owner user is intentionally never deleted — only non-owner staff are removed.
 
   await tx.store.deleteMany({
     where: { companyId, kind: StoreKind.BRANCH },
   });
 
-  // Ensure OWNER_DIRECT shell exists
   const direct = await tx.store.findFirst({
     where: { companyId, kind: StoreKind.OWNER_DIRECT },
   });

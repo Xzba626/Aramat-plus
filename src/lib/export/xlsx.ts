@@ -12,9 +12,10 @@ export async function buildXlsxBuffer(params: {
   columns: SheetColumn[];
   rows: Array<Record<string, string | number | boolean | null | undefined>>;
   locale?: Locale;
+  creator?: string;
 }): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Aramat Plus";
+  workbook.creator = params.creator?.trim() || "Aramat Plus";
   workbook.created = new Date();
 
   const sheet = workbook.addWorksheet(
