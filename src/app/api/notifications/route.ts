@@ -1,5 +1,6 @@
 import { Role } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
+import { scopedStoreId } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
@@ -28,12 +29,15 @@ export async function GET() {
       };
     });
 
-    // Owner/Manager also see dashboard attention chips
+    // Owner/Manager also see dashboard attention chips (manager: own store only)
     if (user.role === Role.OWNER || user.role === Role.MANAGER) {
       const { getDashboardPayload } = await import(
         "@/lib/services/dashboard.service"
       );
-      const dash = await getDashboardPayload(user.companyId);
+      const scope = scopedStoreId(user);
+      const dash = await getDashboardPayload(user.companyId, {
+        storeId: scope === undefined ? undefined : scope,
+      });
       const fromDash = dash.notifications.map((n) => ({
         id: n.id,
         type: n.tone,

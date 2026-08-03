@@ -68,6 +68,7 @@ async function main() {
     role: Role.MANAGER,
     password: "manager1234",
     companyId: company.id,
+    storeId: store?.id ?? null,
   });
   await upsertUser({
     email: "seller@aromat.plus",

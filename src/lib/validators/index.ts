@@ -50,7 +50,19 @@ export const productSchema = z.object({
   sku: z.string().max(80).optional().nullable(),
   barcode: z.string().max(80).optional().nullable(),
   description: z.string().max(2000).optional().nullable(),
-  imageUrl: z.string().max(2_000_000).optional().nullable(),
+  imageUrl: z
+    .string()
+    .max(2048)
+    .optional()
+    .nullable()
+    .refine(
+      (v) =>
+        v == null ||
+        v === "" ||
+        v.startsWith("/uploads/") ||
+        (v.startsWith("data:image/") && v.length <= 12_000),
+      { message: "IMAGE_URL_INVALID" }
+    ),
   categoryId: z.string().optional().nullable(),
   brandId: z.string().optional().nullable(),
   unitId: z.string().optional().nullable(),

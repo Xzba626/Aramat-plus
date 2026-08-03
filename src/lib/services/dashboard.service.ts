@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
-import { LocationType } from "@prisma/client";
+import { LocationType, StoreKind } from "@prisma/client";
 import { sumAllocatedExpenses } from "@/lib/services/expense.service";
 import {
   loadApprovedReturnLines,
@@ -78,7 +78,7 @@ export async function getDashboardPayload(
   const storeWhere = {
     companyId,
     isActive: true,
-    kind: { in: ["BRANCH", "OWNER_DIRECT"] as const },
+    kind: { in: ["BRANCH", "OWNER_DIRECT"] as StoreKind[] },
     ...(storeIdFilter ? { id: storeIdFilter } : {}),
   };
 

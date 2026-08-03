@@ -13,6 +13,11 @@ import { useI18n } from "@/components/i18n/i18n-provider";
 import { labelRole } from "@/lib/i18n/labels";
 import { BrandMark } from "@/components/company/brand-mark";
 import { useCompanyBrand } from "@/components/company/company-brand-provider";
+import {
+  NotificationBadge,
+  useUnreadNotifications,
+} from "@/components/pwa/notification-badge";
+import { SyncStatusDot } from "@/components/pwa/sync-status";
 
 function initials(name: string) {
   return name
@@ -59,6 +64,7 @@ export function OwnerTopBar({
 
   const dateLabel = now ? formatDate(now) : "—";
   const timeLabel = now ? formatTime(now) : "--:--";
+  const { unread } = useUnreadNotifications();
 
   return (
     <header className="sticky top-0 z-[60] border-b border-border bg-card/95 backdrop-blur">
@@ -109,6 +115,7 @@ export function OwnerTopBar({
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <SyncStatusDot />
           <LanguageSwitcher className="hidden sm:inline-flex" />
 
           <Link
@@ -117,6 +124,7 @@ export function OwnerTopBar({
             title={t("topbar.notifications")}
           >
             <Bell className="h-[18px] w-[18px]" strokeWidth={1.75} />
+            <NotificationBadge count={unread} />
           </Link>
 
           <div className="relative" ref={profileRef}>

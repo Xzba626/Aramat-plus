@@ -1,5 +1,9 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager, scopedStoreId } from "@/lib/rbac";
+import {
+  canViewWarehouseFinance,
+  requireOwnerOrManager,
+  scopedStoreId,
+} from "@/lib/rbac";
 import { handleApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
@@ -100,6 +104,7 @@ export async function GET(req: Request) {
     const filename = `aramat-${type}${suffix}.xlsx`;
 
     if (type === "products") {
+      const showCost = canViewWarehouseFinance(user!);
       const rows = await prisma.product.findMany({
         where: { companyId, kind: "STANDARD" },
         include: {
@@ -109,29 +114,36 @@ export async function GET(req: Request) {
         },
         orderBy: { name: "asc" },
       });
+      const columns = [
+        { header: t("exportCsv.colName"), key: "name", width: 28 },
+        { header: t("exportCsv.colSku"), key: "sku", width: 14 },
+        { header: t("exportCsv.colBarcode"), key: "barcode", width: 16 },
+        { header: t("exportCsv.colSalePrice"), key: "salePrice", width: 12 },
+        ...(showCost
+          ? [{ header: t("exportCsv.colCost"), key: "cost", width: 12 }]
+          : []),
+        { header: t("exportCsv.colCategory"), key: "category", width: 18 },
+        { header: t("exportCsv.colType"), key: "type", width: 14 },
+        { header: t("exportCsv.colBrand"), key: "brand", width: 16 },
+        { header: t("exportCsv.colActive"), key: "active", width: 10 },
+      ];
       const buffer = await buildXlsxBuffer({
         sheetName: t("exportCsv.sheetProducts"),
         creator,
-        columns: [
-          { header: t("exportCsv.colName"), key: "name", width: 28 },
-          { header: t("exportCsv.colSku"), key: "sku", width: 14 },
-          { header: t("exportCsv.colBarcode"), key: "barcode", width: 16 },
-          { header: t("exportCsv.colSalePrice"), key: "salePrice", width: 12 },
-          { header: t("exportCsv.colCost"), key: "cost", width: 12 },
-          { header: t("exportCsv.colCategory"), key: "category", width: 18 },
-          { header: t("exportCsv.colType"), key: "type", width: 14 },
-          { header: t("exportCsv.colBrand"), key: "brand", width: 16 },
-          { header: t("exportCsv.colActive"), key: "active", width: 10 },
-        ],
+        columns,
         rows: rows.map((p) => ({
           name: p.name,
           sku: p.sku,
           barcode: p.barcode,
           salePrice: decimalToNumber(p.salePrice),
-          cost:
-            p.defaultCostPerUnit != null
-              ? decimalToNumber(p.defaultCostPerUnit)
-              : "",
+          ...(showCost
+            ? {
+                cost:
+                  p.defaultCostPerUnit != null
+                    ? decimalToNumber(p.defaultCostPerUnit)
+                    : "",
+              }
+            : {}),
           category: p.category?.name ?? "",
           type: labelProductType(p.productType?.name, t),
           brand: p.brand?.name ?? "",

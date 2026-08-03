@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils";
 import { usePosCart } from "@/lib/stores/pos-cart";
 import { useI18n } from "@/components/i18n/i18n-provider";
@@ -9,6 +11,7 @@ import { apiErrorMessage } from "@/lib/i18n/labels";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel } from "@/components/ui/card";
 import { ProductCard } from "@/components/products/product-card";
+import { useSyncStatus } from "@/components/pwa/sync-status";
 
 type CatalogItem = {
   productId: string;
@@ -35,20 +38,40 @@ type BottleOption = {
   volumeMl: number | null;
 };
 
+type CatalogPayload = {
+  items: CatalogItem[];
+  categories: Category[];
+  store?: { name?: string };
+};
+
+async function fetchCatalog(): Promise<CatalogPayload> {
+  const res = await fetch("/api/pos/catalog");
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "CATALOG_ERROR");
+  const raw = (data.items ?? []) as CatalogItem[];
+  const sellable = raw.filter(
+    (i) =>
+      i.product.kind !== "PACKAGING" &&
+      !(i.salePrice === 0 && /^флакон\b/i.test(i.product.name))
+  );
+  return {
+    items: sellable,
+    categories: data.categories ?? [],
+    store: data.store,
+  };
+}
+
 export default function PosPage() {
   const router = useRouter();
   const { t } = useI18n();
+  const { online } = useSyncStatus();
   const add = usePosCart((s) => s.add);
   const purgePackagingLines = usePosCart((s) => s.purgePackagingLines);
   const cartCount = usePosCart((s) => s.lines.reduce((n, l) => n + l.quantity, 0));
   const [q, setQ] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [items, setItems] = useState<CatalogItem[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [storeName, setStoreName] = useState("");
   const [error, setError] = useState("");
   const [flash, setFlash] = useState("");
-  const [loading, setLoading] = useState(true);
 
   const [weightPick, setWeightPick] = useState<CatalogItem | null>(null);
   const [weightQty, setWeightQty] = useState("10");
@@ -56,64 +79,94 @@ export default function PosPage() {
   const [bottles, setBottles] = useState<BottleOption[]>([]);
   const [bottlesLoading, setBottlesLoading] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const sp = new URLSearchParams();
-    if (q.trim()) sp.set("q", q.trim());
-    if (categoryId) sp.set("categoryId", categoryId);
-    const res = await fetch(`/api/pos/catalog?${sp}`);
-    const data = await res.json();
-    setLoading(false);
-    if (!res.ok) {
-      setError(apiErrorMessage(data.error, t, "pos.catalogError"));
-      return;
-    }
-    setError("");
-    const raw = (data.items ?? []) as CatalogItem[];
-    // Never show packaging bottles in the sellable grid
-    const sellable = raw.filter(
-      (i) =>
-        i.product.kind !== "PACKAGING" &&
-        !(i.salePrice === 0 && /^флакон\b/i.test(i.product.name))
+  const catalogQ = useQuery({
+    queryKey: ["cache:pos-catalog"],
+    queryFn: fetchCatalog,
+    staleTime: 60_000,
+    refetchInterval: online ? 5 * 60_000 : false,
+  });
+
+  const bottlesQ = useQuery({
+    queryKey: ["cache:pos-bottles"],
+    queryFn: async () => {
+      const res = await fetch("/api/pos/packaging-bottles");
+      const data = await res.json();
+      return Array.isArray(data) ? (data as BottleOption[]) : [];
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  useEffect(() => {
+    if (!bottlesQ.data?.length) return;
+    purgePackagingLines(
+      bottlesQ.data.map((b) => b.packagingProductId).filter(Boolean)
     );
-    setItems(sellable);
-    setCategories(data.categories ?? []);
-    setStoreName(data.store?.name ?? "");
-  }, [q, categoryId, t]);
+  }, [bottlesQ.data, purgePackagingLines]);
 
   useEffect(() => {
-    const timer = setTimeout(load, 150);
-    return () => clearTimeout(timer);
-  }, [load]);
-
-  useEffect(() => {
-    // Purge legacy cart rows that treated bottles as products
-    fetch("/api/pos/packaging-bottles")
-      .then((r) => r.json())
-      .then((data) => {
-        if (!Array.isArray(data)) return;
-        purgePackagingLines(
-          data.map((b: BottleOption) => b.packagingProductId).filter(Boolean)
-        );
-      })
-      .catch(() => undefined);
-  }, [purgePackagingLines]);
-
-  async function openWeightModal(item: CatalogItem) {
-    setWeightPick(item);
-    setWeightQty("10");
-    setBottleId("");
-    setBottlesLoading(true);
-    const res = await fetch("/api/pos/packaging-bottles");
-    const data = await res.json();
-    setBottlesLoading(false);
-    if (res.ok && Array.isArray(data)) {
-      setBottles(data);
-      if (data.length === 1) setBottleId(data[0].packagingProductId);
+    if (catalogQ.isError) {
+      setError(
+        online
+          ? apiErrorMessage(
+              (catalogQ.error as Error)?.message,
+              t,
+              "pos.catalogError"
+            )
+          : t("pwa.offline")
+      );
     } else {
-      setBottles([]);
+      setError("");
     }
-  }
+  }, [catalogQ.isError, catalogQ.error, online, t]);
+
+  const allItems = catalogQ.data?.items ?? [];
+  const categories = catalogQ.data?.categories ?? [];
+  const storeName = catalogQ.data?.store?.name ?? "";
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return allItems.filter((i) => {
+      if (categoryId && i.product.category?.id !== categoryId) return false;
+      if (!needle) return true;
+      const hay = [
+        i.product.name,
+        i.product.brand?.name ?? "",
+        i.product.category?.name ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(needle);
+    });
+  }, [allItems, q, categoryId]);
+
+  const parentRef = useRef<HTMLDivElement>(null);
+  const cols = 2;
+  const rows = Math.ceil(filtered.length / cols);
+  const rowVirtualizer = useVirtualizer({
+    count: rows,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 220,
+    overscan: 4,
+  });
+
+  const openWeightModal = useCallback(
+    async (item: CatalogItem) => {
+      setWeightPick(item);
+      setWeightQty("10");
+      setBottleId("");
+      setBottlesLoading(true);
+      let list = bottlesQ.data ?? [];
+      if (!list.length) {
+        const res = await fetch("/api/pos/packaging-bottles");
+        const data = await res.json();
+        list = Array.isArray(data) ? data : [];
+      }
+      setBottlesLoading(false);
+      setBottles(list);
+      if (list.length === 1) setBottleId(list[0].packagingProductId);
+    },
+    [bottlesQ.data]
+  );
 
   function addPiece(item: CatalogItem) {
     if (item.quantity <= 0) return;
@@ -178,8 +231,8 @@ export default function PosPage() {
 
   function onSearchKey(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
-    if (items.length >= 1 && q.trim()) {
-      const exact = items[0];
+    if (filtered.length >= 1 && q.trim()) {
+      const exact = filtered[0];
       if (exact.quantity > 0) {
         onCardClick(exact);
         setQ("");
@@ -187,12 +240,19 @@ export default function PosPage() {
     }
   }
 
+  const showColdLoading = catalogQ.isLoading && !catalogQ.data;
+  const showUpdating = catalogQ.isFetching && !!catalogQ.data;
+
   return (
     <div className="space-y-4 pb-16">
       {storeName ? (
         <p className="text-center text-xs font-medium text-muted">
           {t("pos.stockOnly", { store: storeName })}
         </p>
+      ) : null}
+
+      {showUpdating ? (
+        <p className="text-center text-[11px] text-muted">{t("pwa.syncing")}</p>
       ) : null}
 
       <div>
@@ -248,36 +308,62 @@ export default function PosPage() {
         <p className="text-center text-sm text-danger">{error}</p>
       ) : null}
 
-      {loading ? (
+      {showColdLoading ? (
         <p className="py-8 text-center text-sm text-muted">{t("pos.loading")}</p>
-      ) : items.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="py-10 text-center text-sm text-muted">
           {t("pos.emptyCatalog")}
           <br />
           {t("pos.ownerMustTransfer")}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2.5">
-          {items.map((item) => (
-            <ProductCard
-              key={item.productId}
-              mode="pos"
-              asButton
-              disabled={item.quantity <= 0}
-              onClick={() => onCardClick(item)}
-              stockStatus={item.stockStatus}
-              product={{
-                id: item.productId,
-                name: item.product.name,
-                imageUrl: item.product.imageUrl,
-                brand: item.product.brand,
-                category: item.product.category,
-                unit: item.product.unit,
-                accountingType: item.product.accountingType,
-                salePrice: item.salePrice,
-              }}
-            />
-          ))}
+        <div
+          ref={parentRef}
+          className="h-[min(70dvh,720px)] overflow-auto"
+        >
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const start = virtualRow.index * cols;
+              const slice = filtered.slice(start, start + cols);
+              return (
+                <div
+                  key={virtualRow.key}
+                  className="absolute left-0 top-0 grid w-full grid-cols-2 gap-2.5"
+                  style={{
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  {slice.map((item) => (
+                    <ProductCard
+                      key={item.productId}
+                      mode="pos"
+                      asButton
+                      disabled={item.quantity <= 0}
+                      onClick={() => onCardClick(item)}
+                      stockStatus={item.stockStatus}
+                      product={{
+                        id: item.productId,
+                        name: item.product.name,
+                        imageUrl: item.product.imageUrl,
+                        brand: item.product.brand,
+                        category: item.product.category,
+                        unit: item.product.unit,
+                        accountingType: item.product.accountingType,
+                        salePrice: item.salePrice,
+                      }}
+                    />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

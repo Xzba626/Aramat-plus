@@ -92,12 +92,26 @@ export async function createStoreReturnIn(params: {
   });
 }
 
-export async function listStoreReturnIns(companyId: string, limit = 20) {
+export async function listStoreReturnIns(
+  companyId: string,
+  opts?: { storeId?: string | null; limit?: number }
+) {
+  const limit = opts?.limit ?? 20;
+  if (opts?.storeId === null) return [];
   const logs = await prisma.activityLog.findMany({
     where: { companyId, action: "WAREHOUSE_RETURN_IN" },
     include: { user: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
-    take: limit,
+    take: opts?.storeId ? 200 : limit,
   });
-  return logs;
+  if (!opts?.storeId) return logs.slice(0, limit);
+  return logs
+    .filter((l) => {
+      const meta =
+        l.metadata && typeof l.metadata === "object" && !Array.isArray(l.metadata)
+          ? (l.metadata as { storeId?: string })
+          : null;
+      return meta?.storeId === opts.storeId;
+    })
+    .slice(0, limit);
 }

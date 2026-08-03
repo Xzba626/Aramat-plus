@@ -1,0 +1,107 @@
+{
+  "at": "2026-08-03T14:42:54.809Z",
+  "base": "http://127.0.0.1:3000",
+  "note": "HTTP round-trip baseline (not browser TTI). Re-run after Phase X to compare.",
+  "results": [
+    {
+      "path": "/dashboard",
+      "samplesMs": [
+        8480,
+        5663,
+        5088
+      ],
+      "p50": 5663,
+      "p95": 5663
+    },
+    {
+      "path": "/api/dashboard",
+      "samplesMs": [
+        3868,
+        4545,
+        3885
+      ],
+      "p50": 3885,
+      "p95": 3885
+    },
+    {
+      "path": "/warehouse",
+      "samplesMs": [
+        3100,
+        2743,
+        2558
+      ],
+      "p50": 2743,
+      "p95": 2743
+    },
+    {
+      "path": "/api/warehouse/stock",
+      "samplesMs": [
+        2469,
+        1324,
+        1355
+      ],
+      "p50": 1355,
+      "p95": 1355
+    },
+    {
+      "path": "/notifications",
+      "samplesMs": [
+        1002,
+        901,
+        823
+      ],
+      "p50": 901,
+      "p95": 901
+    },
+    {
+      "path": "/api/notifications",
+      "samplesMs": [
+        3637,
+        3134,
+        3083
+      ],
+      "p50": 3134,
+      "p95": 3134
+    },
+    {
+      "path": "/api/notifications/count",
+      "samplesMs": [
+        3396,
+        3271,
+        3292
+      ],
+      "p50": 3292,
+      "p95": 3292
+    },
+    {
+      "path": "/pos",
+      "samplesMs": [
+        1338,
+        955,
+        748
+      ],
+      "p50": 955,
+      "p95": 955
+    },
+    {
+      "path": "/api/pos/catalog",
+      "samplesMs": [
+        1850,
+        1090,
+        1072
+      ],
+      "p50": 1090,
+      "p95": 1090
+    },
+    {
+      "path": "/api/notifications/count",
+      "samplesMs": [
+        634,
+        465,
+        461
+      ],
+      "p50": 465,
+      "p95": 465
+    }
+  ]
+}

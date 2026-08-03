@@ -58,6 +58,7 @@ export async function purgeExpiredArchives(params: {
     days,
     cutoff: cutoff.toISOString(),
     products: 0,
+    productsSkippedHistory: 0,
     categories: 0,
     brands: 0,
     stores: 0,
@@ -72,8 +73,16 @@ export async function purgeExpiredArchives(params: {
     select: { id: true },
   });
   for (const p of products) {
-    await hardDeleteProductCascade(p.id);
-    report.products += 1;
+    try {
+      await hardDeleteProductCascade(p.id);
+      report.products += 1;
+    } catch (err) {
+      if (err instanceof Error && err.message === "PRODUCT_HAS_HISTORY") {
+        report.productsSkippedHistory += 1;
+        continue;
+      }
+      throw err;
+    }
   }
 
   const categories = await prisma.category.findMany({
@@ -146,11 +155,18 @@ export async function purgeExpiredArchives(params: {
 }
 
 export async function hardDeleteProductCascade(productId: string) {
+  // Never destroy sale/transfer history for commercial audit & profit integrity
+  const [saleItems, transferItems] = await Promise.all([
+    prisma.saleItem.count({ where: { productId } }),
+    prisma.transferItem.count({ where: { productId } }),
+  ]);
+  if (saleItems > 0 || transferItems > 0) {
+    throw new Error("PRODUCT_HAS_HISTORY");
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.reservationItem.deleteMany({ where: { productId } });
     await tx.inventoryItem.deleteMany({ where: { productId } });
-    await tx.saleItem.deleteMany({ where: { productId } });
-    await tx.transferItem.deleteMany({ where: { productId } });
     await tx.priceHistory.deleteMany({ where: { productId } });
     await tx.costHistory.deleteMany({ where: { productId } });
     await tx.stockBalance.deleteMany({ where: { productId } });

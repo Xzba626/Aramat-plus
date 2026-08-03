@@ -7,6 +7,7 @@ import { SellerBottomNavLive } from "@/components/pos/seller-bottom-nav-live";
 import { PosTopBar } from "@/components/pos/pos-top-bar";
 import { PosCartSessionBinder } from "@/components/pos/pos-cart-session-binder";
 import { PosCartReserveSync } from "@/components/pos/pos-cart-reserve-sync";
+import { PosNeighbourPrefetch } from "@/components/pwa/pos-neighbour-prefetch";
 import { resolveCompanyName } from "@/lib/company-brand";
 
 export default async function SellerLayout({ children }: { children: ReactNode }) {
@@ -32,6 +33,7 @@ export default async function SellerLayout({ children }: { children: ReactNode }
     <div className="min-h-screen bg-page">
       <PosCartSessionBinder sellerId={user.id} storeId={storeId} />
       <PosCartReserveSync />
+      <PosNeighbourPrefetch />
       <div className="mx-auto flex min-h-screen max-w-[480px] flex-col">
         <PosTopBar
           storeName={store?.name}

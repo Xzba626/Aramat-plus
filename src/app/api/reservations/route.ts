@@ -1,6 +1,11 @@
 import { Role, ReservationStatus } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager, requireSeller } from "@/lib/rbac";
+import {
+  requireOwnerOrManager,
+  requireSeller,
+  requireStoreAccess,
+  scopedStoreId,
+} from "@/lib/rbac";
 import { reservationCreateSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
 import {
@@ -39,7 +44,14 @@ export async function GET(req: Request) {
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
 
-    const storeId = sp.get("storeId") ?? undefined;
+    const scope = scopedStoreId(user);
+    const requested = sp.get("storeId") ?? undefined;
+    if (scope !== undefined && requested && requested !== scope) {
+      return handleApiError(new Error("FORBIDDEN"));
+    }
+    const storeId =
+      scope === undefined ? requested : scope === null ? "__none__" : scope;
+
     const rows = await listReservations({
       companyId: user.companyId,
       storeId,
@@ -74,6 +86,8 @@ export async function POST(req: Request) {
       const denied = requireOwnerOrManager(user);
       if (denied) return denied;
       if (!storeId) return handleApiError(new Error("ID_REQUIRED"));
+      const scopeDenied = requireStoreAccess(user, storeId);
+      if (scopeDenied) return scopeDenied;
     }
 
     const reservation = await createReservation({
@@ -82,7 +96,6 @@ export async function POST(req: Request) {
       createdById: user.id,
       items: body.items,
       customerNote: body.customerNote ?? undefined,
-      // No default TTL — hold until sale/cancel unless client passes ttlMinutes
       ttlMs: body.ttlMinutes ? body.ttlMinutes * 60 * 1000 : undefined,
     });
 

@@ -103,9 +103,20 @@ export default function NewProductPage() {
     if (!file) return;
     setUploading(true);
     setError("");
-    const fd = new FormData();
-    fd.append("file", file);
     try {
+      const { compressImageFile } = await import(
+        "@/lib/client-image-compress"
+      );
+      let prepared: File;
+      try {
+        prepared = await compressImageFile(file);
+      } catch {
+        setError(t("errors.IMAGE_COMPRESS_FAILED"));
+        setUploading(false);
+        return;
+      }
+      const fd = new FormData();
+      fd.append("file", prepared);
       const res = await fetch("/api/products/upload", {
         method: "POST",
         body: fd,
@@ -249,7 +260,7 @@ export default function NewProductPage() {
               </span>
               <input
                 type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
+                accept="image/jpeg,image/png,image/webp,image/jpg,.jpg,.jpeg,.png,.webp"
                 className="sr-only"
                 disabled={uploading}
                 onChange={(e) => onPhotoChange(e.target.files?.[0] ?? null)}

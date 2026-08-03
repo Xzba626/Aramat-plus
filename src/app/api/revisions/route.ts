@@ -137,6 +137,14 @@ export async function PATCH(req: Request) {
     const id = searchParams.get("id");
     if (!id) return handleApiError(new Error("ID_REQUIRED"));
 
+    const session = await prisma.inventorySession.findFirst({
+      where: { id, store: { companyId: user!.companyId } },
+      select: { storeId: true },
+    });
+    if (!session) return handleApiError(new Error("NOT_FOUND"));
+    const scopeDenied = requireStoreAccess(user!, session.storeId);
+    if (scopeDenied) return scopeDenied;
+
     const raw = await req.json();
     if (raw.decision) {
       const body = decideSchema.parse(raw);

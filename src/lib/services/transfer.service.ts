@@ -276,15 +276,27 @@ export async function createStoreTransfer(params: {
   return txResult.result;
 }
 
-export async function listTransfers(companyId: string) {
+export async function listTransfers(
+  companyId: string,
+  opts?: { storeId?: string | null }
+) {
+  const storeId = opts?.storeId;
+  if (storeId === null) return [];
   return prisma.transfer.findMany({
-    where: {
-      OR: [
-        { fromWarehouse: { companyId } },
-        { fromStore: { companyId } },
-        { toStore: { companyId } },
-      ],
-    },
+    where: storeId
+      ? {
+          OR: [
+            { toStoreId: storeId, toStore: { companyId } },
+            { fromStoreId: storeId, fromStore: { companyId } },
+          ],
+        }
+      : {
+          OR: [
+            { fromWarehouse: { companyId } },
+            { fromStore: { companyId } },
+            { toStore: { companyId } },
+          ],
+        },
     include: {
       toStore: true,
       fromWarehouse: true,

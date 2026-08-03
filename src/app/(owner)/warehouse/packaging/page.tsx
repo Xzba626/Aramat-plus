@@ -134,12 +134,20 @@ export default function PackagingPage() {
     const productId = String(fd.get("productId") || "");
     const quantity = Number(fd.get("quantity"));
     const sku = items.find((s) => s.productId === productId);
+    const costRaw = fd.get("costPerUnit");
     const costPerUnit =
-      fd.get("costPerUnit") !== null && String(fd.get("costPerUnit")) !== ""
-        ? Number(fd.get("costPerUnit"))
-        : (sku?.defaultCost ?? 1);
-    if (!productId || !(quantity > 0) || !(costPerUnit >= 0)) {
-      setError(t("errors.VALIDATION_ERROR"));
+      costRaw !== null && String(costRaw) !== ""
+        ? Number(costRaw)
+        : sku?.defaultCost != null
+          ? Number(sku.defaultCost)
+          : null;
+    if (
+      !productId ||
+      !(quantity > 0) ||
+      costPerUnit == null ||
+      !(costPerUnit >= 0)
+    ) {
+      setError(t("errors.COST_REQUIRED_FOR_STOCK"));
       return;
     }
     const res = await fetch(`/api/products/${productId}/batches`, {

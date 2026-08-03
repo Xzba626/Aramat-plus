@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { prisma } from "@/lib/prisma";
@@ -18,6 +18,14 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  themeColor: "#0f1419",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+};
+
 export async function generateMetadata(): Promise<Metadata> {
   try {
     const company = await prisma.company.findFirst({
@@ -25,11 +33,29 @@ export async function generateMetadata(): Promise<Metadata> {
       orderBy: { createdAt: "asc" },
     });
     const name = resolveCompanyName(company?.name);
-    return { title: name, description: name };
+    return {
+      title: name,
+      description: name,
+      applicationName: name,
+      appleWebApp: {
+        capable: true,
+        statusBarStyle: "black-translucent",
+        title: name,
+      },
+      icons: {
+        apple: "/icons/apple-touch-icon.png",
+        icon: [
+          { url: "/icons/icon-192.png", sizes: "192x192" },
+          { url: "/icons/icon-512.png", sizes: "512x512" },
+        ],
+      },
+      manifest: "/manifest.webmanifest",
+    };
   } catch {
     return {
       title: DEFAULT_COMPANY_NAME,
       description: DEFAULT_COMPANY_NAME,
+      manifest: "/manifest.webmanifest",
     };
   }
 }

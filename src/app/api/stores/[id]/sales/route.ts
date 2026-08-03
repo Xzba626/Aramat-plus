@@ -1,5 +1,5 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager } from "@/lib/rbac";
+import { requireOwnerOrManager, requireStoreAccess } from "@/lib/rbac";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { getStoreSalesHistory } from "@/lib/services/stores-detail.service";
 
@@ -11,6 +11,8 @@ export async function GET(req: Request, ctx: Ctx) {
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
     const { id } = await ctx.params;
+    const scopeDenied = requireStoreAccess(user!, id);
+    if (scopeDenied) return scopeDenied;
     const sp = new URL(req.url).searchParams;
     return jsonOk(
       await getStoreSalesHistory(

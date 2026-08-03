@@ -1,0 +1,83 @@
+{
+  "at": "2026-08-03T15:03:38.771Z",
+  "limits": {
+    "previous": {
+      "uploadMax": "5MB",
+      "productImageUrlMax": 2000000,
+      "fallback": "data:URL in DB",
+      "uiOnFail": "VALIDATION_ERROR → Проверьте данные"
+    },
+    "current": {
+      "uploadMaxInput": "20MB",
+      "clientCompress": "maxEdge 1600 q~0.82",
+      "server": "sharp → webp thumb/md/full under /uploads/products/",
+      "productImageUrlMax": 2048,
+      "uiErrors": "FILE_* / IMAGE_* localized"
+    }
+  },
+  "fail": 0,
+  "rows": [
+    {
+      "case": "root_cause",
+      "status": "DOCUMENTED",
+      "http": 0,
+      "detail": "Old path: upload fell back to data: URL; productSchema imageUrl.max(2_000_000) → Zod VALIDATION_ERROR → UI «Проверьте данные». Fix: client compress + sharp → /uploads/*.webp only; imageUrl.max(2048)."
+    },
+    {
+      "case": "500KB",
+      "status": "PASS",
+      "http": 201,
+      "imageUrl": "/uploads/products/1785769390383-0fcl2dq9-md.webp",
+      "mediumBytes": 211898,
+      "detail": "saved /uploads/products/1785769390383-0fcl2dq9-md.webp medium=211898"
+    },
+    {
+      "case": "2MB",
+      "status": "PASS",
+      "http": 201,
+      "imageUrl": "/uploads/products/1785769393100-40gvwy96-md.webp",
+      "mediumBytes": 115248,
+      "detail": "saved /uploads/products/1785769393100-40gvwy96-md.webp medium=115248"
+    },
+    {
+      "case": "5MB",
+      "status": "PASS",
+      "http": 201,
+      "imageUrl": "/uploads/products/1785769398811-kqz9sh36-md.webp",
+      "mediumBytes": 51126,
+      "detail": "saved /uploads/products/1785769398811-kqz9sh36-md.webp medium=51126"
+    },
+    {
+      "case": "PNG",
+      "status": "PASS",
+      "http": 201,
+      "imageUrl": "/uploads/products/1785769401368-0ni9vcln-md.webp",
+      "detail": "{\"input\":16032,\"full\":2026,\"medium\":944,\"thumb\":208}"
+    },
+    {
+      "case": "WEBP",
+      "status": "PASS",
+      "http": 201,
+      "imageUrl": "/uploads/products/1785769403358-5iz8sh82-md.webp",
+      "detail": "{\"input\":1510,\"full\":1510,\"medium\":986,\"thumb\":214}"
+    },
+    {
+      "case": "reject_non_image",
+      "status": "PASS",
+      "http": 400,
+      "detail": "{\"error\":\"INVALID_FILE_TYPE\"}"
+    },
+    {
+      "case": "product_create_with_upload_url",
+      "status": "PASS",
+      "http": 201,
+      "detail": "product=cmsdd010n000fumlwukmefk3d"
+    },
+    {
+      "case": "reject_huge_data_url",
+      "status": "PASS",
+      "http": 400,
+      "detail": "{\"error\":\"VALIDATION_ERROR\"}"
+    }
+  ]
+}

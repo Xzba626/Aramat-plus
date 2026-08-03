@@ -1,5 +1,9 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwner, requireOwnerOrManager } from "@/lib/rbac";
+import {
+  requireOwner,
+  requireOwnerOrManager,
+  requireStoreAccess,
+} from "@/lib/rbac";
 import { jsonOk, handleApiError } from "@/lib/api";
 import {
   assignStoreStaff,
@@ -22,6 +26,8 @@ export async function GET(req: Request, ctx: Ctx) {
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
     const { id } = await ctx.params;
+    const scopeDenied = requireStoreAccess(user!, id);
+    if (scopeDenied) return scopeDenied;
     const url = new URL(req.url);
     if (url.searchParams.get("candidates") === "1") {
       const ownerDenied = requireOwner(user);

@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager } from "@/lib/rbac";
+import {
+  requireOwnerOrManager,
+  requireStoreAccess,
+  scopedStoreId,
+} from "@/lib/rbac";
 import { jsonOk, handleApiError } from "@/lib/api";
 import {
   createStoreReturnIn,
@@ -25,7 +29,12 @@ export async function GET() {
     const user = await getSessionUser();
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
-    return jsonOk(await listStoreReturnIns(user!.companyId));
+    const scope = scopedStoreId(user!);
+    return jsonOk(
+      await listStoreReturnIns(user!.companyId, {
+        storeId: scope === undefined ? undefined : scope,
+      })
+    );
   } catch (err) {
     return handleApiError(err);
   }
@@ -38,6 +47,8 @@ export async function POST(req: Request) {
     if (denied) return denied;
 
     const body = returnInSchema.parse(await req.json());
+    const scopeDenied = requireStoreAccess(user!, body.storeId);
+    if (scopeDenied) return scopeDenied;
 
     const result = await createStoreReturnIn({
       companyId: user!.companyId,

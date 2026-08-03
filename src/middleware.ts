@@ -8,10 +8,20 @@ import { authConfig, homePathForRole } from "@/lib/auth.config";
  */
 const { auth } = NextAuth(authConfig);
 
-const publicPaths = ["/login"];
+const publicPaths = ["/login", "/offline"];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
+
+  // PWA assets must bypass auth
+  if (
+    pathname === "/sw.js" ||
+    pathname === "/manifest.webmanifest" ||
+    pathname.startsWith("/icons/")
+  ) {
+    return NextResponse.next();
+  }
+
   const isLoggedIn = !!req.auth;
   const role = req.auth?.user?.role as string | undefined;
 

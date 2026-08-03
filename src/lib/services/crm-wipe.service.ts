@@ -8,6 +8,7 @@ import {
   SEED_OWNER_NAME,
   SEED_OWNER_PASSWORD,
 } from "@/lib/seed-defaults";
+import { ensureOwnerDirectStore } from "@/lib/services/owner-direct.service";
 
 export const CRM_WIPE_PHRASE = "WIPE";
 
@@ -80,6 +81,9 @@ export async function wipeCompanyOperationalData(params: {
     entityId: params.companyId,
     comment: `CRM очищена владельцем. ${when}`,
   });
+
+  // Recreate empty Owner Direct channel after wipe (ops empty-state)
+  await ensureOwnerDirectStore(params.companyId);
 
   return {
     ok: true as const,

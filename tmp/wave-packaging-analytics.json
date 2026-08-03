@@ -1,19 +1,39 @@
 {
-  "at": "2026-08-03T11:16:33.470Z",
-  "packagingActive": 2,
+  "at": "2026-08-03T14:15:41.868Z",
+  "packagingActive": 5,
   "packagingNames": [
     "Флакон 5 мл · стекло",
-    "Флакон 10 мл · стекло"
+    "Флакон 10 мл · стекло",
+    "Флакон 30 мл · стекло",
+    "Флакон 50 мл · стекло",
+    "Флакон 100 мл · стекло"
   ],
   "topSellingSample": [
-    "Nabot Kand",
-    "Nabot Kand"
+    "ZT Cross 1785766520125",
+    "Parfum plus 1"
   ],
   "topUnsoldSample": [
-    "Nabot Kand",
-    "Nabot Kand"
+    "ZT Cross 1785766520125",
+    "Parfum plus 1",
+    "Духи Al Rehab Amber",
+    "Масло Уд Royal",
+    "Дезодорант-стик Musk",
+    "ZT Return 1785766532915"
   ],
   "packagingLeakedIntoRankings": [],
-  "ztArtifactsRemaining": [],
-  "pass": true
+  "ztArtifactsRemaining": [
+    {
+      "id": "cmsdba1j30005um0kv9pzti8j",
+      "name": "ZT Cross 1785766520125",
+      "kind": "STANDARD",
+      "isActive": true
+    },
+    {
+      "id": "cmsdbabed0001umasv8bp3d77",
+      "name": "ZT Return 1785766532915",
+      "kind": "STANDARD",
+      "isActive": true
+    }
+  ],
+  "pass": false
 }

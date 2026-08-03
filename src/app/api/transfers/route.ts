@@ -1,5 +1,9 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager } from "@/lib/rbac";
+import {
+  requireOwnerOrManager,
+  requireStoreAccess,
+  scopedStoreId,
+} from "@/lib/rbac";
 import { transferSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
 import {
@@ -13,7 +17,10 @@ export async function GET() {
     const user = await getSessionUser();
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
-    const items = await listTransfers(user!.companyId);
+    const scope = scopedStoreId(user!);
+    const items = await listTransfers(user!.companyId, {
+      storeId: scope === undefined ? undefined : scope,
+    });
     return jsonOk(items);
   } catch (err) {
     return handleApiError(err);
@@ -27,6 +34,14 @@ export async function POST(req: Request) {
     if (denied) return denied;
 
     const body = transferSchema.parse(await req.json());
+
+    // Store manager: only own store as destination (WH→store) or source (store→store)
+    const toDenied = requireStoreAccess(user!, body.toStoreId);
+    if (toDenied) return toDenied;
+    if (body.fromStoreId) {
+      const fromDenied = requireStoreAccess(user!, body.fromStoreId);
+      if (fromDenied) return fromDenied;
+    }
 
     if (body.fromStoreId) {
       const transfer = await createStoreTransfer({

@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { productImageSrc } from "@/lib/product-image-src";
 
 type Props = {
   src?: string | null;
@@ -25,6 +26,10 @@ export function ProductThumb({
   size = "md",
 }: Props) {
   const initial = (name.trim().slice(0, 1) || "?").toUpperCase();
+  const resolved = productImageSrc(
+    src,
+    size === "sm" ? "thumb" : size === "lg" ? "full" : "card"
+  );
 
   return (
     <div
@@ -35,13 +40,14 @@ export function ProductThumb({
         className
       )}
     >
-      {src ? (
+      {resolved ? (
         // eslint-disable-next-line @next/next/no-img-element -- data URLs / arbitrary host uploads
         <img
-          src={src}
+          src={resolved}
           alt={name}
           className={cn("h-full w-full object-cover", imgClassName)}
           loading="lazy"
+          decoding="async"
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center text-lg font-bold text-brand">

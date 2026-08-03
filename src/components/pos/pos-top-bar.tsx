@@ -5,11 +5,15 @@ import Link from "next/link";
 import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { Bell } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { BrandMark } from "@/components/company/brand-mark";
 import { useCompanyBrand } from "@/components/company/company-brand-provider";
+import {
+  NotificationBadge,
+  useUnreadNotifications,
+} from "@/components/pwa/notification-badge";
+import { SyncStatusDot, useSyncStatus } from "@/components/pwa/sync-status";
 
 export function PosTopBar({
   storeName,
@@ -22,7 +26,8 @@ export function PosTopBar({
   const { t, formatDate, formatTime } = useI18n();
   const { companyName, setCompanyName } = useCompanyBrand();
   const [now, setNow] = useState(() => new Date());
-  const [online, setOnline] = useState(true);
+  const { online, tone } = useSyncStatus();
+  const { unread } = useUnreadNotifications();
 
   useEffect(() => {
     if (companyNameProp) setCompanyName(companyNameProp);
@@ -33,20 +38,16 @@ export function PosTopBar({
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    const on = () => setOnline(true);
-    const off = () => setOnline(false);
-    setOnline(navigator.onLine);
-    window.addEventListener("online", on);
-    window.addEventListener("offline", off);
-    return () => {
-      window.removeEventListener("online", on);
-      window.removeEventListener("offline", off);
-    };
-  }, []);
-
   const dateLabel = formatDate(now, { day: "numeric", month: "short" });
   const timeLabel = formatTime(now);
+  const statusLabel =
+    tone === "offline"
+      ? t("pwa.offline")
+      : tone === "syncing"
+        ? t("pwa.syncing")
+        : online
+          ? t("common.online")
+          : t("common.offline");
 
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-card/95 px-4 py-3 backdrop-blur">
@@ -72,19 +73,9 @@ export function PosTopBar({
               <span>
                 {dateLabel} · {timeLabel}
               </span>
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1 font-semibold",
-                  online ? "text-success" : "text-danger"
-                )}
-              >
-                <span
-                  className={cn(
-                    "h-1.5 w-1.5 rounded-full",
-                    online ? "bg-success" : "bg-danger"
-                  )}
-                />
-                {online ? t("common.online") : t("common.offline")}
+              <span className="inline-flex items-center gap-1 font-semibold text-ink">
+                <SyncStatusDot />
+                <span className="max-w-[140px] truncate">{statusLabel}</span>
               </span>
             </div>
           </div>
@@ -93,10 +84,11 @@ export function PosTopBar({
           <LanguageSwitcher />
           <Link
             href="/pos/notifications"
-            className="rounded-xl p-2.5 text-muted hover:bg-page hover:text-ink"
+            className="relative rounded-xl p-2.5 text-muted hover:bg-page hover:text-ink"
             aria-label={t("common.notifications")}
           >
             <Bell className="h-5 w-5" strokeWidth={1.75} />
+            <NotificationBadge count={unread} />
           </Link>
         </div>
       </div>
