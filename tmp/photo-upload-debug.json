@@ -1,0 +1,30 @@
+{
+  "at": "2026-08-03T18:16:04.909Z",
+  "fileName": "shot.png",
+  "originalSize": 16031,
+  "mime": "image/png",
+  "compressedSize": 7174,
+  "compressedMime": "image/jpeg",
+  "compressedName": "shot.jpg",
+  "compressSkipped": false,
+  "compressError": null,
+  "toBlobNull": false,
+  "uploadStatus": 201,
+  "response": {
+    "imageUrl": "/uploads/products/1785780963352-7rwo7ild-md.webp",
+    "variants": {
+      "full": "/uploads/products/1785780963352-7rwo7ild.webp",
+      "medium": "/uploads/products/1785780963352-7rwo7ild-md.webp",
+      "thumb": "/uploads/products/1785780963352-7rwo7ild-thumb.webp"
+    },
+    "bytes": {
+      "input": 7174,
+      "full": 2038,
+      "medium": 956,
+      "thumb": 212
+    }
+  },
+  "errorStep": null,
+  "uiErrorShown": null,
+  "note": "upload_ok"
+}

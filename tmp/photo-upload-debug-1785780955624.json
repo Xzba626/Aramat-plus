@@ -1,0 +1,30 @@
+{
+  "at": "2026-08-03T18:15:55.607Z",
+  "fileName": "phone.jpg",
+  "originalSize": 2841675,
+  "mime": "image/jpeg",
+  "compressedSize": 762967,
+  "compressedMime": "image/jpeg",
+  "compressedName": "phone.jpg",
+  "compressSkipped": false,
+  "compressError": null,
+  "toBlobNull": false,
+  "uploadStatus": 201,
+  "response": {
+    "imageUrl": "/uploads/products/1785780948688-2w8kf03n-md.webp",
+    "variants": {
+      "full": "/uploads/products/1785780948688-2w8kf03n.webp",
+      "medium": "/uploads/products/1785780948688-2w8kf03n-md.webp",
+      "thumb": "/uploads/products/1785780948688-2w8kf03n-thumb.webp"
+    },
+    "bytes": {
+      "input": 762967,
+      "full": 737816,
+      "medium": 107662,
+      "thumb": 1494
+    }
+  },
+  "errorStep": null,
+  "uiErrorShown": null,
+  "note": "upload_ok"
+}

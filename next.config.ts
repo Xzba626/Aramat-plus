@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Allow phone / LAN access in Next.js 16 dev (cross-origin)
-  allowedDevOrigins: ["192.168.43.52"],
+  allowedDevOrigins: ["192.168.43.52", "127.0.0.1", "localhost"],
   // Keep sharp as native external (avoid dual-bundle with Next's sharp)
   serverExternalPackages: ["sharp"],
   async headers() {

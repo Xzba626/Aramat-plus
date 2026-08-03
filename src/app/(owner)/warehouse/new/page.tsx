@@ -103,19 +103,48 @@ export default function NewProductPage() {
     if (!file) return;
     setUploading(true);
     setError("");
+    const { reportPhotoUploadDebug } = await import("@/lib/photo-upload-debug");
+    const dbg: import("@/lib/photo-upload-debug").PhotoUploadDebug = {
+      fileName: file.name,
+      originalSize: file.size,
+      mime: file.type || "(empty)",
+      compressedSize: null,
+      compressedMime: null,
+      compressedName: null,
+      compressSkipped: false,
+      compressError: null,
+      toBlobNull: false,
+      uploadStatus: null,
+      response: null,
+      errorStep: null,
+      uiErrorShown: null,
+    };
     try {
-      const { compressImageFile } = await import(
+      const { compressImageFileDetailed } = await import(
         "@/lib/client-image-compress"
       );
       let prepared: File;
       try {
-        prepared = await compressImageFile(file);
+        const { file: out, meta } = await compressImageFileDetailed(file);
+        prepared = out;
+        dbg.compressedSize = meta.outSize;
+        dbg.compressedMime = meta.outMime;
+        dbg.compressedName = meta.outName;
+        dbg.compressSkipped = meta.skipped;
+        dbg.toBlobNull = meta.toBlobNull;
       } catch (e) {
         const code =
           e instanceof Error && e.message === "IMAGE_HEIC_UNSUPPORTED"
             ? "IMAGE_HEIC_UNSUPPORTED"
-            : "IMAGE_COMPRESS_FAILED";
-        setError(t(`errors.${code}`));
+            : e instanceof Error && e.message === "INVALID_FILE_TYPE"
+              ? "INVALID_FILE_TYPE"
+              : "IMAGE_COMPRESS_FAILED";
+        const msg = t(`errors.${code}`);
+        dbg.compressError = e instanceof Error ? e.message : String(e);
+        dbg.errorStep = "client_compress";
+        dbg.uiErrorShown = msg;
+        await reportPhotoUploadDebug(dbg);
+        setError(msg);
         setUploading(false);
         return;
       }
@@ -125,14 +154,28 @@ export default function NewProductPage() {
         method: "POST",
         body: fd,
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      dbg.uploadStatus = res.status;
+      dbg.response = data;
       if (!res.ok) {
-        setError(apiErrorMessage(data.error, t));
+        const msg = apiErrorMessage(data.error, t);
+        dbg.errorStep = "upload_api";
+        dbg.uiErrorShown = msg;
+        await reportPhotoUploadDebug(dbg);
+        setError(msg);
       } else {
+        dbg.errorStep = null;
+        dbg.note = "upload_ok";
+        await reportPhotoUploadDebug(dbg);
         setImageUrl(data.imageUrl);
       }
-    } catch {
-      setError(t("common.error"));
+    } catch (e) {
+      const msg = t("common.error");
+      dbg.errorStep = "outer_catch";
+      dbg.compressError = e instanceof Error ? e.message : String(e);
+      dbg.uiErrorShown = msg;
+      await reportPhotoUploadDebug(dbg);
+      setError(msg);
     }
     setUploading(false);
   }

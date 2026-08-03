@@ -1,0 +1,30 @@
+{
+  "at": "2026-08-03T18:15:41.039Z",
+  "fileName": "tiny.jpg",
+  "originalSize": 298,
+  "mime": "image/jpeg",
+  "compressedSize": 298,
+  "compressedMime": "image/jpeg",
+  "compressedName": "tiny.jpg",
+  "compressSkipped": true,
+  "compressError": null,
+  "toBlobNull": false,
+  "uploadStatus": 201,
+  "response": {
+    "imageUrl": "/uploads/products/1785780936024-y7s7fwk5-md.webp",
+    "variants": {
+      "full": "/uploads/products/1785780936024-y7s7fwk5.webp",
+      "medium": "/uploads/products/1785780936024-y7s7fwk5-md.webp",
+      "thumb": "/uploads/products/1785780936024-y7s7fwk5-thumb.webp"
+    },
+    "bytes": {
+      "input": 298,
+      "full": 98,
+      "medium": 90,
+      "thumb": 88
+    }
+  },
+  "errorStep": null,
+  "uiErrorShown": null,
+  "note": "upload_ok"
+}

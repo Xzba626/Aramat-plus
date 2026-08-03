@@ -9,10 +9,22 @@ export type CompressImageOptions = {
   quality?: number;
 };
 
-export async function compressImageFile(
+export type CompressImageResult = {
+  file: File;
+  meta: {
+    skipped: boolean;
+    toBlobNull: boolean;
+    bitmapFailed: boolean;
+    outSize: number;
+    outMime: string;
+    outName: string;
+  };
+};
+
+export async function compressImageFileDetailed(
   file: File,
   opts: CompressImageOptions = {}
-): Promise<File> {
+): Promise<CompressImageResult> {
   const maxEdge = opts.maxEdge ?? 1600;
   const quality = opts.quality ?? 0.85;
 
@@ -26,7 +38,17 @@ export async function compressImageFile(
 
   // Already small non-PNG — skip
   if (file.size <= 350_000 && mime !== "image/png") {
-    return file;
+    return {
+      file,
+      meta: {
+        skipped: true,
+        toBlobNull: false,
+        bitmapFailed: false,
+        outSize: file.size,
+        outMime: file.type,
+        outName: file.name,
+      },
+    };
   }
 
   const bitmap = await createImageBitmap(file).catch(() => null);
@@ -44,7 +66,17 @@ export async function compressImageFile(
   const ctx = canvas.getContext("2d");
   if (!ctx) {
     bitmap.close();
-    return file;
+    return {
+      file,
+      meta: {
+        skipped: true,
+        toBlobNull: false,
+        bitmapFailed: false,
+        outSize: file.size,
+        outMime: file.type,
+        outName: file.name,
+      },
+    };
   }
   ctx.drawImage(bitmap, 0, 0, w, h);
   bitmap.close();
@@ -53,14 +85,57 @@ export async function compressImageFile(
     canvas.toBlob((b) => resolve(b), "image/jpeg", quality);
   });
 
-  if (!blob || blob.size === 0) return file;
+  if (!blob || blob.size === 0) {
+    return {
+      file,
+      meta: {
+        skipped: true,
+        toBlobNull: true,
+        bitmapFailed: false,
+        outSize: file.size,
+        outMime: file.type,
+        outName: file.name,
+      },
+    };
+  }
 
   // If compression made it larger (rare), keep original when under 1.5MB
-  if (blob.size >= file.size && file.size < 1_500_000) return file;
+  if (blob.size >= file.size && file.size < 1_500_000) {
+    return {
+      file,
+      meta: {
+        skipped: true,
+        toBlobNull: false,
+        bitmapFailed: false,
+        outSize: file.size,
+        outMime: file.type,
+        outName: file.name,
+      },
+    };
+  }
 
   const name = file.name.replace(/\.[^.]+$/, "") || "photo";
-  return new File([blob], `${name}.jpg`, {
+  const out = new File([blob], `${name}.jpg`, {
     type: "image/jpeg",
     lastModified: Date.now(),
   });
+  return {
+    file: out,
+    meta: {
+      skipped: false,
+      toBlobNull: false,
+      bitmapFailed: false,
+      outSize: out.size,
+      outMime: out.type,
+      outName: out.name,
+    },
+  };
+}
+
+export async function compressImageFile(
+  file: File,
+  opts: CompressImageOptions = {}
+): Promise<File> {
+  const { file: out } = await compressImageFileDetailed(file, opts);
+  return out;
 }
