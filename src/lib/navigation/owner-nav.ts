@@ -59,7 +59,6 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
       { href: "/stores", labelKey: "nav.storesAll" },
       { href: "/analytics?view=stores", labelKey: "nav.storesSales" },
       { href: "/warehouse/stock", labelKey: "nav.storesStock" },
-      { href: "/analytics?view=stores", labelKey: "nav.storesKpi" },
       { href: "/stores#owner-direct", labelKey: "nav.storesOwnerDirect" },
     ],
   },
@@ -146,7 +145,11 @@ export function filterNavForRole(role: Role): OwnerNavSection[] {
   }).filter(Boolean) as OwnerNavSection[];
 }
 
-export function isPathActive(pathname: string, href: string): boolean {
+export function isPathActive(
+  pathname: string,
+  href: string,
+  searchParams?: URLSearchParams | null
+): boolean {
   const [pathPart, query = ""] = href.split("?");
   const pathOnly = pathPart.split("#")[0];
   const hash = href.includes("#") ? href.split("#")[1]?.split("?")[0] : "";
@@ -175,11 +178,20 @@ export function isPathActive(pathname: string, href: string): boolean {
 
   if (!pathOk) return false;
 
-  // When href specifies ?view=, require exact view for analytics children
-  if (query.startsWith("view=")) {
-    // Client pathname from next/navigation has no search — callers with
-    // full href still get path match; section highlighting uses path only.
-    // Prefer longest matching child via sectionForPath order below.
+  // Analytics children: match exact ?view= (and optional ?focus=)
+  if (query.includes("view=")) {
+    const want = new URLSearchParams(query);
+    const wantView = want.get("view");
+    const wantFocus = want.get("focus");
+    if (!wantView) return pathOk;
+    // Without search (e.g. section parent check) — path match only for non-child use
+    if (!searchParams) return false;
+    if (searchParams.get("view") !== wantView) return false;
+    if (wantFocus) return searchParams.get("focus") === wantFocus;
+    // Href without focus must not win when URL has focus=net
+    if (wantView === "network" && searchParams.get("focus") === "net") {
+      return false;
+    }
     return true;
   }
 
@@ -204,24 +216,31 @@ export function findActiveChild(
   if (view) {
     const byView = section.children.find((c) => {
       const q = c.href.split("?")[1]?.split("#")[0] ?? "";
-      return q === `view=${view}` && isPathActive(pathname, c.href);
+      return q.includes(`view=${view}`) && isPathActive(pathname, c.href, searchParams);
     });
     if (byView) return byView;
   }
-  return section.children.find((c) => isPathActive(pathname, c.href));
+  return section.children.find((c) => isPathActive(pathname, c.href, searchParams));
 }
 
 function isProductCardPath(pathname: string): boolean {
   return warehouseProductSegment(pathname) !== null;
 }
 
-export function sectionForPath(pathname: string): OwnerNavSection | undefined {
+export function sectionForPath(
+  pathname: string,
+  searchParams?: URLSearchParams | null
+): OwnerNavSection | undefined {
   if (isProductCardPath(pathname) || pathname.startsWith("/warehouse/new")) {
     return OWNER_NAV_SECTIONS.find((s) => s.id === "warehouse");
   }
 
-  // Analytics views map to workspaces (query not in usePathname)
+  // Analytics views map to workspaces
   if (pathname.startsWith("/analytics")) {
+    const view = searchParams?.get("view");
+    if (view === "stores") {
+      return OWNER_NAV_SECTIONS.find((s) => s.id === "stores");
+    }
     return OWNER_NAV_SECTIONS.find((s) => s.id === "finance");
   }
 

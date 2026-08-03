@@ -7,12 +7,17 @@ import {
   getAnalyticsBreakdown,
   type AnalyticsPeriod,
 } from "@/lib/services/analytics.service";
-
-function csvEscape(v: string | number | null | undefined) {
-  const s = v == null ? "" : String(v);
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
+import {
+  buildCsvBody,
+  csvRow,
+  exportTranslate,
+  formatExportDateTime,
+  formatExportPeriodicity,
+  formatExportSaleStatus,
+  formatExportYesNo,
+  resolveExportLocale,
+} from "@/lib/export/csv";
+import { labelProductType } from "@/lib/i18n/labels";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -62,7 +67,18 @@ function resolveRange(url: URL): { from: Date; to: Date; periodLabel: string } {
   };
 }
 
-/** Export CSV: ?type=products|sales|expenses|analytics&period=today|week|month&from=&to=&storeId= */
+function periodLabelText(
+  periodLabel: string,
+  t: ReturnType<typeof exportTranslate>
+): string {
+  if (periodLabel === "today") return t("exportCsv.periodToday");
+  if (periodLabel === "week") return t("exportCsv.periodWeek");
+  if (periodLabel === "month") return t("exportCsv.periodMonth");
+  if (periodLabel === "year") return t("exportCsv.periodYear");
+  return t("exportCsv.periodCustom");
+}
+
+/** Export CSV: ?type=products|sales|expenses|analytics&period=&from=&to=&storeId=&lang=ru|tj */
 export async function GET(req: Request) {
   try {
     const user = await getSessionUser();
@@ -74,6 +90,8 @@ export async function GET(req: Request) {
     const storeId = url.searchParams.get("storeId") || undefined;
     const { from, to, periodLabel } = resolveRange(url);
     const companyId = user!.companyId;
+    const locale = resolveExportLocale(req);
+    const t = exportTranslate(locale);
     let lines: string[] = [];
 
     if (type === "products") {
@@ -87,10 +105,19 @@ export async function GET(req: Request) {
         orderBy: { name: "asc" },
       });
       lines = [
-        "id,name,sku,barcode,salePrice,defaultCost,category,type,brand,active",
+        csvRow([
+          t("exportCsv.colName"),
+          t("exportCsv.colSku"),
+          t("exportCsv.colBarcode"),
+          t("exportCsv.colSalePrice"),
+          t("exportCsv.colCost"),
+          t("exportCsv.colCategory"),
+          t("exportCsv.colType"),
+          t("exportCsv.colBrand"),
+          t("exportCsv.colActive"),
+        ]),
         ...rows.map((p) =>
-          [
-            p.id,
+          csvRow([
             p.name,
             p.sku,
             p.barcode,
@@ -98,13 +125,11 @@ export async function GET(req: Request) {
             p.defaultCostPerUnit != null
               ? decimalToNumber(p.defaultCostPerUnit)
               : "",
-            p.category?.name,
-            p.productType?.name,
-            p.brand?.name,
-            p.isActive ? 1 : 0,
-          ]
-            .map(csvEscape)
-            .join(",")
+            p.category?.name ?? "",
+            labelProductType(p.productType?.name, t),
+            p.brand?.name ?? "",
+            formatExportYesNo(p.isActive, t),
+          ])
         ),
       ];
     } else if (type === "sales") {
@@ -122,19 +147,25 @@ export async function GET(req: Request) {
         take: 5000,
       });
       lines = [
-        "id,createdAt,store,seller,status,total,items",
+        csvRow([
+          t("exportCsv.colDateTime"),
+          t("exportCsv.colStore"),
+          t("exportCsv.colSeller"),
+          t("exportCsv.colStatus"),
+          t("exportCsv.colTotal"),
+          t("exportCsv.colItems"),
+          t("exportCsv.colTechId"),
+        ]),
         ...rows.map((s) =>
-          [
-            s.id,
-            s.createdAt.toISOString(),
+          csvRow([
+            formatExportDateTime(s.createdAt, locale),
             s.store.name,
             s.seller.name,
-            s.status,
+            formatExportSaleStatus(s.status, t),
             decimalToNumber(s.total),
             s.items.length,
-          ]
-            .map(csvEscape)
-            .join(",")
+            s.id,
+          ])
         ),
       ];
     } else if (type === "expenses") {
@@ -159,20 +190,27 @@ export async function GET(req: Request) {
         take: 5000,
       });
       lines = [
-        "id,type,store,amount,periodicity,startsAt,endsAt,description",
+        csvRow([
+          t("exportCsv.colExpenseType"),
+          t("exportCsv.colStore"),
+          t("exportCsv.colAmount"),
+          t("exportCsv.colPeriodicity"),
+          t("exportCsv.colStarts"),
+          t("exportCsv.colEnds"),
+          t("exportCsv.colDescription"),
+          t("exportCsv.colTechId"),
+        ]),
         ...rows.map((e) =>
-          [
-            e.id,
+          csvRow([
             e.expenseType.name,
-            e.store?.name,
+            e.store?.name ?? "",
             decimalToNumber(e.amount),
-            e.periodicity,
-            e.startsAt.toISOString(),
-            e.endsAt?.toISOString() ?? "",
-            e.description,
-          ]
-            .map(csvEscape)
-            .join(",")
+            formatExportPeriodicity(e.periodicity, t),
+            formatExportDateTime(e.startsAt, locale),
+            formatExportDateTime(e.endsAt, locale),
+            e.description ?? "",
+            e.id,
+          ])
         ),
       ];
     } else if (type === "analytics") {
@@ -187,21 +225,40 @@ export async function GET(req: Request) {
       const stores = storeId
         ? data.stores.filter((s) => s.id === storeId)
         : data.stores;
+      const storeName = storeId
+        ? (stores[0]?.name ?? storeId)
+        : t("exportCsv.allStores");
+      const revenue = storeId
+        ? stores.reduce((a, s) => a + s.revenue, 0)
+        : data.network.revenue;
+      const cogs = storeId
+        ? stores.reduce((a, s) => a + s.cogs, 0)
+        : data.network.cogs;
+      const gross = storeId
+        ? stores.reduce((a, s) => a + s.grossProfit, 0)
+        : data.network.grossProfit;
+      const expenses = storeId
+        ? stores.reduce((a, s) => a + s.expenses, 0)
+        : data.network.expenses;
+      const net = storeId
+        ? stores.reduce((a, s) => a + s.netProfit, 0)
+        : data.network.netProfit;
+
       lines = [
-        "metric,value",
-        `revenue,${storeId ? stores.reduce((a, s) => a + s.revenue, 0) : data.network.revenue}`,
-        `cogs,${storeId ? stores.reduce((a, s) => a + s.cogs, 0) : data.network.cogs}`,
-        `grossProfit,${storeId ? stores.reduce((a, s) => a + s.grossProfit, 0) : data.network.grossProfit}`,
-        `expenses,${storeId ? stores.reduce((a, s) => a + s.expenses, 0) : data.network.expenses}`,
-        `netProfit,${storeId ? stores.reduce((a, s) => a + s.netProfit, 0) : data.network.netProfit}`,
-        `period,${periodLabel}`,
-        `storeId,${storeId ?? "ALL"}`,
+        csvRow([t("exportCsv.colMetric"), t("exportCsv.colValue")]),
+        csvRow([t("exportCsv.metricRevenue"), revenue]),
+        csvRow([t("exportCsv.metricCogs"), cogs]),
+        csvRow([t("exportCsv.metricGross"), gross]),
+        csvRow([t("exportCsv.metricExpenses"), expenses]),
+        csvRow([t("exportCsv.metricNet"), net]),
+        csvRow([t("exportCsv.metricPeriod"), periodLabelText(periodLabel, t)]),
+        csvRow([t("exportCsv.metricStore"), storeName]),
       ];
     } else {
       return handleApiError(new Error("VALIDATION_ERROR"));
     }
 
-    const body = "\uFEFF" + lines.join("\n");
+    const body = buildCsvBody(lines);
     const suffix =
       type === "sales" || type === "analytics" || type === "expenses"
         ? `-${periodLabel}`

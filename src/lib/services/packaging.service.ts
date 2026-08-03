@@ -5,6 +5,7 @@ import {
   NotificationType,
   ProductKind,
   Prisma,
+  StoreKind,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
@@ -380,7 +381,7 @@ export async function resolvePackagingProduct(params: {
   throw new Error("BOTTLE_REQUIRED");
 }
 
-/** Packaging bottles available at a store (qty > 0). */
+/** Packaging bottles available for POS at a store (or warehouse for owner-direct). */
 export async function listStorePackagingStock(
   companyId: string,
   storeId: string
@@ -390,10 +391,22 @@ export async function listStorePackagingStock(
   });
   if (!store) throw new Error("STORE_NOT_FOUND");
 
+  let locationType: LocationType = LocationType.STORE;
+  let locationId = storeId;
+  if (store.kind === StoreKind.OWNER_DIRECT) {
+    const warehouse = await prisma.warehouse.findFirst({
+      where: { companyId, isActive: true },
+      select: { id: true },
+    });
+    if (!warehouse) throw new Error("WAREHOUSE_MISSING");
+    locationType = LocationType.WAREHOUSE;
+    locationId = warehouse.id;
+  }
+
   const balances = await prisma.stockBalance.findMany({
     where: {
-      locationType: LocationType.STORE,
-      locationId: storeId,
+      locationType,
+      locationId,
       quantity: { gt: 0 },
       product: {
         companyId,
@@ -449,20 +462,24 @@ export type BottleDeductResult = {
   bottleExpenseAmount: number;
 };
 
-/** Deduct 1 bottle from store FIFO; returns cost for opex (not perfume COGS). */
+/** Deduct bottle from sale location (store shelf or warehouse for owner-direct). */
 export async function deductBottleFromStore(
   tx: Prisma.TransactionClient,
   params: {
     packagingProductId: string;
     storeId: string;
     quantity?: number;
+    locationType?: LocationType;
+    locationId?: string;
   }
 ): Promise<BottleDeductResult> {
   const qty = new Prisma.Decimal(params.quantity ?? 1);
+  const locationType = params.locationType ?? LocationType.STORE;
+  const locationId = params.locationId ?? params.storeId;
   const consumed = await deductBatchesFifo(tx, {
     productId: params.packagingProductId,
-    locationType: LocationType.STORE,
-    locationId: params.storeId,
+    locationType,
+    locationId,
     quantity: qty,
   });
   const totalCost = consumed.reduce(

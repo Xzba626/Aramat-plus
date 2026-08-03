@@ -154,10 +154,8 @@ export async function createSale(params: {
     packagingCostPerUnit: Prisma.Decimal | null;
   };
 
-  const requiresBottle = locationType === LocationType.STORE;
-  const bottleExpenseType = requiresBottle
-    ? await ensureBottleExpenseType(params.companyId)
-    : null;
+  const requiresBottle = true;
+  const bottleExpenseType = await ensureBottleExpenseType(params.companyId);
 
   const committed = await prisma.$transaction(
     async (tx) => {
@@ -247,6 +245,8 @@ export async function createSale(params: {
           const bottle = await deductBottleFromStore(tx, {
             packagingProductId: packaging.id,
             storeId: store.id,
+            locationType,
+            locationId,
             quantity: 1,
           });
           packagingProductId = bottle.packagingProductId;

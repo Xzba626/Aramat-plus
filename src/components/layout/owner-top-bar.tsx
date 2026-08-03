@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { Bell, Menu, Search, X } from "lucide-react";
+import { Bell, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sectionTitleKeyForPath } from "@/lib/navigation/owner-nav";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
@@ -32,11 +32,9 @@ export function OwnerTopBar({
   menuOpen?: boolean;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { t, formatDate, formatTime } = useI18n();
   const sectionTitle = t(sectionTitleKeyForPath(pathname));
   const [profileOpen, setProfileOpen] = useState(false);
-  const [search, setSearch] = useState("");
   const [now, setNow] = useState<Date | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -56,23 +54,16 @@ export function OwnerTopBar({
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  function onSearchSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const q = search.trim();
-    if (!q) return;
-    router.push(`/warehouse/products?q=${encodeURIComponent(q)}`);
-  }
-
   const dateLabel = now ? formatDate(now) : "—";
   const timeLabel = now ? formatTime(now) : "--:--";
 
   return (
     <header className="sticky top-0 z-[60] border-b border-border bg-card/95 backdrop-blur">
-      <div className="flex h-14 items-center gap-2.5 px-4 sm:gap-3 sm:px-6 lg:px-8">
+      <div className="flex h-14 items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
         <button
           type="button"
           onClick={() => onMenu?.()}
-          className="rounded-xl p-2 text-muted hover:bg-page hover:text-ink"
+          className="shrink-0 rounded-xl p-2 text-muted hover:bg-page hover:text-ink"
           aria-label={menuOpen ? t("common.close") : t("common.menu")}
           aria-expanded={menuOpen}
           data-owner-menu
@@ -84,24 +75,10 @@ export function OwnerTopBar({
             <Menu className="h-5 w-5" strokeWidth={1.75} />
           )}
         </button>
-        <Link
-          href="/dashboard"
-          className="flex shrink-0 items-center gap-2 lg:hidden"
-          title="AROMAT PLUS"
-        >
-          <Image
-            src="/logo-aramat-plus.png"
-            alt=""
-            width={28}
-            height={28}
-            className="h-7 w-7 rounded-md object-contain"
-          />
-        </Link>
 
-        {/* Desktop brand (when sidebar may be collapsed) */}
         <Link
           href="/dashboard"
-          className="hidden items-center gap-2 lg:flex"
+          className="hidden shrink-0 items-center gap-2 lg:flex"
           title="AROMAT PLUS"
         >
           <Image
@@ -116,37 +93,21 @@ export function OwnerTopBar({
           </span>
         </Link>
 
-        <div className="mx-1 hidden h-6 w-px bg-border lg:block" />
+        <div className="mx-0.5 hidden h-6 w-px bg-border lg:block" />
 
         <h1 className="min-w-0 flex-1 truncate text-base font-bold text-ink sm:text-lg">
           {sectionTitle}
         </h1>
 
-        <form
-          onSubmit={onSearchSubmit}
-          className="flex max-w-[140px] flex-1 items-center gap-2 rounded-xl border border-border bg-page px-2 py-1.5 sm:max-w-[200px] sm:px-3 sm:py-2 lg:max-w-xs"
-        >
-          <Search className="h-4 w-4 shrink-0 text-muted" aria-hidden />
-          <input
-            id="owner-global-search"
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("common.searchSlash")}
-            className="border-0 bg-transparent p-0 text-sm shadow-none focus:ring-0"
-            aria-label={t("common.globalSearch")}
-          />
-        </form>
-
         <div
-          className="hidden text-right tabular-nums xl:block"
+          className="hidden shrink-0 text-right tabular-nums xl:block"
           suppressHydrationWarning
         >
           <div className="text-[11px] font-medium text-muted">{dateLabel}</div>
           <div className="text-sm font-semibold text-ink">{timeLabel}</div>
         </div>
 
-        <div className="flex items-center gap-1 sm:gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <LanguageSwitcher className="hidden sm:inline-flex" />
 
           <Link
@@ -161,7 +122,7 @@ export function OwnerTopBar({
             <button
               type="button"
               onClick={() => setProfileOpen((v) => !v)}
-              className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-page"
+              className="flex items-center gap-2 rounded-xl px-1.5 py-1.5 hover:bg-page sm:px-2"
             >
               <span className="hidden max-w-[120px] truncate text-sm text-ink sm:inline">
                 {userName}

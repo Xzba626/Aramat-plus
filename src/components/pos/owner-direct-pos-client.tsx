@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, FieldLabel } from "@/components/ui/card";
 import { cn, decimalToNumber } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
@@ -18,6 +18,14 @@ type CatalogItem = {
   unit: string;
   salePrice: number;
   quantity: number;
+  accountingType: "PIECE" | "WEIGHT";
+};
+
+type BottleOption = {
+  packagingSkuId: string | null;
+  packagingProductId: string;
+  name: string;
+  volumeMl: number | null;
 };
 
 type Line = {
@@ -27,6 +35,10 @@ type Line = {
   salePrice: number;
   quantity: number;
   max: number;
+  accountingType: "PIECE" | "WEIGHT";
+  packagingProductId?: string | null;
+  packagingSkuId?: string | null;
+  packagingName?: string | null;
 };
 
 type StockApi = {
@@ -38,6 +50,7 @@ type StockApi = {
       id: string;
       name: string;
       salePrice: unknown;
+      accountingType?: "PIECE" | "WEIGHT";
       brand?: { name: string } | null;
       category?: { name: string } | null;
       unit?: { symbol: string } | null;
@@ -67,6 +80,12 @@ export function OwnerDirectPosClient({
     Array<{ id: string; time: string; total: number; items: string }>
   >([]);
 
+  const [weightPick, setWeightPick] = useState<CatalogItem | null>(null);
+  const [weightQty, setWeightQty] = useState("10");
+  const [bottleId, setBottleId] = useState("");
+  const [bottles, setBottles] = useState<BottleOption[]>([]);
+  const [bottlesLoading, setBottlesLoading] = useState(false);
+
   const loadCatalog = useCallback(async () => {
     setLoading(true);
     const res = await fetch("/api/warehouse/stock?forPos=1");
@@ -84,6 +103,7 @@ export function OwnerDirectPosClient({
       unit: b.product.unit?.symbol ?? "",
       salePrice: decimalToNumber(b.product.salePrice as never),
       quantity: decimalToNumber(b.quantity as never),
+      accountingType: b.product.accountingType === "WEIGHT" ? "WEIGHT" : "PIECE",
     }));
     setCatalog(items);
     setError("");
@@ -141,14 +161,38 @@ export function OwnerDirectPosClient({
   }, [q, category, catalog]);
 
   const total = cart.reduce((s, l) => s + l.salePrice * l.quantity, 0);
+  const missingBottle = cart.some(
+    (l) => l.accountingType === "WEIGHT" && !l.packagingProductId
+  );
 
-  function add(p: CatalogItem) {
+  async function openWeightModal(p: CatalogItem) {
+    setWeightPick(p);
+    setWeightQty("10");
+    setBottleId("");
+    setError("");
+    setBottlesLoading(true);
+    const res = await fetch(
+      `/api/pos/packaging-bottles?storeId=${encodeURIComponent(storeId)}`
+    );
+    const data = await res.json();
+    setBottlesLoading(false);
+    if (res.ok && Array.isArray(data)) {
+      setBottles(data);
+      if (data.length === 1) setBottleId(data[0].packagingProductId);
+    } else {
+      setBottles([]);
+    }
+  }
+
+  function addPiece(p: CatalogItem) {
     if (p.quantity <= 0) return;
     setCart((prev) => {
-      const existing = prev.find((l) => l.productId === p.productId);
+      const existing = prev.find(
+        (l) => l.productId === p.productId && l.accountingType === "PIECE"
+      );
       if (existing) {
         return prev.map((l) =>
-          l.productId === p.productId
+          l.productId === p.productId && l.accountingType === "PIECE"
             ? { ...l, quantity: Math.min(l.max, l.quantity + 1) }
             : l
         );
@@ -162,16 +206,61 @@ export function OwnerDirectPosClient({
           salePrice: p.salePrice,
           quantity: 1,
           max: p.quantity,
+          accountingType: "PIECE" as const,
         },
       ];
     });
   }
 
-  function setQty(productId: string, quantity: number) {
+  function confirmWeightAdd() {
+    if (!weightPick) return;
+    const qty = Number(weightQty);
+    if (!(qty > 0)) {
+      setError(t("pos.qtyInvalid"));
+      return;
+    }
+    if (qty > weightPick.quantity) {
+      setError(t("pos.qtyExceedsStock"));
+      return;
+    }
+    const bottle = bottles.find((b) => b.packagingProductId === bottleId);
+    if (!bottle) {
+      setError(t("pos.bottleRequired"));
+      return;
+    }
+    setCart((prev) => [
+      ...prev,
+      {
+        productId: weightPick.productId,
+        name: weightPick.name,
+        unit: weightPick.unit || "мл",
+        salePrice: weightPick.salePrice,
+        quantity: qty,
+        max: weightPick.quantity,
+        accountingType: "WEIGHT",
+        packagingProductId: bottle.packagingProductId,
+        packagingSkuId: bottle.packagingSkuId,
+        packagingName: bottle.name,
+      },
+    ]);
+    setWeightPick(null);
+    setError("");
+  }
+
+  function onCardClick(p: CatalogItem) {
+    if (p.quantity <= 0) return;
+    if (p.accountingType === "WEIGHT") {
+      void openWeightModal(p);
+      return;
+    }
+    addPiece(p);
+  }
+
+  function setQty(productId: string, quantity: number, index: number) {
     setCart((prev) =>
       prev
-        .map((l) =>
-          l.productId === productId
+        .map((l, i) =>
+          i === index
             ? { ...l, quantity: Math.max(0, Math.min(l.max, quantity)) }
             : l
         )
@@ -181,41 +270,65 @@ export function OwnerDirectPosClient({
 
   async function checkout() {
     if (cart.length === 0 || checkoutBusy) return;
+    if (missingBottle) {
+      setError(t("pos.bottleRequired"));
+      return;
+    }
     setCheckoutBusy(true);
     setError("");
     setMsg("");
-    const res = await fetch("/api/sales", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        storeId,
-        paymentMethod: payment,
-        items: cart.map((l) => ({
-          productId: l.productId,
-          quantity: l.quantity,
-        })),
-      }),
-    });
-    const data = await res.json();
-    setCheckoutBusy(false);
-    if (!res.ok) {
-      setError(apiErrorMessage(data.error, t, "pos.saleError"));
-      return;
+    try {
+      const res = await fetch("/api/sales", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storeId,
+          paymentMethod: payment,
+          items: cart.map((l) => ({
+            productId: l.productId,
+            quantity: l.quantity,
+            ...(l.accountingType === "WEIGHT" && l.packagingProductId
+              ? {
+                  packagingProductId: l.packagingProductId,
+                  ...(l.packagingSkuId
+                    ? { packagingSkuId: l.packagingSkuId }
+                    : {}),
+                }
+              : {}),
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(apiErrorMessage(data.error, t, "pos.saleError"));
+        return;
+      }
+      const saleTotal = decimalToNumber(data.total as never);
+      setHistory((prev) => [
+        {
+          id: data.id,
+          time: formatDateTime(new Date().toISOString()),
+          total: saleTotal,
+          items: cart
+            .map(
+              (l) =>
+                `${l.name} × ${l.quantity}${
+                  l.packagingName ? ` (${l.packagingName})` : ""
+                }`
+            )
+            .join(", "),
+        },
+        ...prev,
+      ]);
+      setCart([]);
+      setMsg(t("pos.saleDone"));
+      toast(t("pos.saleDone"));
+      await loadCatalog();
+    } catch {
+      setError(t("pos.saleError"));
+    } finally {
+      setCheckoutBusy(false);
     }
-    const saleTotal = decimalToNumber(data.total as never);
-    setHistory((prev) => [
-      {
-        id: data.id,
-        time: formatDateTime(new Date().toISOString()),
-        total: saleTotal,
-        items: cart.map((l) => `${l.name} × ${l.quantity}`).join(", "),
-      },
-      ...prev,
-    ]);
-    setCart([]);
-    setMsg(t("pos.saleDone"));
-    toast(t("pos.saleDone"));
-    await loadCatalog();
   }
 
   async function reserveCart() {
@@ -223,27 +336,32 @@ export function OwnerDirectPosClient({
     setCheckoutBusy(true);
     setError("");
     setMsg("");
-    const res = await fetch("/api/reservations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        storeId,
-        items: cart.map((l) => ({
-          productId: l.productId,
-          quantity: l.quantity,
-        })),
-      }),
-    });
-    const data = await res.json();
-    setCheckoutBusy(false);
-    if (!res.ok) {
-      setError(apiErrorMessage(data.error, t, "pos.reserveError"));
-      return;
+    try {
+      const res = await fetch("/api/reservations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storeId,
+          items: cart.map((l) => ({
+            productId: l.productId,
+            quantity: l.quantity,
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(apiErrorMessage(data.error, t, "pos.reserveError"));
+        return;
+      }
+      setCart([]);
+      setMsg(t("pos.reserveDone"));
+      toast(t("pos.reserveDone"));
+      await loadCatalog();
+    } catch {
+      setError(t("pos.reserveError"));
+    } finally {
+      setCheckoutBusy(false);
     }
-    setCart([]);
-    setMsg(t("pos.reserveDone"));
-    toast(t("pos.reserveDone"));
-    await loadCatalog();
   }
 
   return (
@@ -268,7 +386,7 @@ export function OwnerDirectPosClient({
           {msg}
         </Card>
       ) : null}
-      {error ? (
+      {error && !weightPick ? (
         <Card className="border-danger/20 bg-danger/5 p-3 text-sm text-danger">
           {error}
         </Card>
@@ -308,11 +426,12 @@ export function OwnerDirectPosClient({
                 <button
                   key={p.productId}
                   type="button"
-                  onClick={() => add(p)}
+                  onClick={() => onCardClick(p)}
                   className="rounded-[18px] border border-border bg-card p-4 text-left transition hover:border-brand/40"
                 >
                   <div className="text-xs text-muted">
                     {p.brand} · {p.category}
+                    {p.accountingType === "WEIGHT" ? " · мл" : ""}
                   </div>
                   <div className="mt-1 font-semibold text-ink">{p.name}</div>
                   <div className="mt-2 flex items-end justify-between">
@@ -348,14 +467,20 @@ export function OwnerDirectPosClient({
               </p>
             ) : (
               <div className="space-y-3">
-                {cart.map((l) => (
+                {cart.map((l, idx) => (
                   <div
-                    key={l.productId}
+                    key={`${l.productId}-${idx}`}
                     className="flex items-center justify-between gap-2 border-b border-border pb-3 last:border-0"
                   >
                     <div>
                       <div className="text-sm font-semibold text-ink">
                         {l.name}
+                        {l.packagingName ? (
+                          <span className="font-normal text-muted">
+                            {" "}
+                            · {l.packagingName}
+                          </span>
+                        ) : null}
                       </div>
                       <div className="text-xs text-muted">
                         {formatMoney(l.salePrice)} / {l.unit}
@@ -365,7 +490,7 @@ export function OwnerDirectPosClient({
                       <button
                         type="button"
                         className="h-8 w-8 rounded-lg border border-border"
-                        onClick={() => setQty(l.productId, l.quantity - 1)}
+                        onClick={() => setQty(l.productId, l.quantity - 1, idx)}
                       >
                         −
                       </button>
@@ -375,7 +500,7 @@ export function OwnerDirectPosClient({
                       <button
                         type="button"
                         className="h-8 w-8 rounded-lg border border-border"
-                        onClick={() => setQty(l.productId, l.quantity + 1)}
+                        onClick={() => setQty(l.productId, l.quantity + 1, idx)}
                       >
                         +
                       </button>
@@ -412,7 +537,7 @@ export function OwnerDirectPosClient({
                 <Button
                   type="button"
                   onClick={checkout}
-                  disabled={checkoutBusy}
+                  disabled={checkoutBusy || missingBottle}
                 >
                   {checkoutBusy ? t("common.loading") : t("pos.checkout")}
                 </Button>
@@ -452,6 +577,72 @@ export function OwnerDirectPosClient({
           </Card>
         </div>
       </div>
+
+      {weightPick ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+          <Card className="w-full max-w-md space-y-3 p-5">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-bold text-ink">{weightPick.name}</h2>
+                <p className="text-sm text-muted">{t("pos.weightAddHint")}</p>
+              </div>
+              <button
+                type="button"
+                className="text-sm text-muted"
+                onClick={() => {
+                  setWeightPick(null);
+                  setError("");
+                }}
+              >
+                {t("common.close")}
+              </button>
+            </div>
+            <div>
+              <FieldLabel>{t("pos.qtyMl")}</FieldLabel>
+              <input
+                type="number"
+                min={0.1}
+                step="0.1"
+                value={weightQty}
+                onChange={(e) => setWeightQty(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <FieldLabel>{t("pos.selectBottle")}</FieldLabel>
+              <p className="mt-0.5 text-[11px] text-muted">{t("pos.bottleHint")}</p>
+              {bottlesLoading ? (
+                <p className="mt-1 text-xs text-muted">{t("common.loading")}</p>
+              ) : bottles.length === 0 ? (
+                <p className="mt-1 text-xs text-danger">{t("pos.noBottlesInStore")}</p>
+              ) : (
+                <select
+                  className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                  value={bottleId}
+                  onChange={(e) => setBottleId(e.target.value)}
+                >
+                  <option value="">{t("pos.bottlePlaceholder")}</option>
+                  {bottles.map((b) => (
+                    <option key={b.packagingProductId} value={b.packagingProductId}>
+                      {b.name}
+                      {b.volumeMl != null ? ` · ${b.volumeMl} мл` : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            {error ? <p className="text-sm text-danger">{error}</p> : null}
+            <Button
+              type="button"
+              className="w-full"
+              onClick={confirmWeightAdd}
+              disabled={bottlesLoading || bottles.length === 0}
+            >
+              {t("pos.addToCart")}
+            </Button>
+          </Card>
+        </div>
+      ) : null}
     </div>
   );
 }

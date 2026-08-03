@@ -19,17 +19,19 @@ function downloadExport(params: {
   storeId?: string;
   from?: string;
   to?: string;
+  lang?: string;
 }) {
   const qs = new URLSearchParams({ type: params.type });
   if (params.period && params.period !== "custom") qs.set("period", params.period);
   if (params.period === "custom" && params.from) qs.set("from", params.from);
   if (params.period === "custom" && params.to) qs.set("to", params.to);
   if (params.storeId) qs.set("storeId", params.storeId);
+  if (params.lang) qs.set("lang", params.lang);
   window.location.href = `/api/export?${qs.toString()}`;
 }
 
 export default function ReportsPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [busy, setBusy] = useState<string | null>(null);
   const [stores, setStores] = useState<StoreOpt[]>([]);
   const [storeId, setStoreId] = useState("");
@@ -67,6 +69,7 @@ export default function ReportsPage() {
     period,
     from: period === "custom" ? from : undefined,
     to: period === "custom" ? to : undefined,
+    lang: locale,
   };
 
   return (

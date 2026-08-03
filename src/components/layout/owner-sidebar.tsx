@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   BarChart3,
@@ -53,14 +53,16 @@ function NavIcon({ name }: { name: string }) {
 function SubNavLink({
   item,
   pathname,
+  searchParams,
   onNavigate,
 }: {
   item: OwnerNavItem;
   pathname: string;
+  searchParams?: URLSearchParams | null;
   onNavigate?: () => void;
 }) {
   const t = useT();
-  const active = isPathActive(pathname, item.href);
+  const active = isPathActive(pathname, item.href, searchParams);
   return (
     <Link
       href={item.href}
@@ -80,20 +82,25 @@ function SubNavLink({
 function SectionLink({
   section,
   pathname,
+  searchParams,
   expanded,
   onToggle,
   onNavigate,
 }: {
   section: OwnerNavSection;
   pathname: string;
+  searchParams?: URLSearchParams | null;
   expanded: boolean;
   onToggle: () => void;
   onNavigate?: () => void;
 }) {
   const t = useT();
   const hasChildren = Boolean(section.children?.length);
-  const childActive = section.children?.some((c) => isPathActive(pathname, c.href));
-  const active = isPathActive(pathname, section.href) || Boolean(childActive);
+  const childActive = section.children?.some((c) =>
+    isPathActive(pathname, c.href, searchParams)
+  );
+  const active =
+    isPathActive(pathname, section.href, searchParams) || Boolean(childActive);
 
   if (!hasChildren) {
     return (
@@ -146,6 +153,7 @@ function SectionLink({
               key={item.href + item.labelKey}
               item={item}
               pathname={pathname}
+              searchParams={searchParams}
               onNavigate={onNavigate}
             />
           ))}
@@ -169,12 +177,13 @@ export function OwnerSidebar({
 }) {
   const t = useT();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const sections = filterNavForRole(role as Role);
   const activeSectionId =
     sections.find(
       (s) =>
-        isPathActive(pathname, s.href) ||
-        s.children?.some((c) => isPathActive(pathname, c.href))
+        isPathActive(pathname, s.href, searchParams) ||
+        s.children?.some((c) => isPathActive(pathname, c.href, searchParams))
     )?.id ?? null;
   const [expandedId, setExpandedId] = useState<string | null>(activeSectionId);
 
@@ -226,6 +235,7 @@ export function OwnerSidebar({
                 <SectionLink
                   section={section}
                   pathname={pathname}
+                  searchParams={searchParams}
                   expanded={expandedId === section.id}
                   onToggle={() =>
                     setExpandedId((cur) => (cur === section.id ? null : section.id))
