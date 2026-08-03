@@ -134,6 +134,16 @@ function mapProcessError(e: unknown, step?: string): never {
   throw wrapped;
 }
 
+/**
+ * sharp Buffer may sit on SharedArrayBuffer; undici/fetch rejects that on Vercel.
+ * Copy into a plain ArrayBuffer via Blob before @vercel/blob put().
+ */
+function toBlobPutBody(buf: Buffer, contentType: string): Blob {
+  const copy = new Uint8Array(buf.byteLength);
+  copy.set(buf);
+  return new Blob([copy], { type: contentType });
+}
+
 async function saveToBlob(
   base: string,
   fullBuf: Buffer,
@@ -143,22 +153,23 @@ async function saveToBlob(
   const fullName = `products/${base}.webp`;
   const mdName = `products/${base}-md.webp`;
   const thumbName = `products/${base}-thumb.webp`;
+  const contentType = "image/webp";
 
   try {
     const [full, md, thumb] = await Promise.all([
-      put(fullName, fullBuf, {
+      put(fullName, toBlobPutBody(fullBuf, contentType), {
         access: "public",
-        contentType: "image/webp",
+        contentType,
         addRandomSuffix: false,
       }),
-      put(mdName, mdBuf, {
+      put(mdName, toBlobPutBody(mdBuf, contentType), {
         access: "public",
-        contentType: "image/webp",
+        contentType,
         addRandomSuffix: false,
       }),
-      put(thumbName, thumbBuf, {
+      put(thumbName, toBlobPutBody(thumbBuf, contentType), {
         access: "public",
-        contentType: "image/webp",
+        contentType,
         addRandomSuffix: false,
       }),
     ]);
