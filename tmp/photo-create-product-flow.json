@@ -1,0 +1,219 @@
+{
+  "at": "2026-08-03T16:57:37.036Z",
+  "certCase": "PHOTO-CREATE-E2E",
+  "verdict": "HAPPY_PATH_PASS — upload→create→DB works when imageUrl is set",
+  "conclusion": {
+    "photoPipelineBlocked": false,
+    "exactFailingStepWhenUiShowsServerError": "POST /api/products (create), NOT /api/products/upload",
+    "why": [
+      "Happy path with ~2.6MB JPEG → compress → upload 201 → create 201 → DB imageUrl matches → file HTTP 200.",
+      "Upload→Create handoff of imageUrl is NOT broken when upload succeeds.",
+      "UI text «Внутренняя ошибка сервера» = errors.INTERNAL_ERROR OR user may mean DB_ERROR («Ошибка базы данных») — both are 500 on CREATE, not image process codes.",
+      "Reproduced create 500 DB_ERROR: brandId='' | brandId invalid | categoryId='' | categoryId invalid → Prisma P2003 Product_*_fkey.",
+      "warehouse/new maps brandId via `brandId || null` so empty brand is usually OK; empty/invalid category or brand FK still possible if payload bypasses UI guards.",
+      "If upload never finishes, imageUrl stays null — product can still be created WITHOUT photo (201) — looks like 'photo failed' but create succeeded."
+    ],
+    "notTheCause": [
+      "ProductImageService / sharp / WebP variants for valid JPEG",
+      "imageUrl lost after successful upload (handoff proven)",
+      "Filtering PHOTO HARDEN names (those are test seed rows)"
+    ],
+    "recommendedFixScopeWhenApproved": [
+      "Normalize empty string FKs (brandId/categoryId/unitId) to null before Prisma",
+      "Map Prisma P2003 → typed BRAND_NOT_FOUND / CATEGORY_NOT_FOUND (not DB_ERROR/INTERNAL)",
+      "Frontend: refuse submit if category missing; show field-level errors",
+      "Do NOT treat PHOTO-MODULE upload as FAIL — add PHOTO-CREATE-E2E to certification"
+    ]
+  },
+  "rootCauseHypotheses": [
+    {
+      "id": "H1_upload_create_handoff",
+      "likelihood": "REJECTED",
+      "detail": "UI sets imageUrl from upload response then POSTs it. Proven PASS."
+    },
+    {
+      "id": "H2_react_stale_state",
+      "likelihood": "LOW for INTERNAL_ERROR; MEDIUM for 'created without photo'",
+      "detail": "Submit disabled while uploading. Race → imageUrl null → product 201 without photo."
+    },
+    {
+      "id": "H3_image_process",
+      "likelihood": "REJECTED for valid JPEG/PNG on this environment",
+      "detail": "Upload compressed JPEG → 201 with variants."
+    },
+    {
+      "id": "H4_create_fk_db_error",
+      "likelihood": "CONFIRMED for 500 on create",
+      "detail": "brandId/categoryId empty string or invalid cuid → Prisma P2003 → DB_ERROR 500. UI shows database/server error, not IMAGE_*."
+    }
+  ],
+  "uiErrorMapping": {
+    "INTERNAL_ERROR": "Внутренняя ошибка сервера",
+    "DB_ERROR": "Ошибка базы данных. Попробуйте позже.",
+    "IMAGE_PROCESS_FAILED": "Не удалось обработать фотографию…",
+    "note": "Screenshot 'server error' aligns with create FK failure (DB_ERROR) or unmapped INTERNAL_ERROR — not with IMAGE_PROCESS_FAILED."
+  },
+  "fkProbe": [
+    { "case": "empty_category", "http": 500, "error": "DB_ERROR" },
+    { "case": "bad_category", "http": 500, "error": "DB_ERROR" }
+  ],
+  "steps": [
+    {
+      "step": "login",
+      "status": "PASS",
+      "detail": "owner session"
+    },
+    {
+      "step": "categories",
+      "status": "PASS",
+      "detail": "http=200 categoryId=cmsd9g58d0000jv04xtvkmcuz",
+      "http": 200
+    },
+    {
+      "step": "file_select",
+      "status": "INFO",
+      "detail": "name=phone.jpg type=image/jpeg size=2636871"
+    },
+    {
+      "step": "client_compress",
+      "status": "PASS",
+      "detail": "in=2636871 out=752531 type=image/jpeg"
+    },
+    {
+      "step": "upload_api",
+      "status": "PASS",
+      "detail": "http=201 imageUrl=/uploads/products/1785776232111-p6coidfl-md.webp error=null",
+      "http": 201,
+      "body": {
+        "imageUrl": "/uploads/products/1785776232111-p6coidfl-md.webp",
+        "variants": {
+          "full": "/uploads/products/1785776232111-p6coidfl.webp",
+          "medium": "/uploads/products/1785776232111-p6coidfl-md.webp",
+          "thumb": "/uploads/products/1785776232111-p6coidfl-thumb.webp"
+        },
+        "bytes": {
+          "input": 752531,
+          "full": 743716,
+          "medium": 108290,
+          "thumb": 1394
+        }
+      }
+    },
+    {
+      "step": "state_imageUrl",
+      "status": "PASS",
+      "detail": "React would hold imageUrl=/uploads/products/1785776232111-p6coidfl-md.webp"
+    },
+    {
+      "step": "zod_local",
+      "status": "PASS",
+      "detail": "stripped=false err=null"
+    },
+    {
+      "step": "create_product",
+      "status": "PASS",
+      "detail": "http=201 id=cmsdh29xe0003umiwyi41n655 error=null imageUrl=/uploads/products/1785776232111-p6coidfl-md.webp",
+      "http": 201,
+      "body": {
+        "id": "cmsdh29xe0003umiwyi41n655",
+        "imageUrl": "/uploads/products/1785776232111-p6coidfl-md.webp"
+      }
+    },
+    {
+      "step": "db_imageUrl",
+      "status": "PASS",
+      "detail": "stored=/uploads/products/1785776232111-p6coidfl-md.webp expected=/uploads/products/1785776232111-p6coidfl-md.webp",
+      "http": 200
+    },
+    {
+      "step": "file_http",
+      "status": "PASS",
+      "detail": "http=200",
+      "http": 200
+    },
+    {
+      "step": "edge_cases",
+      "status": "INFO",
+      "detail": "[{\"case\":\"create_without_photo\",\"http\":201,\"error\":null,\"id\":\"cmsdh2ikl000bumiwkth7gtu7\"},{\"case\":\"create_with_dangling_imageUrl\",\"http\":201,\"error\":null,\"id\":\"cmsdh2k5b000fumiw4xd0n0w3\"},{\"case\":\"create_brandId_empty_string\",\"http\":500,\"error\":\"DB_ERROR\",\"id\":null,\"prismaHint\":\"Likely FK/cuid failure → INTERNAL_ERROR or DB_ERROR\"},{\"case\":\"create_brandId_invalid\",\"http\":500,\"error\":\"DB_ERROR\",\"id\":null},{\"case\":\"qty_without_cost\",\"http\":400,\"error\":\"COST_REQUIRED_FOR_STOCK\"},{\"case\":\"submit_before_upload_completes_imageUrl_null\",\"http\":201,\"error\":null,\"id\":\"cmsdh2pcu000numiwiiyepj4f\",\"note\":\"Product created WITHOUT photo — UI success but photo missing; not INTERNAL_ERROR\"}]",
+      "body": [
+        {
+          "case": "create_without_photo",
+          "http": 201,
+          "error": null,
+          "id": "cmsdh2ikl000bumiwkth7gtu7"
+        },
+        {
+          "case": "create_with_dangling_imageUrl",
+          "http": 201,
+          "error": null,
+          "id": "cmsdh2k5b000fumiw4xd0n0w3"
+        },
+        {
+          "case": "create_brandId_empty_string",
+          "http": 500,
+          "error": "DB_ERROR",
+          "id": null,
+          "prismaHint": "Likely FK/cuid failure → INTERNAL_ERROR or DB_ERROR"
+        },
+        {
+          "case": "create_brandId_invalid",
+          "http": 500,
+          "error": "DB_ERROR",
+          "id": null
+        },
+        {
+          "case": "qty_without_cost",
+          "http": 400,
+          "error": "COST_REQUIRED_FOR_STOCK"
+        },
+        {
+          "case": "submit_before_upload_completes_imageUrl_null",
+          "http": 201,
+          "error": null,
+          "id": "cmsdh2pcu000numiwiiyepj4f",
+          "note": "Product created WITHOUT photo — UI success but photo missing; not INTERNAL_ERROR"
+        }
+      ]
+    }
+  ],
+  "edgeCases": [
+    {
+      "case": "create_without_photo",
+      "http": 201,
+      "error": null,
+      "id": "cmsdh2ikl000bumiwkth7gtu7"
+    },
+    {
+      "case": "create_with_dangling_imageUrl",
+      "http": 201,
+      "error": null,
+      "id": "cmsdh2k5b000fumiw4xd0n0w3"
+    },
+    {
+      "case": "create_brandId_empty_string",
+      "http": 500,
+      "error": "DB_ERROR",
+      "id": null,
+      "prismaHint": "Likely FK/cuid failure → INTERNAL_ERROR or DB_ERROR"
+    },
+    {
+      "case": "create_brandId_invalid",
+      "http": 500,
+      "error": "DB_ERROR",
+      "id": null
+    },
+    {
+      "case": "qty_without_cost",
+      "http": 400,
+      "error": "COST_REQUIRED_FOR_STOCK"
+    },
+    {
+      "case": "submit_before_upload_completes_imageUrl_null",
+      "http": 201,
+      "error": null,
+      "id": "cmsdh2pcu000numiwiiyepj4f",
+      "note": "Product created WITHOUT photo — UI success but photo missing; not INTERNAL_ERROR"
+    }
+  ],
+  "fail": 0
+}
