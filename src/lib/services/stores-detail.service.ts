@@ -237,6 +237,7 @@ export async function getStoreStockPaged(
           brand: true,
           category: true,
           unit: true,
+          productType: true,
         },
       },
     },
@@ -255,10 +256,14 @@ export async function getStoreStockPaged(
       status: st,
       product: {
         name: b.product.name,
-        imageUrl: b.product.brand?.imageUrl ?? null,
+        imageUrl: b.product.imageUrl ?? b.product.brand?.imageUrl ?? null,
+        accountingType: b.product.accountingType,
         brand: b.product.brand ? { id: b.product.brand.id, name: b.product.brand.name } : null,
         category: b.product.category
           ? { id: b.product.category.id, name: b.product.category.name }
+          : null,
+        productType: b.product.productType
+          ? { name: b.product.productType.name }
           : null,
         unit: b.product.unit
           ? { symbol: b.product.unit.symbol, name: b.product.unit.name }

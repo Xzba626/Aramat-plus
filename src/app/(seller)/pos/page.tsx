@@ -8,6 +8,7 @@ import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel } from "@/components/ui/card";
+import { ProductCard } from "@/components/products/product-card";
 
 type CatalogItem = {
   productId: string;
@@ -17,6 +18,7 @@ type CatalogItem = {
   product: {
     name: string;
     kind?: string;
+    imageUrl?: string | null;
     brand: { name: string; imageUrl: string | null } | null;
     category: { id: string; name: string } | null;
     unit: { symbol: string } | null;
@@ -35,7 +37,7 @@ type BottleOption = {
 
 export default function PosPage() {
   const router = useRouter();
-  const { t, formatMoney } = useI18n();
+  const { t } = useI18n();
   const add = usePosCart((s) => s.add);
   const purgePackagingLines = usePosCart((s) => s.purgePackagingLines);
   const cartCount = usePosCart((s) => s.lines.reduce((n, l) => n + l.quantity, 0));
@@ -123,6 +125,7 @@ export default function PosPage() {
       max: item.quantity,
       quantity: 1,
       accountingType: "PIECE",
+      imageUrl: item.product.imageUrl ?? item.product.brand?.imageUrl ?? null,
     });
     setFlash(t("pos.addedToCart", { name: item.product.name }));
     setTimeout(() => setFlash(""), 1200);
@@ -152,6 +155,8 @@ export default function PosPage() {
       max: weightPick.quantity,
       quantity: qty,
       accountingType: "WEIGHT",
+      imageUrl:
+        weightPick.product.imageUrl ?? weightPick.product.brand?.imageUrl ?? null,
       packagingProductId: bottle.packagingProductId,
       packagingSkuId: bottle.packagingSkuId,
       packagingName: bottle.name,
@@ -254,47 +259,24 @@ export default function PosPage() {
       ) : (
         <div className="grid grid-cols-2 gap-2.5">
           {items.map((item) => (
-            <button
+            <ProductCard
               key={item.productId}
-              type="button"
+              mode="pos"
+              asButton
               disabled={item.quantity <= 0}
               onClick={() => onCardClick(item)}
-              className={cn(
-                "rounded-2xl border border-border bg-card p-3 text-left shadow-sm transition active:scale-[0.98]",
-                item.stockStatus === "LOW" && "ring-1 ring-warning/40",
-                item.stockStatus === "OUT" && "opacity-50"
-              )}
-            >
-              <div className="mb-2 flex h-14 items-center justify-center rounded-xl bg-brand-soft text-lg font-bold text-brand">
-                {(item.product.brand?.name ?? item.product.name).slice(0, 1)}
-              </div>
-              <div className="line-clamp-2 text-sm font-semibold text-ink">
-                {item.product.name}
-              </div>
-              <div className="mt-1 text-xs text-muted">
-                {item.product.brand?.name ?? "—"}
-              </div>
-              <div className="mt-2 flex items-end justify-between gap-1">
-                <span className="text-sm font-bold text-ink">
-                  {formatMoney(item.salePrice)}
-                </span>
-                {/* Seller must NOT see exact stock — only status */}
-                <span
-                  className={cn(
-                    "text-[11px] font-semibold",
-                    item.stockStatus === "OK" && "text-success",
-                    item.stockStatus === "LOW" && "text-warning",
-                    item.stockStatus === "OUT" && "text-danger"
-                  )}
-                >
-                  {item.stockStatus === "OUT"
-                    ? t("pos.outOfStock")
-                    : item.stockStatus === "LOW"
-                      ? t("pos.lowStock")
-                      : t("pos.inStock")}
-                </span>
-              </div>
-            </button>
+              stockStatus={item.stockStatus}
+              product={{
+                id: item.productId,
+                name: item.product.name,
+                imageUrl: item.product.imageUrl,
+                brand: item.product.brand,
+                category: item.product.category,
+                unit: item.product.unit,
+                accountingType: item.product.accountingType,
+                salePrice: item.salePrice,
+              }}
+            />
           ))}
         </div>
       )}

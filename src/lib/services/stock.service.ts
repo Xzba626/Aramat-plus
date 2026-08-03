@@ -204,6 +204,7 @@ export async function getWarehouseStock(companyId: string, warehouseId?: string)
           brand: true,
           category: true,
           unit: true,
+          productType: true,
         },
       },
     },
@@ -252,7 +253,7 @@ export async function getStoreStock(storeId: string) {
     },
     include: {
       product: {
-        include: { brand: true, unit: true, category: true },
+        include: { brand: true, unit: true, category: true, productType: true },
       },
     },
     orderBy: { updatedAt: "desc" },

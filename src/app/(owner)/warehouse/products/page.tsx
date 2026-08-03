@@ -5,12 +5,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { EmptyState, LoadingBlock } from "@/components/ui/empty-state";
-import { cn } from "@/lib/utils";
 import { usePersistedState } from "@/lib/hooks/use-persisted-state";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { labelProductType } from "@/lib/i18n/labels";
+import { ProductCard } from "@/components/products/product-card";
 
 type StatusKey = "active" | "empty" | "low" | "archived";
 
@@ -22,9 +20,9 @@ type Row = {
   salePrice: string | number;
   warehouseQty: number;
   statusKey: StatusKey;
-  statusLabel?: string;
   isActive: boolean;
   accountingType: string;
+  imageUrl?: string | null;
   brand?: { name: string; imageUrl?: string | null } | null;
   category?: { name: string } | null;
   unit?: { symbol: string } | null;
@@ -57,7 +55,7 @@ const STATUS_TONE: Record<StatusKey, string> = {
 export default function WarehouseCatalogPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { t, formatMoney } = useI18n();
+  const { t } = useI18n();
   const [filters, setFilters, filtersReady] = usePersistedState<Filters>(
     "warehouse-catalog",
     {
@@ -122,7 +120,6 @@ export default function WarehouseCatalogPage() {
       const brandList = brs.ok && Array.isArray(brs.data) ? brs.data : [];
       setCategories(catList);
       setBrands(brandList);
-      // After wipe/reseed, sessionStorage may keep deleted category/brand ids
       setFilters((f) => {
         const catOk =
           !f.categoryId || catList.some((c: Ref) => c.id === f.categoryId);
@@ -146,10 +143,6 @@ export default function WarehouseCatalogPage() {
     const timer = setTimeout(load, 200);
     return () => clearTimeout(timer);
   }, [load, filtersReady]);
-
-  function openProduct(id: string) {
-    router.push(`/warehouse/${id}`);
-  }
 
   function statusLabel(row: Row): string {
     const key = row.statusKey ?? "active";
@@ -183,7 +176,9 @@ export default function WarehouseCatalogPage() {
           }
           className="rounded-xl border border-border bg-card px-3 py-2.5"
         >
-          <option value="">{t("wh.filterAll")} · {t("wh.categoriesTitle")}</option>
+          <option value="">
+            {t("wh.filterAll")} · {t("wh.categoriesTitle")}
+          </option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -195,7 +190,9 @@ export default function WarehouseCatalogPage() {
           onChange={(e) => setFilters((f) => ({ ...f, brandId: e.target.value }))}
           className="rounded-xl border border-border bg-card px-3 py-2.5"
         >
-          <option value="">{t("wh.filterAll")} · {t("wh.colBrand")}</option>
+          <option value="">
+            {t("wh.filterAll")} · {t("wh.colBrand")}
+          </option>
           {brands.map((b) => (
             <option key={b.id} value={b.id}>
               {b.name}
@@ -215,133 +212,59 @@ export default function WarehouseCatalogPage() {
         </select>
       </div>
 
-      <Card className="hidden overflow-hidden p-0 lg:block">
-        {loading ? (
-          <div className="p-4">
-            <LoadingBlock label={t("wh.loadingCatalog")} rows={6} />
-          </div>
-        ) : (
-          <div className="max-h-[640px] overflow-auto">
-            <table className="w-full min-w-[900px] text-left text-sm">
-              <thead className="sticky top-0 z-10 border-b border-border bg-page text-xs uppercase tracking-wide text-muted">
-                <tr>
-                  <th className="px-4 py-3">{t("warehouse.productPhoto")}</th>
-                  <th className="px-4 py-3">{t("wh.colName")}</th>
-                  <th className="px-4 py-3">{t("wh.colSku")}</th>
-                  <th className="px-4 py-3">{t("wh.categoriesTitle")}</th>
-                  <th className="px-4 py-3">{t("wh.colBrand")}</th>
-                  <th className="px-4 py-3">{t("wh.colType")}</th>
-                  <th className="px-4 py-3">{t("warehouse.unitPcs")}</th>
-                  <th className="px-4 py-3">{t("wh.colPrice")}</th>
-                  <th className="px-4 py-3">{t("wh.colQty")}</th>
-                  <th className="px-4 py-3">{t("wh.colStatus")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((p) => {
-                  const key = p.statusKey ?? "active";
-                  return (
-                    <tr
-                      key={p.id}
-                      className="cursor-pointer border-b border-border last:border-0 hover:bg-page"
-                      onDoubleClick={() => openProduct(p.id)}
-                      title={t("wh.open")}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-soft text-lg">
-                          {p.accountingType === "WEIGHT" ? "🧴" : "📦"}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/warehouse/${p.id}`}
-                          className="font-semibold text-ink hover:text-brand"
-                        >
-                          {p.name}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-muted">{p.sku || "—"}</td>
-                      <td className="px-4 py-3 text-muted">
-                        {p.category?.name || "—"}
-                      </td>
-                      <td className="px-4 py-3 text-muted">
-                        {p.brand?.name || "—"}
-                      </td>
-                      <td className="px-4 py-3 text-muted">
-                        {p.productType?.name
-                          ? labelProductType(p.productType.name, t)
-                          : p.accountingType === "WEIGHT"
-                            ? t("warehouse.unitMl")
-                            : t("warehouse.unitPcs")}
-                      </td>
-                      <td className="px-4 py-3 text-muted">
-                        {p.unit?.symbol || "—"}
-                      </td>
-                      <td className="px-4 py-3 font-medium">
-                        {formatMoney(Number(p.salePrice))}
-                      </td>
-                      <td className="px-4 py-3 font-semibold">{p.warehouseQty}</td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={cn(
-                            "rounded-full px-2 py-0.5 text-xs font-semibold",
-                            STATUS_TONE[key]
-                          )}
-                        >
-                          {statusLabel(p)}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {!loading && rows.length === 0 ? (
-          <div className="p-4">
-            <EmptyState
-              title={
-                loadError ? t("common.error") : t("wh.emptyCatalog")
-              }
-              description={
-                loadError
-                  ? loadError
-                  : t("warehouse.productNoBatches")
-              }
-              actionHref="/warehouse/new"
-              actionLabel={t("warehouse.productCreateBtn")}
-            />
-          </div>
-        ) : null}
-      </Card>
+      {loadError ? (
+        <p className="text-sm text-danger">{loadError}</p>
+      ) : null}
 
-      <div className="space-y-2 lg:hidden">
-        {loading ? <LoadingBlock rows={4} /> : null}
-        {rows.map((p) => (
-          <Link key={p.id} href={`/warehouse/${p.id}`}>
-            <Card className="mb-2 p-4">
-              <div className="font-semibold text-ink">{p.name}</div>
-              <div className="mt-1 text-xs text-muted">
-                {p.brand?.name || "—"} · {p.category?.name || "—"} · {t("wh.colQty")}{" "}
-                {p.warehouseQty}
-                {p.unit?.symbol || ""}
-              </div>
-              <div className="mt-1 text-sm font-medium">
-                {formatMoney(Number(p.salePrice))} · {statusLabel(p)}
-              </div>
-            </Card>
-          </Link>
-        ))}
-        {!loading && rows.length === 0 ? (
-          <EmptyState
-            title={t("wh.emptyCatalog")}
-            description={t("warehouse.productNoBatches")}
-            actionHref="/warehouse/new"
-            actionLabel={t("warehouse.productCreateBtn")}
-          />
-        ) : null}
-      </div>
+      {loading ? (
+        <LoadingBlock rows={6} label={t("wh.loadingCatalog")} />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          title={t("wh.emptyCatalog")}
+          description={t("warehouse.productNoBatches")}
+          actionHref="/warehouse/new"
+          actionLabel={t("warehouse.productCreateBtn")}
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {rows.map((p) => {
+            const key = p.statusKey ?? "active";
+            return (
+              <ProductCard
+                key={p.id}
+                mode="warehouse"
+                href={`/warehouse/${p.id}`}
+                quantity={p.warehouseQty}
+                statusLabel={statusLabel(p)}
+                statusTone={STATUS_TONE[key]}
+                product={{
+                  id: p.id,
+                  name: p.name,
+                  imageUrl: p.imageUrl,
+                  brand: p.brand,
+                  category: p.category,
+                  productType: p.productType,
+                  unit: p.unit,
+                  accountingType: p.accountingType,
+                  salePrice: p.salePrice,
+                }}
+                actions={
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    fullWidth={false}
+                    onClick={() => router.push(`/warehouse/${p.id}`)}
+                  >
+                    {t("wh.open")}
+                  </Button>
+                }
+                className="h-full"
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

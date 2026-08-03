@@ -9,6 +9,8 @@ import { cn, decimalToNumber } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
 import { useToast } from "@/components/ui/toast";
+import { ProductCard } from "@/components/products/product-card";
+import { resolveProductImageUrl } from "@/lib/product-image";
 
 type CatalogItem = {
   productId: string;
@@ -19,6 +21,7 @@ type CatalogItem = {
   salePrice: number;
   quantity: number;
   accountingType: "PIECE" | "WEIGHT";
+  imageUrl?: string | null;
 };
 
 type BottleOption = {
@@ -49,9 +52,10 @@ type StockApi = {
     product: {
       id: string;
       name: string;
+      imageUrl?: string | null;
       salePrice: unknown;
       accountingType?: "PIECE" | "WEIGHT";
-      brand?: { name: string } | null;
+      brand?: { name: string; imageUrl?: string | null } | null;
       category?: { name: string } | null;
       unit?: { symbol: string } | null;
     };
@@ -104,6 +108,7 @@ export function OwnerDirectPosClient({
       salePrice: decimalToNumber(b.product.salePrice as never),
       quantity: decimalToNumber(b.quantity as never),
       accountingType: b.product.accountingType === "WEIGHT" ? "WEIGHT" : "PIECE",
+      imageUrl: resolveProductImageUrl(b.product),
     }));
     setCatalog(items);
     setError("");
@@ -423,29 +428,23 @@ export function OwnerDirectPosClient({
           ) : (
             <div className="grid gap-2 sm:grid-cols-2">
               {items.map((p) => (
-                <button
+                <ProductCard
                   key={p.productId}
-                  type="button"
+                  mode="store"
+                  asButton
+                  quantity={p.quantity}
                   onClick={() => onCardClick(p)}
-                  className="rounded-[18px] border border-border bg-card p-4 text-left transition hover:border-brand/40"
-                >
-                  <div className="text-xs text-muted">
-                    {p.brand} · {p.category}
-                    {p.accountingType === "WEIGHT" ? ` · ${t("units.ml")}` : ""}
-                  </div>
-                  <div className="mt-1 font-semibold text-ink">{p.name}</div>
-                  <div className="mt-2 flex items-end justify-between">
-                    <span className="text-sm text-muted">
-                      {t("pos.warehouseStock", {
-                        qty: p.quantity,
-                        unit: p.unit,
-                      })}
-                    </span>
-                    <span className="font-bold text-ink">
-                      {formatMoney(p.salePrice)}/{p.unit}
-                    </span>
-                  </div>
-                </button>
+                  product={{
+                    id: p.productId,
+                    name: p.name,
+                    imageUrl: p.imageUrl,
+                    brand: { name: p.brand },
+                    category: { name: p.category },
+                    unit: { symbol: p.unit },
+                    accountingType: p.accountingType,
+                    salePrice: p.salePrice,
+                  }}
+                />
               ))}
               {items.length === 0 ? (
                 <Card className="col-span-full p-6 text-center text-sm text-muted">

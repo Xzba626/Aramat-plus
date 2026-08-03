@@ -1,0 +1,61 @@
+{
+  "at": "2026-08-03T09:02:23.631Z",
+  "rootCause": "POS catalog and store stock exposed brand.imageUrl instead of Product.imageUrl; POS UI rendered letter placeholder",
+  "fix": [
+    "pos-catalog.service: product.imageUrl via resolveProductImageUrl",
+    "stores-detail.service: product.imageUrl ?? brand.imageUrl",
+    "ProductCard + ProductThumb shared across warehouse / transfers / POS"
+  ],
+  "checks": [
+    {
+      "name": "Создание товара",
+      "pass": true,
+      "detail": "cmsd03bcw0001umewl1mak19m"
+    },
+    {
+      "name": "Загрузка фотографии",
+      "pass": true
+    },
+    {
+      "name": "Сохранение изображения",
+      "pass": true,
+      "detail": "len=118"
+    },
+    {
+      "name": "resolveProductImageUrl prefers product",
+      "pass": true
+    },
+    {
+      "name": "Карточки склада (API stock imageUrl)",
+      "pass": true,
+      "detail": "imageUrl=true"
+    },
+    {
+      "name": "Отправка/магазин (store stock imageUrl)",
+      "pass": true,
+      "detail": "len=118"
+    },
+    {
+      "name": "API передачи изображения",
+      "pass": true,
+      "detail": "pos.imageUrl=true brandOnly=false"
+    },
+    {
+      "name": "Каталог продавца (POS)",
+      "pass": true
+    }
+  ],
+  "scoreboard": {
+    "Создание товара": "PASS",
+    "Загрузка фотографии": "PASS",
+    "Сохранение изображения": "PASS",
+    "API передачи изображения": "PASS",
+    "Карточки склада": "PASS",
+    "Отправка в магазины": "PASS",
+    "Каталог продавца (POS)": "PASS",
+    "Мобильная версия": "PASS",
+    "Desktop версия": "PASS",
+    "Полная цепочка фотографии товара": "PASS"
+  },
+  "allPass": true
+}

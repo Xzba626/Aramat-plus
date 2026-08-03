@@ -19,6 +19,7 @@ import {
   labelSaleStatus,
 } from "@/lib/i18n/labels";
 import { FinanceFunnel } from "@/components/dashboard/finance-funnel";
+import { ProductThumb } from "@/components/products/product-thumb";
 
 type StoreDetail = {
   id: string;
@@ -450,14 +451,12 @@ function StockTab({
                   s.status === "OUT" && "bg-danger/5"
                 )}
               >
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-soft text-sm font-bold text-brand">
-                  {s.product.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={s.product.imageUrl} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    (s.product.brand?.name ?? s.product.name).slice(0, 1).toUpperCase()
-                  )}
-                </div>
+                <ProductThumb
+                  src={s.product.imageUrl}
+                  name={s.product.name}
+                  size="sm"
+                  className="h-11 w-11"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-semibold text-ink">{s.product.name}</div>
                   <div className="text-xs text-muted">

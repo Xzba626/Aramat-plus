@@ -17,6 +17,8 @@ export type PosCartLine = {
   quantity: number;
   /** Soft cap for +/- (not shown to seller). */
   max: number;
+  /** Optional product photo for cart UI. */
+  imageUrl?: string | null;
   /** WEIGHT lines require bottle selection. */
   accountingType?: "PIECE" | "WEIGHT";
   /** Bottle is an attribute of a WEIGHT line — never a separate cart row. */
@@ -287,6 +289,7 @@ export const usePosCart = create<PosCartState>()(
                     quantity: Math.min(l.quantity + qty, item.max || l.max),
                     max: item.max,
                     salePrice: item.salePrice,
+                    imageUrl: item.imageUrl ?? l.imageUrl,
                     accountingType: item.accountingType ?? l.accountingType,
                     packagingProductId:
                       item.packagingProductId ?? l.packagingProductId,
@@ -305,6 +308,7 @@ export const usePosCart = create<PosCartState>()(
                 salePrice: item.salePrice,
                 quantity: Math.min(qty, item.max),
                 max: item.max,
+                imageUrl: item.imageUrl ?? null,
                 accountingType: item.accountingType,
                 packagingProductId: item.packagingProductId ?? null,
                 packagingSkuId: item.packagingSkuId ?? null,

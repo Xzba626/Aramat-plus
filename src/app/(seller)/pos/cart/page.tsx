@@ -16,6 +16,7 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
+import { ProductThumb } from "@/components/products/product-thumb";
 
 type BottleOption = {
   packagingSkuId: string | null;
@@ -293,6 +294,7 @@ export default function PosCartPage() {
           className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-3"
         >
           <div className="flex items-center gap-3">
+            <ProductThumb src={l.imageUrl} name={l.name} size="sm" />
             <div className="min-w-0 flex-1">
               <div className="font-semibold text-ink">{l.name}</div>
               <div className="text-xs text-muted">

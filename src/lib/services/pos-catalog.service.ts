@@ -1,6 +1,7 @@
 import { LocationType, ProductKind, StoreKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
+import { resolveProductImageUrl } from "@/lib/product-image";
 import { getStoreStock } from "@/lib/services/stock.service";
 import { reservedQtyByProduct } from "@/lib/services/reservation.service";
 
@@ -56,6 +57,8 @@ export async function getPosCatalog(params: {
         kind: b.product.kind,
         minStock: min,
         accountingType: b.product.accountingType,
+        /** Product photo (owner upload). Brand logo is fallback only. */
+        imageUrl: resolveProductImageUrl(b.product),
         brand: b.product.brand
           ? {
               id: b.product.brand.id,
