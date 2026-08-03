@@ -80,6 +80,7 @@ export function handleApiError(err: unknown) {
       "IMAGE_URL_INVALID",
       "IMAGE_HEIC_UNSUPPORTED",
       "IMAGE_COMPRESS_FAILED",
+      "IMAGE_STORAGE_UNCONFIGURED",
       "INVALID_FILE_TYPE",
       "INSUFFICIENT_AVAILABLE",
       "INSUFFICIENT_BATCH_STOCK",

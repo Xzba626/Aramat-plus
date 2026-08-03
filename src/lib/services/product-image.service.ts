@@ -1,11 +1,16 @@
 /**
- * Server-only product image processing (sharp + filesystem).
+ * Server-only product image processing (sharp + storage).
  * Do NOT import this from Client Components — use `@/lib/product-image-url`.
+ *
+ * Storage:
+ * - Production (Vercel): Vercel Blob when `BLOB_READ_WRITE_TOKEN` is set
+ * - Local/dev: `public/uploads/products/` on disk
  */
 import { mkdir, writeFile, unlink } from "fs/promises";
 import path from "path";
 import sharp from "sharp";
 import type { Metadata as SharpMetadata } from "sharp";
+import { del, put } from "@vercel/blob";
 import {
   productImageSrc,
   type ProductImageSize,
@@ -23,7 +28,7 @@ export {
 } from "@/lib/product-image-url";
 
 export type ProductImageVariants = {
-  /** Primary DB value — medium path */
+  /** Primary DB value — medium path/URL */
   imageUrl: string;
   variants: {
     full: string;
@@ -40,6 +45,14 @@ export type ProductImageVariants = {
 
 const UPLOAD_DIR = () =>
   path.join(process.cwd(), "public", "uploads", "products");
+
+function useBlobStorage(): boolean {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
+}
+
+function isBlobUrl(url: string): boolean {
+  return /^https:\/\//i.test(url) && /blob\.vercel-storage\.com/i.test(url);
+}
 
 /** Magic-byte / MIME / extension gate for phone cameras (incl. octet-stream). */
 export function isAllowedProductImage(file: {
@@ -89,9 +102,105 @@ function pipeline(input: Buffer, edge: number, quality: number) {
     .webp({ quality });
 }
 
+function mapProcessError(e: unknown): never {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (
+    msg === "FILE_REQUIRED" ||
+    msg === "IMAGE_HEIC_UNSUPPORTED" ||
+    msg === "INVALID_FILE_TYPE" ||
+    msg === "IMAGE_PROCESS_FAILED" ||
+    msg === "IMAGE_STORAGE_UNCONFIGURED"
+  ) {
+    throw e instanceof Error ? e : new Error(msg);
+  }
+  if (/heif|heic/i.test(msg)) throw new Error("IMAGE_HEIC_UNSUPPORTED");
+  if (/unsupported|Input buffer|VipsJpeg|corrupt/i.test(msg)) {
+    throw new Error("INVALID_FILE_TYPE");
+  }
+  if (/ENOENT|EACCES|EROFS|read-only|EPERM/i.test(msg)) {
+    throw new Error("IMAGE_STORAGE_UNCONFIGURED");
+  }
+  throw new Error("IMAGE_PROCESS_FAILED");
+}
+
+async function saveToBlob(
+  base: string,
+  fullBuf: Buffer,
+  mdBuf: Buffer,
+  thumbBuf: Buffer
+): Promise<Pick<ProductImageVariants, "imageUrl" | "variants">> {
+  const fullName = `products/${base}.webp`;
+  const mdName = `products/${base}-md.webp`;
+  const thumbName = `products/${base}-thumb.webp`;
+
+  try {
+    const [full, md, thumb] = await Promise.all([
+      put(fullName, fullBuf, {
+        access: "public",
+        contentType: "image/webp",
+        addRandomSuffix: false,
+      }),
+      put(mdName, mdBuf, {
+        access: "public",
+        contentType: "image/webp",
+        addRandomSuffix: false,
+      }),
+      put(thumbName, thumbBuf, {
+        access: "public",
+        contentType: "image/webp",
+        addRandomSuffix: false,
+      }),
+    ]);
+    return {
+      imageUrl: md.url,
+      variants: {
+        full: full.url,
+        medium: md.url,
+        thumb: thumb.url,
+      },
+    };
+  } catch (e) {
+    console.error("[product-image] blob put failed", e);
+    mapProcessError(e);
+  }
+}
+
+async function saveToLocalDisk(
+  base: string,
+  fullBuf: Buffer,
+  mdBuf: Buffer,
+  thumbBuf: Buffer
+): Promise<Pick<ProductImageVariants, "imageUrl" | "variants">> {
+  const uploadDir = UPLOAD_DIR();
+  const fullName = `${base}.webp`;
+  const mdName = `${base}-md.webp`;
+  const thumbName = `${base}-thumb.webp`;
+
+  try {
+    await mkdir(uploadDir, { recursive: true });
+    await Promise.all([
+      writeFile(path.join(uploadDir, fullName), fullBuf),
+      writeFile(path.join(uploadDir, mdName), mdBuf),
+      writeFile(path.join(uploadDir, thumbName), thumbBuf),
+    ]);
+  } catch (e) {
+    console.error("[product-image] local write failed", e);
+    mapProcessError(e);
+  }
+
+  return {
+    imageUrl: `/uploads/products/${mdName}`,
+    variants: {
+      full: `/uploads/products/${fullName}`,
+      medium: `/uploads/products/${mdName}`,
+      thumb: `/uploads/products/${thumbName}`,
+    },
+  };
+}
+
 /**
- * Encode buffer → WebP variants under /uploads/products/.
- * Returns medium path as primary imageUrl (API contract unchanged).
+ * Encode buffer → WebP variants.
+ * Returns medium URL/path as primary imageUrl (API contract unchanged).
  */
 export async function processAndSaveProductImage(
   input: Buffer,
@@ -99,16 +208,19 @@ export async function processAndSaveProductImage(
 ): Promise<ProductImageVariants> {
   if (!input.length) throw new Error("FILE_REQUIRED");
 
+  const onVercel = Boolean(process.env.VERCEL);
+  if (onVercel && !useBlobStorage()) {
+    console.error(
+      "[product-image] Vercel deploy missing BLOB_READ_WRITE_TOKEN — filesystem uploads are not writable"
+    );
+    throw new Error("IMAGE_STORAGE_UNCONFIGURED");
+  }
+
   let meta: SharpMetadata;
   try {
     meta = await sharp(input, { failOn: "none" }).metadata();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (/heif|heic/i.test(msg)) throw new Error("IMAGE_HEIC_UNSUPPORTED");
-    if (/unsupported|Input buffer|VipsJpeg|corrupt/i.test(msg)) {
-      throw new Error("INVALID_FILE_TYPE");
-    }
-    throw new Error("IMAGE_PROCESS_FAILED");
+    mapProcessError(e);
   }
 
   if (!meta.width || !meta.height) {
@@ -118,8 +230,6 @@ export async function processAndSaveProductImage(
   const base =
     opts?.baseName ??
     `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  const uploadDir = UPLOAD_DIR();
-  await mkdir(uploadDir, { recursive: true });
 
   let fullBuf: Buffer;
   let mdBuf: Buffer;
@@ -131,31 +241,15 @@ export async function processAndSaveProductImage(
       pipeline(input, 300, 78).toBuffer(),
     ]);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (/heif|heic/i.test(msg)) throw new Error("IMAGE_HEIC_UNSUPPORTED");
-    if (/unsupported|Input buffer|VipsJpeg|corrupt/i.test(msg)) {
-      throw new Error("INVALID_FILE_TYPE");
-    }
-    throw new Error("IMAGE_PROCESS_FAILED");
+    mapProcessError(e);
   }
 
-  const fullName = `${base}.webp`;
-  const mdName = `${base}-md.webp`;
-  const thumbName = `${base}-thumb.webp`;
-
-  await Promise.all([
-    writeFile(path.join(uploadDir, fullName), fullBuf),
-    writeFile(path.join(uploadDir, mdName), mdBuf),
-    writeFile(path.join(uploadDir, thumbName), thumbBuf),
-  ]);
+  const stored = useBlobStorage()
+    ? await saveToBlob(base, fullBuf, mdBuf, thumbBuf)
+    : await saveToLocalDisk(base, fullBuf, mdBuf, thumbBuf);
 
   return {
-    imageUrl: `/uploads/products/${mdName}`,
-    variants: {
-      full: `/uploads/products/${fullName}`,
-      medium: `/uploads/products/${mdName}`,
-      thumb: `/uploads/products/${thumbName}`,
-    },
+    ...stored,
     bytes: {
       input: input.length,
       full: fullBuf.length,
@@ -169,13 +263,29 @@ export async function processAndSaveProductImage(
 export async function deleteProductImageFiles(
   imageUrl: string | null | undefined
 ): Promise<void> {
-  if (!imageUrl?.startsWith("/uploads/products/")) return;
+  if (!imageUrl) return;
+
   const medium = productImageSrc(imageUrl, "medium");
   const thumb = productImageSrc(imageUrl, "thumb");
   const full = productImageSrc(imageUrl, "full");
-  const rels = [medium, thumb, full].filter(Boolean) as string[];
+  const urls = [medium, thumb, full].filter(Boolean) as string[];
+
+  if (isBlobUrl(imageUrl) || useBlobStorage()) {
+    const blobUrls = urls.filter(isBlobUrl);
+    if (blobUrls.length) {
+      try {
+        await del(blobUrls);
+      } catch {
+        /* missing blob ok */
+      }
+    }
+    return;
+  }
+
+  if (!imageUrl.startsWith("/uploads/products/")) return;
   await Promise.all(
-    rels.map(async (rel) => {
+    urls.map(async (rel) => {
+      if (!rel.startsWith("/")) return;
       try {
         await unlink(path.join(process.cwd(), "public", rel.replace(/^\//, "")));
       } catch {

@@ -32,6 +32,18 @@ export function getProductImageUrl(
   return productImageSrc(raw, size);
 }
 
+function isManagedProductImageUrl(url: string): boolean {
+  if (url.startsWith("/uploads/")) return true;
+  // Vercel Blob (and compatible absolute https image URLs)
+  if (
+    /^https:\/\//i.test(url) &&
+    /\.(webp|jpe?g|png|gif)(\?.*)?$/i.test(url)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 /** Map stored URL → variant path (thumb / medium / full). */
 export function productImageSrc(
   url: string | null | undefined,
@@ -39,23 +51,38 @@ export function productImageSrc(
 ): string | null {
   if (!url) return null;
   if (url.startsWith("data:")) return url;
-  if (!url.startsWith("/uploads/")) return url;
+  if (!isManagedProductImageUrl(url)) return url;
 
   const normalized: ProductImageSize = size === "card" ? "medium" : size;
 
-  if (url.includes("-md.webp")) {
-    if (normalized === "thumb") return url.replace("-md.webp", "-thumb.webp");
-    if (normalized === "full") return url.replace("-md.webp", ".webp");
+  // Strip query before suffix checks; re-attach if present
+  const q = url.indexOf("?");
+  const base = q >= 0 ? url.slice(0, q) : url;
+  const query = q >= 0 ? url.slice(q) : "";
+
+  const map = (next: string) => next + query;
+
+  if (base.includes("-md.webp")) {
+    if (normalized === "thumb")
+      return map(base.replace("-md.webp", "-thumb.webp"));
+    if (normalized === "full") return map(base.replace("-md.webp", ".webp"));
     return url;
   }
-  if (url.endsWith("-thumb.webp")) {
-    if (normalized === "medium") return url.replace("-thumb.webp", "-md.webp");
-    if (normalized === "full") return url.replace("-thumb.webp", ".webp");
+  if (base.endsWith("-thumb.webp")) {
+    if (normalized === "medium")
+      return map(base.replace("-thumb.webp", "-md.webp"));
+    if (normalized === "full") return map(base.replace("-thumb.webp", ".webp"));
     return url;
   }
-  if (url.endsWith(".webp") && !url.includes("-thumb") && !url.includes("-md")) {
-    if (normalized === "thumb") return url.replace(/\.webp$/, "-thumb.webp");
-    if (normalized === "medium") return url.replace(/\.webp$/, "-md.webp");
+  if (
+    base.endsWith(".webp") &&
+    !base.includes("-thumb") &&
+    !base.includes("-md")
+  ) {
+    if (normalized === "thumb")
+      return map(base.replace(/\.webp$/, "-thumb.webp"));
+    if (normalized === "medium")
+      return map(base.replace(/\.webp$/, "-md.webp"));
     return url;
   }
   return url;
@@ -64,7 +91,14 @@ export function productImageSrc(
 /** True if value is acceptable for Product.imageUrl column. */
 export function isValidStoredImageUrl(v: string | null | undefined): boolean {
   if (v == null || v === "") return true;
-  if (v.startsWith("/uploads/") && v.length <= 2048) return true;
+  if (v.length > 2048) return false;
+  if (v.startsWith("/uploads/")) return true;
+  if (
+    /^https:\/\//i.test(v) &&
+    /\.(webp|jpe?g|png|gif)(\?.*)?$/i.test(v)
+  ) {
+    return true;
+  }
   if (v.startsWith("data:image/") && v.length <= 12_000) return true;
   return false;
 }

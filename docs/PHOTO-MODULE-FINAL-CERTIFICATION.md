@@ -16,11 +16,14 @@ Phone camera (JPEG/PNG, ≤20 MB)
   → client compress (JPEG, max edge 1600)
   → POST /api/products/upload
   → ProductImageService.processAndSaveProductImage
-  → /uploads/products/{id}.webp | -md.webp | -thumb.webp
-  → DB Product.imageUrl = …-md.webp
+  → Local: /uploads/products/{id}.webp | -md.webp | -thumb.webp
+  → Production (Vercel): public Blob URLs (BLOB_READ_WRITE_TOKEN required)
+  → DB Product.imageUrl = medium URL/path
   → UI: getProductImageUrl(product, "thumb"|"medium"|"full")
-  → SW cache-first for /uploads/
+  → SW cache-first for /uploads/ (local); Blob URLs load directly
 ```
+
+**Production note:** Vercel serverless filesystem is read-only. Without `BLOB_READ_WRITE_TOKEN`, upload returns `IMAGE_STORAGE_UNCONFIGURED` (not a silent INTERNAL_ERROR). Create a **public** Blob store in Vercel → Storage → Blob, connect the project, Redeploy.
 
 **Service:** `src/lib/services/product-image.service.ts`  
 **Helpers:** `getProductImageUrl`, `productImageSrc`, `sanitizeIncomingImageUrl`  

@@ -60,6 +60,8 @@ export const productSchema = z.object({
         v == null ||
         v === "" ||
         v.startsWith("/uploads/") ||
+        (/^https:\/\//i.test(v) &&
+          /\.(webp|jpe?g|png|gif)(\?.*)?$/i.test(v)) ||
         (v.startsWith("data:image/") && v.length <= 12_000),
       { message: "IMAGE_URL_INVALID" }
     ),

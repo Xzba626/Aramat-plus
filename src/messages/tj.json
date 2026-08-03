@@ -97,6 +97,7 @@
     "IMAGE_COMPRESS_FAILED": "Аксро омода карда нашуд. Файли дигарро санҷед.",
     "IMAGE_HEIC_UNSUPPORTED": "Ин формати камера дастгирӣ намешавад. JPEG истифода баред.",
     "IMAGE_STRIPPED": "Акс захира нашуд — дигар маълумоти мол сабт шуд. Аксро аз нав бор кунед.",
+    "IMAGE_STORAGE_UNCONFIGURED": "Захирагоҳи аксҳо дар сервер танзим нашудааст. Vercel Blob (BLOB_READ_WRITE_TOKEN) илова кунед ва Redeploy кунед.",
     "CATEGORY_IN_USE": "Категорияро нест кардан мумкин нест — дар молҳо истифода мешавад."
   },
   "productTypes": {
