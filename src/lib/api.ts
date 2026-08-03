@@ -72,6 +72,7 @@ export function handleApiError(err: unknown) {
       "RESERVATION_QTY_MISMATCH",
       "RESERVATION_WRONG_STORE",
       "REVISION_ALREADY_OPEN",
+      "REVISION_COUNTS_INCOMPLETE",
       "RETURN_ALREADY_PENDING",
       "SELLER_NO_STORE",
       "SELLER_POS_BRANCH_ONLY",

@@ -31,13 +31,21 @@ type DetailItem = {
   productId: string;
   name: string;
   unit: string;
-  expectedQty: number;
-  countedQty: number;
-  difference: number;
+  expectedQty?: number;
+  countedQty: number | null;
+  difference?: number;
   reason: string | null;
 };
 
 type StoreOpt = { id: string; name: string };
+
+function isFactFilled(raw: string | undefined): boolean {
+  if (raw == null) return false;
+  const s = raw.trim();
+  if (s === "") return false;
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0;
+}
 
 export default function RevisionPage() {
   const { t, formatDateTime } = useI18n();
@@ -58,6 +66,8 @@ export default function RevisionPage() {
     id: string;
     status: string;
     store: string;
+    blind: boolean;
+    itemCount: number;
     items: DetailItem[];
   } | null>(null);
   const [counts, setCounts] = useState<Record<string, string>>({});
@@ -99,6 +109,12 @@ export default function RevisionPage() {
     });
   }, [rows, q, status]);
 
+  const allFactsFilled = useMemo(() => {
+    if (!detail || detail.status !== "IN_PROGRESS") return false;
+    if (detail.items.length === 0) return false;
+    return detail.items.every((it) => isFactFilled(counts[it.productId]));
+  }, [detail, counts]);
+
   async function openDetail(id: string) {
     setActiveId(id);
     const res = await fetch(`/api/revisions?id=${id}`);
@@ -107,10 +123,19 @@ export default function RevisionPage() {
       setError(apiErrorMessage(data.error, t, "common.error"));
       return;
     }
-    setDetail(data);
+    setDetail({
+      id: data.id,
+      status: data.status,
+      store: data.store,
+      blind: Boolean(data.blind),
+      itemCount: Number(data.itemCount ?? data.items?.length ?? 0),
+      items: Array.isArray(data.items) ? data.items : [],
+    });
     const next: Record<string, string> = {};
-    for (const it of data.items as DetailItem[]) {
-      next[it.productId] = String(it.countedQty);
+    for (const it of (data.items ?? []) as DetailItem[]) {
+      // Never prefill with system expected — only previously entered fact
+      next[it.productId] =
+        it.countedQty == null ? "" : String(it.countedQty);
     }
     setCounts(next);
     requestAnimationFrame(() => {
@@ -143,30 +168,55 @@ export default function RevisionPage() {
     await openDetail(data.id);
   }
 
-  async function saveCounts() {
-    if (!detail) return;
+  async function completeRevision() {
+    if (!detail || !allFactsFilled) return;
     setBusy(true);
-    const items = Object.entries(counts).map(([productId, countedQty]) => ({
-      productId,
-      countedQty: Number(countedQty),
+    setError("");
+
+    const items = detail.items.map((it) => ({
+      productId: it.productId,
+      countedQty: Number(String(counts[it.productId]).trim()),
     }));
-    const res = await fetch(`/api/revisions?id=${detail.id}`, {
+
+    const saveRes = await fetch(`/api/revisions?id=${detail.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items }),
     });
-    const data = await res.json();
-    setBusy(false);
-    if (!res.ok) {
-      setError(apiErrorMessage(data.error, t, "common.error"));
+    const saveData = await saveRes.json();
+    if (!saveRes.ok) {
+      setBusy(false);
+      setError(apiErrorMessage(saveData.error, t, "common.error"));
       return;
     }
+
+    if (isOwner) {
+      const approveRes = await fetch(`/api/revisions?id=${detail.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "APPROVE" }),
+      });
+      const approveData = await approveRes.json();
+      setBusy(false);
+      if (!approveRes.ok) {
+        setError(apiErrorMessage(approveData.error, t, "common.error"));
+        await openDetail(detail.id);
+        return;
+      }
+      toast(t("revisionPage.approved"));
+      setDetail(null);
+      setActiveId(null);
+      await reload();
+      return;
+    }
+
+    setBusy(false);
     toast(t("revisionPage.countsSaved"));
     await openDetail(detail.id);
     await reload();
   }
 
-  async function decide(decision: "APPROVE" | "CANCEL") {
+  async function decide(decision: "CANCEL") {
     if (!detail) return;
     setBusy(true);
     const res = await fetch(`/api/revisions?id=${detail.id}`, {
@@ -180,11 +230,7 @@ export default function RevisionPage() {
       setError(apiErrorMessage(data.error, t, "common.error"));
       return;
     }
-    toast(
-      decision === "APPROVE"
-        ? t("revisionPage.approved")
-        : t("revisionPage.cancelled")
-    );
+    toast(t("revisionPage.cancelled"));
     setDetail(null);
     setActiveId(null);
     await reload();
@@ -198,6 +244,12 @@ export default function RevisionPage() {
   };
 
   const inProgressCount = rows.filter((r) => r.status === "IN_PROGRESS").length;
+  const showDiscrepancyTable =
+    detail != null &&
+    detail.status !== "IN_PROGRESS" &&
+    isOwner &&
+    !detail.blind &&
+    detail.items.length > 0;
 
   return (
     <ModuleWorkspace
@@ -266,28 +318,23 @@ export default function RevisionPage() {
                 {revisionStatusLabel(detail.status)}
               </span>
               <span className="text-sm text-muted">
-                · {t("revisionPage.itemsCount", { count: detail.items.length })}
+                · {t("revisionPage.itemsCount", { count: detail.itemCount })}
               </span>
               {detail.status === "IN_PROGRESS" ? (
                 <>
                   <Button
                     type="button"
                     fullWidth={false}
-                    disabled={busy || detail.items.length === 0}
-                    onClick={saveCounts}
+                    disabled={busy || !allFactsFilled}
+                    onClick={completeRevision}
+                    title={
+                      allFactsFilled
+                        ? undefined
+                        : t("revisionPage.completeBlockedHint")
+                    }
                   >
-                    {t("revisionPage.saveCounts")}
+                    {t("revisionPage.complete")}
                   </Button>
-                  {isOwner ? (
-                    <Button
-                      type="button"
-                      fullWidth={false}
-                      disabled={busy}
-                      onClick={() => decide("APPROVE")}
-                    >
-                      {t("revisionPage.approve")}
-                    </Button>
-                  ) : null}
                   <Button
                     type="button"
                     variant="secondary"
@@ -310,73 +357,105 @@ export default function RevisionPage() {
               )}
             </Card>
 
-            {detail.items.length === 0 ? (
+            {detail.status === "IN_PROGRESS" ? (
+              <p className="mb-3 text-sm text-muted">
+                {t("revisionPage.factAbsoluteHint")}
+              </p>
+            ) : null}
+
+            {detail.status === "IN_PROGRESS" && detail.items.length === 0 ? (
               <Card className="p-5 text-sm text-muted">
                 {t("revisionPage.noItemsInStore")}
               </Card>
-            ) : (
+            ) : null}
+
+            {detail.status === "IN_PROGRESS" && detail.items.length > 0 ? (
               <Card className="overflow-hidden p-0">
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[480px] text-sm">
+                  <table className="w-full min-w-[320px] text-sm">
                     <thead className="bg-page text-left text-xs text-muted">
                       <tr>
                         <th className="p-3">{t("wh.colName")}</th>
-                        {isOwner ? (
-                          <th className="p-3">{t("revisionPage.expected")}</th>
-                        ) : null}
                         <th className="p-3">{t("revisionPage.actual")}</th>
-                        {isOwner ? (
-                          <th className="p-3">{t("revisionPage.diff")}</th>
-                        ) : null}
                       </tr>
                     </thead>
                     <tbody>
                       {detail.items.map((it) => (
                         <tr key={it.productId} className="border-t border-border">
-                          <td className="p-3">{it.name}</td>
-                          {isOwner ? (
-                            <td className="p-3 tabular-nums">
-                              {it.expectedQty} {it.unit}
-                            </td>
-                          ) : null}
                           <td className="p-3">
-                            {detail.status === "IN_PROGRESS" ? (
-                              <input
-                                className="w-24 rounded border border-border px-2 py-1 tabular-nums"
-                                inputMode="decimal"
-                                value={counts[it.productId] ?? ""}
-                                onChange={(e) =>
-                                  setCounts((c) => ({
-                                    ...c,
-                                    [it.productId]: e.target.value,
-                                  }))
-                                }
-                              />
-                            ) : (
-                              <span className="tabular-nums">
-                                {it.countedQty} {it.unit}
-                              </span>
-                            )}
+                            <div>{it.name}</div>
+                            {it.unit ? (
+                              <div className="text-xs text-muted">{it.unit}</div>
+                            ) : null}
                           </td>
-                          {isOwner ? (
-                            <td
-                              className={cn(
-                                "p-3 tabular-nums font-semibold",
-                                it.difference > 0 && "text-success",
-                                it.difference < 0 && "text-danger"
-                              )}
-                            >
-                              {it.difference > 0 ? "+" : ""}
-                              {it.difference}
-                            </td>
-                          ) : null}
+                          <td className="p-3">
+                            <input
+                              className="w-28 rounded border border-border px-2 py-1 tabular-nums"
+                              inputMode="decimal"
+                              placeholder="—"
+                              value={counts[it.productId] ?? ""}
+                              onChange={(e) =>
+                                setCounts((c) => ({
+                                  ...c,
+                                  [it.productId]: e.target.value,
+                                }))
+                              }
+                              aria-label={`${it.name} ${t("revisionPage.actual")}`}
+                            />
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               </Card>
-            )}
+            ) : null}
+
+            {detail.status !== "IN_PROGRESS" && !showDiscrepancyTable ? (
+              <Card className="p-5 text-sm text-muted">
+                {t("revisionPage.managerCompletedHint")}
+              </Card>
+            ) : null}
+
+            {showDiscrepancyTable ? (
+              <Card className="overflow-hidden p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[480px] text-sm">
+                    <thead className="bg-page text-left text-xs text-muted">
+                      <tr>
+                        <th className="p-3">{t("wh.colName")}</th>
+                        <th className="p-3">{t("revisionPage.expected")}</th>
+                        <th className="p-3">{t("revisionPage.actual")}</th>
+                        <th className="p-3">{t("revisionPage.diff")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detail!.items.map((it) => (
+                        <tr key={it.productId} className="border-t border-border">
+                          <td className="p-3">{it.name}</td>
+                          <td className="p-3 tabular-nums">
+                            {it.expectedQty} {it.unit}
+                          </td>
+                          <td className="p-3 tabular-nums">
+                            {it.countedQty} {it.unit}
+                          </td>
+                          <td
+                            className={cn(
+                              "p-3 tabular-nums font-semibold",
+                              (it.difference ?? 0) > 0 && "text-success",
+                              (it.difference ?? 0) < 0 && "text-danger"
+                            )}
+                          >
+                            {(it.difference ?? 0) > 0 ? "+" : ""}
+                            {it.difference}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            ) : null}
           </ModuleSection>
         </div>
       ) : null}
@@ -400,7 +479,7 @@ export default function RevisionPage() {
         </select>
       </div>
 
-      <ModuleSection title={t("revisionPage.title")}>
+      <ModuleSection title={t("revisionPage.allRevisions")}>
         <div className="space-y-2">
           {filtered.map((r) => (
             <button
@@ -419,7 +498,7 @@ export default function RevisionPage() {
               <div className="mt-1 text-sm text-muted">
                 {r.createdBy} · {formatDateTime(r.createdAt)} ·{" "}
                 {t("revisionPage.itemsCount", { count: r.itemCount })}
-                {isOwner ? ` · Δ ${r.varianceAbs}` : ""}
+                {isOwner && r.status === "COMPLETED" ? ` · Δ ${r.varianceAbs}` : ""}
               </div>
             </button>
           ))}

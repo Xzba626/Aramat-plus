@@ -794,8 +794,9 @@ model InventoryItem {
   sessionId           String
   productId           String
   expectedQty         Decimal @db.Decimal(14, 3)
-  countedQty          Decimal @db.Decimal(14, 3)
-  difference          Decimal @db.Decimal(14, 3)
+  /// null until the counter enters physical fact (must not prefill with expectedQty)
+  countedQty          Decimal? @db.Decimal(14, 3)
+  difference          Decimal @default(0) @db.Decimal(14, 3)
   discrepancyReason   String?
 
   session InventorySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)

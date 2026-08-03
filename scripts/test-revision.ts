@@ -87,7 +87,13 @@ async function main() {
     companyId: company.id,
     sessionId: session.id,
     userId: owner.id,
-    items: [{ productId: product.id, countedQty: 7 }],
+    items: (
+      await prisma.inventoryItem.findMany({ where: { sessionId: session.id } })
+    ).map((line) => ({
+      productId: line.productId,
+      countedQty:
+        line.productId === product.id ? 7 : Number(line.expectedQty),
+    })),
   });
   console.log("✓ Counted 7 (shortage 3)");
 

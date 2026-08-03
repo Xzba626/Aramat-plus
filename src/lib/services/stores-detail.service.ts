@@ -651,10 +651,11 @@ export async function getStoreRevisions(
     if (!isOwner) {
       return {
         ...base,
-        items: s.items.map((it) => ({
-          productId: it.productId,
-          countedQty: decimalToNumber(it.countedQty),
-        })),
+        // Manager: only that a revision existed — no counts / diffs.
+        items: [] as Array<{
+          productId: string;
+          countedQty: number;
+        }>,
         blind: true as const,
       };
     }

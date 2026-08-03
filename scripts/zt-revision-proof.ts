@@ -1,5 +1,5 @@
 /**
- * Zero-trust: revision chain + Manager API blind (no expected qty).
+ * Zero-trust: revision blind count + empty fact + owner-only discrepancies.
  * Run: npx tsx scripts/zt-revision-proof.ts
  */
 import assert from "node:assert/strict";
@@ -19,6 +19,7 @@ import {
   approveInventorySession,
   getInventorySessionDetail,
 } from "../src/lib/services/revision.service";
+import { getStoreRevisions } from "../src/lib/services/stores-detail.service";
 
 const prisma = new PrismaClient();
 
@@ -57,7 +58,6 @@ async function main() {
   }
   assert.ok(manager);
 
-  // Close any open revision on this store
   await prisma.inventorySession.updateMany({
     where: { storeId: store.id, status: InventoryStatus.IN_PROGRESS },
     data: { status: InventoryStatus.CANCELLED, completedAt: new Date() },
@@ -107,41 +107,81 @@ async function main() {
   });
 
   const expected = 10;
-  const fact = 7;
-  await updateInventoryCounts({
-    companyId: company.id,
-    sessionId: session.id,
-    userId: owner.id,
-    items: [{ productId: product.id, countedQty: fact }],
-  });
+  const fact = 8; // −2 vs expected
 
-  const ownerDetail = await getInventorySessionDetail(
+  // Fresh session: fact must be null (not prefilled with expected)
+  const fresh = await prisma.inventoryItem.findFirst({
+    where: { sessionId: session.id, productId: product.id },
+  });
+  assert.ok(fresh);
+  assert.equal(fresh.countedQty, null, "countedQty must start null");
+  assert.equal(Number(fresh.difference), 0);
+
+  // While IN_PROGRESS: Owner also blind (no expected/diff in API)
+  const ownerInProgress = await getInventorySessionDetail(
     company.id,
     session.id,
     Role.OWNER
   );
-  assert.equal(ownerDetail.blind, false);
-  const ownerItem = ownerDetail.items.find((i) => i.productId === product.id);
-  assert.ok(ownerItem);
-  assert.equal(ownerItem.expectedQty, expected);
+  assert.equal(ownerInProgress.blind, true, "Owner blind during count");
+  const ownerIpItem = ownerInProgress.items.find(
+    (i) => i.productId === product.id
+  );
+  assert.ok(ownerIpItem);
+  assert.equal("expectedQty" in ownerIpItem, false);
+  assert.equal("difference" in ownerIpItem, false);
+  assert.equal(ownerIpItem.countedQty, null);
 
-  const mgrDetail = await getInventorySessionDetail(
+  const mgrInProgress = await getInventorySessionDetail(
     company.id,
     session.id,
     Role.MANAGER
   );
-  assert.equal(mgrDetail.blind, true, "Manager payload must be blind");
-  const mgrItem = mgrDetail.items.find((i) => i.productId === product.id);
-  assert.ok(mgrItem);
-  assert.equal(
-    "expectedQty" in mgrItem,
-    false,
-    "Manager must not receive expectedQty"
+  assert.equal(mgrInProgress.blind, true);
+  const mgrIpItem = mgrInProgress.items.find((i) => i.productId === product.id);
+  assert.ok(mgrIpItem);
+  assert.equal("expectedQty" in mgrIpItem, false);
+  assert.equal(mgrIpItem.countedQty, null);
+
+  // Approve without counts must fail
+  await assert.rejects(
+    () =>
+      approveInventorySession({
+        companyId: company.id,
+        sessionId: session.id,
+        approvedById: owner.id,
+      }),
+    (err: unknown) =>
+      err instanceof Error && err.message === "REVISION_COUNTS_INCOMPLETE"
   );
+
+  // Fill every line: target product = fact (−2), others = their expected (0 variance)
+  const sessionLines = await prisma.inventoryItem.findMany({
+    where: { sessionId: session.id },
+  });
+  await updateInventoryCounts({
+    companyId: company.id,
+    sessionId: session.id,
+    userId: owner.id,
+    items: sessionLines.map((line) => ({
+      productId: line.productId,
+      countedQty:
+        line.productId === product.id
+          ? fact
+          : Number(line.expectedQty),
+    })),
+  });
+
+  // Still blind until completed
+  const ownerStillBlind = await getInventorySessionDetail(
+    company.id,
+    session.id,
+    Role.OWNER
+  );
+  assert.equal(ownerStillBlind.blind, true);
   assert.equal(
-    "difference" in mgrItem,
-    false,
-    "Manager must not receive difference"
+    ownerStillBlind.items.find((i) => i.productId === product.id)?.countedQty,
+    fact
   );
 
   await approveInventorySession({
@@ -157,6 +197,42 @@ async function main() {
   });
   assert.equal(qty, fact, `after revision stock must be fact=${fact}, got ${qty}`);
 
+  const ownerDone = await getInventorySessionDetail(
+    company.id,
+    session.id,
+    Role.OWNER
+  );
+  assert.equal(ownerDone.blind, false);
+  const ownerItem = ownerDone.items.find((i) => i.productId === product.id);
+  assert.ok(ownerItem);
+  assert.equal(ownerItem.expectedQty, expected);
+  assert.equal(ownerItem.countedQty, fact);
+  assert.equal(ownerItem.difference, fact - expected); // −2
+
+  const mgrDone = await getInventorySessionDetail(
+    company.id,
+    session.id,
+    Role.MANAGER
+  );
+  assert.equal(mgrDone.blind, true);
+  assert.equal(mgrDone.items.length, 0, "Manager must not see discrepancy lines");
+
+  const storeRevsOwner = await getStoreRevisions(
+    company.id,
+    store.id,
+    Role.OWNER
+  );
+  const storeRevsMgr = await getStoreRevisions(
+    company.id,
+    store.id,
+    Role.MANAGER
+  );
+  const ownRow = storeRevsOwner.find((r) => r.id === session.id);
+  const mgrRow = storeRevsMgr.find((r) => r.id === session.id);
+  assert.ok(ownRow && ownRow.blind === false);
+  assert.ok(mgrRow && mgrRow.blind === true);
+  assert.equal(mgrRow.items.length, 0);
+
   const sess = await prisma.inventorySession.findUnique({
     where: { id: session.id },
     include: { items: true },
@@ -166,18 +242,12 @@ async function main() {
   assert.ok(item);
   assert.equal(Number(item.expectedQty), expected);
   assert.equal(Number(item.countedQty), fact);
+  assert.equal(Number(item.difference), fact - expected);
 
-  const log = await prisma.activityLog.findFirst({
-    where: {
-      companyId: company.id,
-      action: "REVISION_APPROVE",
-      entityId: session.id,
-    },
-  });
-  assert.ok(log, "REVISION_APPROVE activity log");
-
-  console.log("\nPASS: ZT Revision — start→count→approve→FIFO stock→journal + Manager blind API");
-  console.log(`  expected=${expected} fact=${fact} finalStock=${qty}`);
+  console.log(
+    "\nPASS: ZT Revision — empty fact → blind count → complete → FIFO → owner diffs / manager metadata-only"
+  );
+  console.log(`  expected=${expected} fact=${fact} diff=${fact - expected} finalStock=${qty}`);
 }
 
 main()

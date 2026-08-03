@@ -53,7 +53,8 @@ export async function createInventorySession(params: {
           .map((b) => ({
             productId: b.productId,
             expectedQty: b.quantity,
-            countedQty: b.quantity,
+            // Blind count: fact stays empty until entered physically
+            countedQty: null,
             difference: new Prisma.Decimal(0),
           })),
       },
@@ -171,6 +172,9 @@ export async function approveInventorySession(params: {
   });
   if (!session) throw new Error("NOT_FOUND");
 
+  const uncounted = session.items.filter((i) => i.countedQty == null);
+  if (uncounted.length > 0) throw new Error("REVISION_COUNTS_INCOMPLETE");
+
   const adjustments: Array<{
     productId: string;
     expected: number;
@@ -183,7 +187,7 @@ export async function approveInventorySession(params: {
     async (tx) => {
       for (const item of session.items) {
         const expected = item.expectedQty;
-        const counted = item.countedQty;
+        const counted = item.countedQty!;
         const diff = counted.sub(expected);
         if (diff.eq(0)) continue;
 
@@ -361,10 +365,13 @@ export async function getInventorySessionDetail(
     createdAt: session.createdAt.toISOString(),
     completedAt: session.completedAt?.toISOString() ?? null,
     comment: session.comment,
+    itemCount: session.items.length,
   };
 
-  // Manager / Seller must never receive expected system qty (blind count).
-  if (role !== Role.OWNER) {
+  const isInProgress = session.status === InventoryStatus.IN_PROGRESS;
+
+  // While counting: never expose expected/diff — Owner and Manager alike.
+  if (isInProgress) {
     return {
       ...base,
       blind: true as const,
@@ -372,9 +379,25 @@ export async function getInventorySessionDetail(
         productId: i.productId,
         name: nameMap.get(i.productId)?.name ?? i.productId,
         unit: nameMap.get(i.productId)?.unit?.symbol ?? "",
-        countedQty: decimalToNumber(i.countedQty),
+        countedQty:
+          i.countedQty == null ? null : decimalToNumber(i.countedQty),
         reason: i.discrepancyReason,
       })),
+    };
+  }
+
+  // Completed / cancelled: Manager sees metadata only (no discrepancy lines).
+  if (role !== Role.OWNER) {
+    return {
+      ...base,
+      blind: true as const,
+      items: [] as Array<{
+        productId: string;
+        name: string;
+        unit: string;
+        countedQty: number | null;
+        reason: string | null;
+      }>,
     };
   }
 
@@ -386,7 +409,8 @@ export async function getInventorySessionDetail(
       name: nameMap.get(i.productId)?.name ?? i.productId,
       unit: nameMap.get(i.productId)?.unit?.symbol ?? "",
       expectedQty: decimalToNumber(i.expectedQty),
-      countedQty: decimalToNumber(i.countedQty),
+      countedQty:
+        i.countedQty == null ? null : decimalToNumber(i.countedQty),
       difference: decimalToNumber(i.difference),
       reason: i.discrepancyReason,
     })),

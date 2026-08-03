@@ -976,7 +976,7 @@ function RevisionsTab({
               </div>
               {s.blind ? (
                 <div className="mt-1 text-xs text-muted">
-                  {t("storeDetail.blindOnly", { n: s.items.length })}
+                  {t("storeDetail.blindOnly")}
                 </div>
               ) : (
                 <div className="mt-1 text-xs text-muted">
