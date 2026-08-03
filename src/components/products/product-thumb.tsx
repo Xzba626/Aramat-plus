@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import {
   getProductImageUrl,
   type ProductImageSize,
-} from "@/lib/services/product-image.service";
+} from "@/lib/product-image-url";
 
 type Props = {
   /** Raw stored imageUrl (medium path or legacy). Prefer passing product + size via ProductCard. */

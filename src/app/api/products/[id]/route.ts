@@ -10,7 +10,7 @@ import {
   resolveUnitId,
 } from "@/lib/services/product-nomenclature.service";
 import { hardDeleteProductCascade } from "@/lib/services/archive-retention.service";
-import { sanitizeIncomingImageUrl } from "@/lib/services/product-image.service";
+import { sanitizeIncomingImageUrl } from "@/lib/product-image-url";
 
 type Ctx = { params: Promise<{ id: string }> };
 

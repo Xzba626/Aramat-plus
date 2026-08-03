@@ -12,7 +12,7 @@ import {
   resolveProductAccountingType,
   resolveUnitId,
 } from "@/lib/services/product-nomenclature.service";
-import { sanitizeIncomingImageUrl } from "@/lib/services/product-image.service";
+import { sanitizeIncomingImageUrl } from "@/lib/product-image-url";
 
 export async function GET(req: Request) {
   try {

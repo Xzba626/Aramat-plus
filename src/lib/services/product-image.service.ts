@@ -1,22 +1,26 @@
+/**
+ * Server-only product image processing (sharp + filesystem).
+ * Do NOT import this from Client Components — use `@/lib/product-image-url`.
+ */
 import { mkdir, writeFile, unlink } from "fs/promises";
 import path from "path";
 import sharp from "sharp";
+import type { Metadata as SharpMetadata } from "sharp";
+import {
+  productImageSrc,
+  type ProductImageSize,
+} from "@/lib/product-image-url";
 
 export const PRODUCT_IMAGE_MAX_INPUT_BYTES = 20 * 1024 * 1024;
 
-export type ProductImageSize = "thumb" | "medium" | "full";
-
-/** Prefer product photo; fall back to brand logo. */
-export function resolveProductImageUrl(product: {
-  imageUrl?: string | null;
-  brand?: { imageUrl?: string | null } | null;
-}): string | null {
-  const productUrl = product.imageUrl?.trim();
-  if (productUrl) return productUrl;
-  const brandUrl = product.brand?.imageUrl?.trim();
-  if (brandUrl) return brandUrl;
-  return null;
-}
+export type { ProductImageSize };
+export {
+  resolveProductImageUrl,
+  getProductImageUrl,
+  productImageSrc,
+  isValidStoredImageUrl,
+  sanitizeIncomingImageUrl,
+} from "@/lib/product-image-url";
 
 export type ProductImageVariants = {
   /** Primary DB value — medium path */
@@ -52,12 +56,10 @@ export function isAllowedProductImage(file: {
   ) {
     return true;
   }
-  // HEIC explicitly rejected upstream with clear error
   if (mime === "image/heic" || mime === "image/heif") return false;
 
   const name = file.name || "";
   const extOk = /\.(jpe?g|png|webp|gif)$/i.test(name);
-  // Android / FormData often sends empty or application/octet-stream
   if (
     (!mime ||
       mime === "application/octet-stream" ||
@@ -75,54 +77,9 @@ export function isHeicLike(file: { type?: string; name?: string }): boolean {
   return /\.heic$/i.test(file.name || "") || /\.heif$/i.test(file.name || "");
 }
 
-/**
- * Resolve display URL for a product at a given size.
- * Legacy data: URLs pass through unchanged (until migrated).
- */
-export function getProductImageUrl(
-  product: {
-    imageUrl?: string | null;
-    brand?: { imageUrl?: string | null } | null;
-  },
-  size: ProductImageSize = "medium"
-): string | null {
-  const raw = resolveProductImageUrl(product);
-  return productImageSrc(raw, size);
-}
-
-/** Map stored URL → variant path (thumb / medium / full). */
-export function productImageSrc(
-  url: string | null | undefined,
-  size: ProductImageSize | "card" = "medium"
-): string | null {
-  if (!url) return null;
-  if (url.startsWith("data:")) return url;
-  if (!url.startsWith("/uploads/")) return url;
-
-  const normalized: ProductImageSize =
-    size === "card" ? "medium" : size;
-
-  if (url.includes("-md.webp")) {
-    if (normalized === "thumb") return url.replace("-md.webp", "-thumb.webp");
-    if (normalized === "full") return url.replace("-md.webp", ".webp");
-    return url;
-  }
-  if (url.endsWith("-thumb.webp")) {
-    if (normalized === "medium") return url.replace("-thumb.webp", "-md.webp");
-    if (normalized === "full") return url.replace("-thumb.webp", ".webp");
-    return url;
-  }
-  if (url.endsWith(".webp") && !url.includes("-thumb") && !url.includes("-md")) {
-    if (normalized === "thumb") return url.replace(/\.webp$/, "-thumb.webp");
-    if (normalized === "medium") return url.replace(/\.webp$/, "-md.webp");
-    return url;
-  }
-  return url;
-}
-
 function pipeline(input: Buffer, edge: number, quality: number) {
   return sharp(input, { failOn: "none" })
-    .rotate() // honour EXIF orientation, then strip
+    .rotate()
     .resize({
       width: edge,
       height: edge,
@@ -142,7 +99,7 @@ export async function processAndSaveProductImage(
 ): Promise<ProductImageVariants> {
   if (!input.length) throw new Error("FILE_REQUIRED");
 
-  let meta: sharp.Metadata;
+  let meta: SharpMetadata;
   try {
     meta = await sharp(input, { failOn: "none" }).metadata();
   } catch (e) {
@@ -230,7 +187,6 @@ export async function deleteProductImageFiles(
 
 /**
  * Decode data: URL → processAndSave. Used by legacy migration.
- * Returns null if not a data URL or decode fails.
  */
 export async function migrateDataUrlToUploads(
   dataUrl: string,
@@ -247,29 +203,4 @@ export async function migrateDataUrlToUploads(
   }
   if (!buf.length) return null;
   return processAndSaveProductImage(buf, opts);
-}
-
-/** True if value is acceptable for Product.imageUrl column. */
-export function isValidStoredImageUrl(v: string | null | undefined): boolean {
-  if (v == null || v === "") return true;
-  if (v.startsWith("/uploads/") && v.length <= 2048) return true;
-  if (v.startsWith("data:image/") && v.length <= 12_000) return true;
-  return false;
-}
-
-/**
- * Strip unusable imageUrl before Zod so product fields can still save.
- * Returns { imageUrl, stripped }.
- */
-export function sanitizeIncomingImageUrl(
-  imageUrl: unknown
-): { imageUrl: string | null | undefined; stripped: boolean } {
-  if (imageUrl === undefined) return { imageUrl: undefined, stripped: false };
-  if (imageUrl === null || imageUrl === "")
-    return { imageUrl: null, stripped: false };
-  if (typeof imageUrl !== "string")
-    return { imageUrl: null, stripped: true };
-  if (isValidStoredImageUrl(imageUrl))
-    return { imageUrl, stripped: false };
-  return { imageUrl: null, stripped: true };
 }

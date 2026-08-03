@@ -6,7 +6,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Role } from "@prisma/client";
 import { PageHeader } from "@/components/ui/page-header";
-import { getProductImageUrl } from "@/lib/services/product-image.service";
+import { getProductImageUrl } from "@/lib/product-image-url";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/i18n-provider";
@@ -278,7 +278,10 @@ export default function ProductDetailPage() {
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={
-                  getProductImageUrl(product, "medium") ?? product.imageUrl
+                  getProductImageUrl(
+                    { imageUrl: product.imageUrl },
+                    "medium"
+                  ) ?? product.imageUrl
                 }
                 alt=""
                 className="h-full w-full object-cover"

@@ -1,9 +1,8 @@
 /**
- * @deprecated Prefer `getProductImageUrl` / `productImageSrc` from
- * `@/lib/services/product-image.service`. Re-exported for existing imports.
+ * @deprecated Prefer `@/lib/product-image-url`.
  */
 export {
   productImageSrc,
   getProductImageUrl,
   type ProductImageSize,
-} from "@/lib/services/product-image.service";
+} from "@/lib/product-image-url";
