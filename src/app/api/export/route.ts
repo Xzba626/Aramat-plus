@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 import {
   getAnalyticsBreakdown,
+  analyticsPeriodFrom,
   type AnalyticsPeriod,
 } from "@/lib/services/analytics.service";
 import {
@@ -31,19 +32,6 @@ function endOfDay(d: Date) {
   return x;
 }
 
-function salesPeriodStart(period: AnalyticsPeriod): Date {
-  const now = new Date();
-  if (period === "today") return startOfDay(now);
-  if (period === "week") {
-    const d = startOfDay(now);
-    const day = d.getDay();
-    const diff = day === 0 ? 6 : day - 1;
-    d.setDate(d.getDate() - diff);
-    return d;
-  }
-  return new Date(now.getFullYear(), now.getMonth(), 1);
-}
-
 function resolveRange(url: URL): { from: Date; to: Date; periodLabel: string } {
   const fromParam = url.searchParams.get("from");
   const toParam = url.searchParams.get("to");
@@ -60,9 +48,10 @@ function resolveRange(url: URL): { from: Date; to: Date; periodLabel: string } {
     periodParam === "year"
       ? periodParam
       : "month";
+  const now = new Date();
   return {
-    from: salesPeriodStart(period),
-    to: new Date(),
+    from: analyticsPeriodFrom(period, now),
+    to: now,
     periodLabel: period,
   };
 }

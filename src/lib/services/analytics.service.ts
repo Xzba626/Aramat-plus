@@ -17,21 +17,33 @@ function monthStart(d = new Date()) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
-function weekStart(d = new Date()) {
-  const x = startOfDay(d);
-  const day = x.getDay();
-  const diff = day === 0 ? 6 : day - 1; // Monday-based
-  x.setDate(x.getDate() - diff);
-  return x;
-}
-
 export type AnalyticsPeriod = "today" | "week" | "month" | "year";
 
-function periodFrom(period: AnalyticsPeriod, now = new Date()) {
+/**
+ * Inclusive period start for analytics / finance filters.
+ *
+ * - today  → 00:00 today … now
+ * - week   → last 7 calendar days (today + 6 previous days) … now
+ * - month  → 1st of current calendar month … now
+ * - year   → 1 Jan of current calendar year … now
+ *
+ * Week is rolling 7 days (same as dashboard sparkline), NOT Mon–Sun.
+ */
+export function analyticsPeriodFrom(
+  period: AnalyticsPeriod,
+  now = new Date()
+): Date {
   if (period === "today") return startOfDay(now);
-  if (period === "week") return weekStart(now);
+  if (period === "week") {
+    return startOfDay(new Date(now.getTime() - 6 * 86400000));
+  }
   if (period === "year") return new Date(now.getFullYear(), 0, 1);
   return monthStart(now);
+}
+
+/** @deprecated use analyticsPeriodFrom — kept name alias for callers */
+function periodFrom(period: AnalyticsPeriod, now = new Date()) {
+  return analyticsPeriodFrom(period, now);
 }
 
 /** Deep analytics: products, sellers, categories, types, stores, net profit. */

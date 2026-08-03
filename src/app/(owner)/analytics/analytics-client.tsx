@@ -76,6 +76,13 @@ type Tab =
 
 type Period = "today" | "week" | "month" | "year";
 
+function expensesLabelKey(period: Period): string {
+  if (period === "today") return "dashboard.expensesLabelToday";
+  if (period === "week") return "dashboard.expensesLabelWeek";
+  if (period === "year") return "dashboard.expensesLabelYear";
+  return "dashboard.expensesLabelMonth";
+}
+
 function tabFromView(view: string | null): Tab {
   if (view === "expenses") return "expenses";
   if (view === "stores") return "stores";
@@ -182,7 +189,7 @@ export default function AnalyticsClient() {
             : formatMoney(network?.grossProfit ?? 0, { short: true }),
         },
         {
-          label: t("analyticsPage.expensesTitle"),
+          label: t(expensesLabelKey(period)),
           value: loading
             ? "…"
             : formatMoney(network?.expenses ?? expenseTotal, { short: true }),
@@ -260,7 +267,7 @@ export default function AnalyticsClient() {
                       : key === "gross"
                         ? t("dashboard.grossProfitLabel")
                         : key === "expenses"
-                          ? t("dashboard.expensesLabel")
+                          ? t(expensesLabelKey(period))
                           : key === "net"
                             ? t("dashboard.netProfit")
                             : t("analyticsPage.colChecks")}
@@ -302,7 +309,7 @@ export default function AnalyticsClient() {
                     </div>
                     <div>
                       <div className="text-[10px] uppercase text-muted">
-                        {t("dashboard.expensesLabel")}
+                        {t(expensesLabelKey(period))}
                       </div>
                       <div className="font-semibold tabular-nums">
                         {formatMoney(s.expenses, { short: true })}
