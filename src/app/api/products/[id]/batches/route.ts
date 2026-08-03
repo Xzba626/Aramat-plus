@@ -4,9 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { batchSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity } from "@/lib/services/activity-log.service";
-import { BatchOrigin, LocationType } from "@prisma/client";
+import { BatchOrigin, LocationType, ProductKind, Role } from "@prisma/client";
 import { addBatch } from "@/lib/services/stock.service";
 import { getActiveSupplier } from "@/lib/services/supplier.service";
+import { Prisma } from "@prisma/client";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -61,18 +62,43 @@ export async function POST(req: Request, ctx: Ctx) {
       supplierName = supplier.name;
     }
 
+    const isPackaging = product.kind === ProductKind.PACKAGING;
+    // Non-owners cannot set a new plan cost — force current planned cost
+    let costPerUnit = body.costPerUnit;
+    if (isPackaging && user!.role !== Role.OWNER) {
+      costPerUnit =
+        product.defaultCostPerUnit != null
+          ? Number(product.defaultCostPerUnit)
+          : body.costPerUnit;
+    }
+
     const batch = await prisma.$transaction(async (tx) => {
       const created = await addBatch(tx, {
         productId: id,
         locationType: LocationType.WAREHOUSE,
         locationId: warehouse.id,
         quantity: body.quantity,
-        costPerUnit: body.costPerUnit,
+        costPerUnit,
         receivedAt: body.receivedAt,
         notes: body.notes ?? undefined,
         supplierId: body.supplierId ?? null,
         createdById: user!.id,
       });
+
+      // Last purchase price becomes current planned cost (OWNER receive only)
+      if (isPackaging && user!.role === Role.OWNER) {
+        const plan = new Prisma.Decimal(costPerUnit.toString());
+        await tx.product.update({
+          where: { id },
+          data: { defaultCostPerUnit: plan },
+        });
+        if (product.packagingSkuId) {
+          await tx.packagingSku.update({
+            where: { id: product.packagingSkuId },
+            data: { defaultCost: plan },
+          });
+        }
+      }
 
       const supplierPart = supplierName ? ` · ${supplierName}` : "";
       await logActivity({
@@ -82,13 +108,14 @@ export async function POST(req: Request, ctx: Ctx) {
         action: "BATCH_CREATE",
         entityType: "Batch",
         entityId: created.id,
-        comment: `${product.name}: ${body.quantity} @ ${body.costPerUnit}${supplierPart}`,
+        comment: `${product.name}: ${body.quantity} @ ${costPerUnit}${supplierPart}`,
         metadata: {
           productId: id,
           quantity: body.quantity,
-          costPerUnit: body.costPerUnit,
+          costPerUnit,
           supplierId: body.supplierId ?? null,
           supplierName,
+          planCostUpdated: isPackaging && user!.role === Role.OWNER,
         },
       });
 

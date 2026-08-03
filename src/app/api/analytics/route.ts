@@ -1,5 +1,5 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager } from "@/lib/rbac";
+import { requireOwnerOrManager, scopedStoreId } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
 import {
   getAnalyticsBreakdown,
@@ -18,7 +18,12 @@ export async function GET(req: Request) {
         ? periodParam
         : "month"
     ) as AnalyticsPeriod;
-    return jsonOk(await getAnalyticsBreakdown(user!.companyId, period));
+    const storeId = scopedStoreId(user!);
+    return jsonOk(
+      await getAnalyticsBreakdown(user!.companyId, period, {
+        storeId: storeId === undefined ? undefined : storeId,
+      })
+    );
   } catch (err) {
     return handleApiError(err);
   }

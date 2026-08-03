@@ -1,5 +1,5 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager } from "@/lib/rbac";
+import { requireOwnerOrManager, scopedStoreId } from "@/lib/rbac";
 import { handleApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
@@ -75,7 +75,14 @@ export async function GET(req: Request) {
 
     const url = new URL(req.url);
     const type = url.searchParams.get("type") || "products";
-    const storeId = url.searchParams.get("storeId") || undefined;
+    const requestedStore = url.searchParams.get("storeId") || undefined;
+    const scope = scopedStoreId(user!);
+    const storeId =
+      scope === undefined
+        ? requestedStore
+        : scope === null
+          ? "__none__"
+          : scope;
     const { from, to, periodLabel } = resolveRange(url);
     const companyId = user!.companyId;
     const locale = resolveExportLocale(req);
@@ -237,7 +244,9 @@ export async function GET(req: Request) {
         periodLabel === "year"
           ? periodLabel
           : "month";
-      const data = await getAnalyticsBreakdown(companyId, period);
+      const data = await getAnalyticsBreakdown(companyId, period, {
+        storeId: storeId === "__none__" ? null : storeId,
+      });
       const stores = storeId
         ? data.stores.filter((s) => s.id === storeId)
         : data.stores;

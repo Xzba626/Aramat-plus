@@ -1,14 +1,20 @@
 import { Role } from "@prisma/client";
 import { z } from "zod";
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager } from "@/lib/rbac";
+import {
+  requireOwnerOrManager,
+  requireStoreAccess,
+  scopedStoreId,
+} from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
 import {
   createDiscountRequest,
   getActiveDiscountForCart,
   getDiscountRequestForSeller,
   listDiscountRequests,
+  serializeDiscountRequest,
 } from "@/lib/services/discount-request.service";
+import { prisma } from "@/lib/prisma";
 
 const createSchema = z.object({
   storeId: z.string().min(1).optional(),
@@ -44,14 +50,14 @@ export async function GET(req: Request) {
           })
         );
       }
-      const { prisma } = await import("@/lib/prisma");
-      const { serializeDiscountRequest } = await import(
-        "@/lib/services/discount-request.service"
-      );
+      const denied = requireOwnerOrManager(user);
+      if (denied) return denied;
       const row = await prisma.discountRequest.findFirst({
         where: { id, companyId: user.companyId },
       });
       if (!row) return handleApiError(new Error("NOT_FOUND"));
+      const scopeDenied = requireStoreAccess(user, row.storeId);
+      if (scopeDenied) return scopeDenied;
       return jsonOk(serializeDiscountRequest(row));
     }
 
@@ -68,11 +74,13 @@ export async function GET(req: Request) {
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
 
-    const limit = Math.min(
-      Number(sp.get("limit") || 100),
-      200
+    const limit = Math.min(Number(sp.get("limit") || 100), 200);
+    const scope = scopedStoreId(user);
+    return jsonOk(
+      await listDiscountRequests(user.companyId, limit, {
+        storeId: scope === undefined ? undefined : scope,
+      })
     );
-    return jsonOk(await listDiscountRequests(user.companyId, limit));
   } catch (err) {
     return handleApiError(err);
   }
@@ -94,6 +102,9 @@ export async function POST(req: Request) {
     let storeId = body.storeId;
     if (user.role === Role.SELLER) {
       if (!user.storeId) return handleApiError(new Error("SELLER_NO_STORE"));
+      storeId = user.storeId;
+    } else if (user.role === Role.MANAGER) {
+      if (!user.storeId) return handleApiError(new Error("FORBIDDEN"));
       storeId = user.storeId;
     } else if (!storeId) {
       return handleApiError(new Error("ID_REQUIRED"));

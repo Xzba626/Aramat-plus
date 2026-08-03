@@ -63,6 +63,7 @@ function middlewareAllows(role: Role, pathname: string): boolean {
   if (role === Role.MANAGER) {
     const blocked =
       pathname.startsWith("/users") ||
+      pathname.startsWith("/journal") ||
       pathname.startsWith("/settings/wipe") ||
       pathname.startsWith("/warehouse/write-offs");
     if (blocked) return false;
@@ -136,7 +137,7 @@ async function main() {
     [Role.MANAGER, "/dashboard", true],
     [Role.MANAGER, "/warehouse", true],
     [Role.MANAGER, "/revision", true],
-    [Role.MANAGER, "/journal", true],
+    [Role.MANAGER, "/journal", false],
     [Role.MANAGER, "/users", false],
     [Role.MANAGER, "/settings/wipe", false],
     [Role.MANAGER, "/warehouse/write-offs", false],

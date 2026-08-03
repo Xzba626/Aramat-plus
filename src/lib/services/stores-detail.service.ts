@@ -7,7 +7,6 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
-import { ensureOwnerDirectStore } from "@/lib/services/owner-direct.service";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { sumAllocatedExpenses } from "@/lib/services/expense.service";
 import { withNetProfit } from "@/lib/services/profit.service";
@@ -58,7 +57,6 @@ async function resolveLocation(companyId: string, storeId: string) {
 }
 
 export async function getStoreDetail(companyId: string, storeId: string) {
-  await ensureOwnerDirectStore(companyId);
   const loc = await resolveLocation(companyId, storeId);
   if (!loc) throw new Error("STORE_NOT_FOUND");
 

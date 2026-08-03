@@ -143,6 +143,7 @@ async function main() {
       passwordHash: managerHash,
       role: Role.MANAGER,
       companyId: company.id,
+      storeId: store1.id,
     },
   });
 

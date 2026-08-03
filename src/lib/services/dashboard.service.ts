@@ -62,7 +62,26 @@ function pctChange(current: number, previous: number) {
   };
 }
 
-export async function getDashboardPayload(companyId: string) {
+export async function getDashboardPayload(
+  companyId: string,
+  opts?: { storeId?: string | null }
+) {
+  const storeIdFilter =
+    opts?.storeId === null
+      ? ("__none__" as const)
+      : opts?.storeId
+        ? opts.storeId
+        : undefined;
+  const saleStoreWhere = storeIdFilter
+    ? { companyId, id: storeIdFilter }
+    : { companyId };
+  const storeWhere = {
+    companyId,
+    isActive: true,
+    kind: { in: ["BRANCH", "OWNER_DIRECT"] as const },
+    ...(storeIdFilter ? { id: storeIdFilter } : {}),
+  };
+
   const now = new Date();
   const todayStart = startOfDay(now);
   const elapsedMs = now.getTime() - todayStart.getTime();
@@ -77,7 +96,7 @@ export async function getDashboardPayload(companyId: string) {
     await Promise.all([
       prisma.sale.findMany({
         where: {
-          store: { companyId },
+          store: saleStoreWhere,
           status: { in: ["COMPLETED", "PARTIAL_RETURN"] },
           createdAt: { gte: todayStart, lte: now },
         },
@@ -92,18 +111,14 @@ export async function getDashboardPayload(companyId: string) {
       }),
       prisma.sale.findMany({
         where: {
-          store: { companyId },
+          store: saleStoreWhere,
           status: { in: ["COMPLETED", "PARTIAL_RETURN"] },
           createdAt: { gte: yesterdayStart, lte: yesterdaySame },
         },
         include: { items: true },
       }),
       prisma.store.findMany({
-        where: {
-          companyId,
-          isActive: true,
-          kind: { in: ["BRANCH", "OWNER_DIRECT"] },
-        },
+        where: storeWhere,
         orderBy: { name: "asc" },
         select: { id: true, name: true, kind: true },
       }),
@@ -111,11 +126,13 @@ export async function getDashboardPayload(companyId: string) {
         companyId,
         from: todayStart,
         to: todayStart,
+        storeId: storeIdFilter === "__none__" ? "__none__" : storeIdFilter,
       }),
       sumAllocatedExpenses({
         companyId,
         from: yesterdayStart,
         to: yesterdayStart,
+        storeId: storeIdFilter === "__none__" ? "__none__" : storeIdFilter,
       }),
     ]);
 

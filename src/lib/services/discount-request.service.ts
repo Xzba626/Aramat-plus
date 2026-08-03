@@ -352,11 +352,20 @@ export async function linkDiscountToSale(
   });
 }
 
-export async function listDiscountRequests(companyId: string, limit = 100) {
+export async function listDiscountRequests(
+  companyId: string,
+  limit = 100,
+  opts?: { storeId?: string | null }
+) {
   const rows = await prisma.discountRequest.findMany({
     where: {
       companyId,
       status: { in: ["PENDING", "APPROVED", "REJECTED"] },
+      ...(opts?.storeId === null
+        ? { storeId: "__none__" }
+        : opts?.storeId
+          ? { storeId: opts.storeId }
+          : {}),
     },
     include: {
       requester: { select: { name: true } },

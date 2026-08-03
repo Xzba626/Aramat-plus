@@ -1,5 +1,10 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwner, requireOwnerOrManager } from "@/lib/rbac";
+import {
+  requireOwner,
+  requireOwnerOrManager,
+  requireStoreAccess,
+  scopedStoreId,
+} from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { storeSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
@@ -19,8 +24,10 @@ export async function GET(req: Request) {
     if (denied) return denied;
     const includeArchived =
       new URL(req.url).searchParams.get("archived") === "1";
+    const scope = scopedStoreId(user!);
     const rows = await listStoresForCompany(user!.companyId, {
       includeArchived,
+      storeId: scope === undefined ? undefined : scope,
     });
     return jsonOk(rows);
   } catch (err) {
@@ -65,6 +72,8 @@ export async function PATCH(req: Request) {
       where: { id, companyId: user!.companyId },
     });
     if (!existing) return handleApiError(new Error("STORE_NOT_FOUND"));
+    const scopeDenied = requireStoreAccess(user!, id);
+    if (scopeDenied) return scopeDenied;
 
     if (isOwnerDirect(existing) && data.isArchived === true) {
       return handleApiError(new Error("VALIDATION_ERROR"));

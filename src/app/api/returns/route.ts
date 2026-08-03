@@ -1,6 +1,6 @@
 import { Role, ReturnReasonCode } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager } from "@/lib/rbac";
+import { requireOwnerOrManager, scopedStoreId } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
 import {
   createSaleReturn,
@@ -34,7 +34,12 @@ export async function GET(req: Request) {
       Number(new URL(req.url).searchParams.get("limit") || 100),
       200
     );
-    return jsonOk(await listSaleReturns(user.companyId, limit));
+    const scope = scopedStoreId(user);
+    return jsonOk(
+      await listSaleReturns(user.companyId, limit, {
+        storeId: scope === undefined ? undefined : scope,
+      })
+    );
   } catch (err) {
     return handleApiError(err);
   }

@@ -370,9 +370,19 @@ export async function decideSaleReturn(params: {
   return updated;
 }
 
-export async function listSaleReturns(companyId: string, limit = 100) {
+export async function listSaleReturns(
+  companyId: string,
+  limit = 100,
+  opts?: { storeId?: string | null }
+) {
+  const storeFilter =
+    opts?.storeId === null
+      ? { id: "__none__" }
+      : opts?.storeId
+        ? { companyId, id: opts.storeId }
+        : { companyId };
   const rows = await prisma.saleReturn.findMany({
-    where: { sale: { store: { companyId } } },
+    where: { sale: { store: storeFilter } },
     include: {
       requester: { select: { id: true, name: true } },
       reviewer: { select: { id: true, name: true } },

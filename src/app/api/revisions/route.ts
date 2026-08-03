@@ -1,7 +1,12 @@
 import { z } from "zod";
 import { Role } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
-import { requireOwner, requireOwnerOrManager } from "@/lib/rbac";
+import {
+  requireOwner,
+  requireOwnerOrManager,
+  requireStoreAccess,
+  scopedStoreId,
+} from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
@@ -45,18 +50,27 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (id) {
-      return jsonOk(
-        await getInventorySessionDetail(
-          user!.companyId,
-          id,
-          user!.role as Role
-        )
+      const detail = await getInventorySessionDetail(
+        user!.companyId,
+        id,
+        user!.role as Role
       );
+      const scopeDenied = requireStoreAccess(user!, detail.storeId);
+      if (scopeDenied) return scopeDenied;
+      return jsonOk(detail);
     }
+
+    const scope = scopedStoreId(user!);
+    const storeWhere =
+      scope === undefined
+        ? { companyId: user!.companyId }
+        : scope === null
+          ? { companyId: user!.companyId, id: "__none__" }
+          : { companyId: user!.companyId, id: scope };
 
     const isOwner = user!.role === Role.OWNER;
     const sessions = await prisma.inventorySession.findMany({
-      where: { store: { companyId: user!.companyId } },
+      where: { store: storeWhere },
       include: {
         store: { select: { id: true, name: true } },
         createdBy: { select: { name: true } },
@@ -99,6 +113,8 @@ export async function POST(req: Request) {
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
     const body = createSchema.parse(await req.json());
+    const scopeDenied = requireStoreAccess(user!, body.storeId);
+    if (scopeDenied) return scopeDenied;
     const row = await createInventorySession({
       companyId: user!.companyId,
       storeId: body.storeId,

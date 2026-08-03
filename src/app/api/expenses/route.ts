@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ExpensePeriodicity } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
-import { requireOwner, requireOwnerOrManager } from "@/lib/rbac";
+import { requireOwner, requireOwnerOrManager, scopedStoreId } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
 import {
   createExpense,
@@ -26,8 +26,15 @@ export async function GET(req: Request) {
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
 
-    const storeId =
+    const requested =
       new URL(req.url).searchParams.get("storeId") ?? undefined;
+    const scope = scopedStoreId(user!);
+    const storeId =
+      scope === undefined
+        ? requested
+        : scope === null
+          ? "__none__"
+          : scope;
     return jsonOk(
       await listExpenses(user!.companyId, { storeId, limit: 100 })
     );

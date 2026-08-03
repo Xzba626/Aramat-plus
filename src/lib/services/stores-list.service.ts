@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { LocationType, StoreKind } from "@prisma/client";
 import { decimalToNumber } from "@/lib/utils";
-import { ensureOwnerDirectStore } from "@/lib/services/owner-direct.service";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -15,10 +14,8 @@ function startOfMonth(d: Date) {
 
 export async function listStoresForCompany(
   companyId: string,
-  opts?: { includeArchived?: boolean }
+  opts?: { includeArchived?: boolean; storeId?: string | null }
 ) {
-  await ensureOwnerDirectStore(companyId);
-
   const now = new Date();
   const todayStart = startOfDay(now);
   const monthStart = startOfMonth(now);
@@ -27,9 +24,15 @@ export async function listStoresForCompany(
     where: { companyId, isActive: true },
   });
 
+  // Store Manager: only assigned store. No auto-create of OWNER_DIRECT.
+  if (opts?.storeId === null) {
+    return [];
+  }
+
   const stores = await prisma.store.findMany({
     where: {
       companyId,
+      ...(opts?.storeId ? { id: opts.storeId } : {}),
       ...(opts?.includeArchived ? {} : { isArchived: false }),
     },
     include: {

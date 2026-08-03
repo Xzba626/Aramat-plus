@@ -53,16 +53,26 @@ function periodFrom(period: AnalyticsPeriod, now = new Date()) {
 /** Deep analytics: products, sellers, categories, types, stores, net profit. */
 export async function getAnalyticsBreakdown(
   companyId: string,
-  period: AnalyticsPeriod = "month"
+  period: AnalyticsPeriod = "month",
+  opts?: { storeId?: string | null }
 ) {
   const now = new Date();
   const from = periodFrom(period, now);
+  const storeIdFilter =
+    opts?.storeId === null
+      ? "__none__"
+      : opts?.storeId
+        ? opts.storeId
+        : undefined;
+  const saleStoreWhere = storeIdFilter
+    ? { companyId, id: storeIdFilter }
+    : { companyId };
 
   const sales = await prisma.sale.findMany({
     where: {
       status: { in: ["COMPLETED", "PARTIAL_RETURN"] },
       createdAt: { gte: from, lte: now },
-      store: { companyId },
+      store: saleStoreWhere,
     },
     include: {
       seller: { select: { id: true, name: true } },
@@ -90,6 +100,7 @@ export async function getAnalyticsBreakdown(
     companyId,
     from,
     to: startOfDay(now),
+    storeId: storeIdFilter,
   });
 
   const allReturnItems = await prisma.saleReturnItem.findMany({

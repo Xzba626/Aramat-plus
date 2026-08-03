@@ -1,5 +1,9 @@
+import { Role } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager } from "@/lib/rbac";
+import {
+  requireOwner,
+  requireOwnerOrManager,
+} from "@/lib/rbac";
 import {
   packagingSkuSchema,
   packagingSkuUpdateSchema,
@@ -17,10 +21,8 @@ export async function GET(req: Request) {
     const user = await getSessionUser();
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
+    // No auto-seed — empty after wipe until owner creates SKUs or seeds explicitly
     const sp = new URL(req.url).searchParams;
-    if (sp.get("seedDefaults") === "1") {
-      await ensureDefaultPackagingSkus(user!.companyId, user!.id);
-    }
     const archived = sp.get("archived");
     const items = await listPackagingSkus(user!.companyId, {
       includeInactive: archived === "1" || archived === "all",
@@ -40,9 +42,20 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
-    const denied = requireOwnerOrManager(user);
+    const denied = requireOwner(user);
     if (denied) return denied;
-    const body = packagingSkuSchema.parse(await req.json());
+    const raw = await req.json();
+
+    // Explicit owner action: create standard bottle set
+    if (raw?.seedDefaults === true) {
+      const created = await ensureDefaultPackagingSkus(
+        user!.companyId,
+        user!.id
+      );
+      return jsonOk({ ok: true, created }, 201);
+    }
+
+    const body = packagingSkuSchema.parse(raw);
     const { sku, product } = await createPackagingSku({
       companyId: user!.companyId,
       actorId: user!.id,
@@ -62,6 +75,18 @@ export async function PATCH(req: Request) {
     const body = packagingSkuUpdateSchema.parse(await req.json());
     const { id, ...data } = body;
     if (!Object.keys(data).length) return jsonError("VALIDATION", 400);
+
+    // Financial field — OWNER only
+    if (data.defaultCost !== undefined && user!.role !== Role.OWNER) {
+      return jsonError("FORBIDDEN", 403);
+    }
+
+    // Store managers may archive/restore only; create/edit name+cost = owner
+    if (user!.role === Role.MANAGER) {
+      const allowed = Object.keys(data).every((k) => k === "isActive");
+      if (!allowed) return jsonError("FORBIDDEN", 403);
+    }
+
     const sku = await updatePackagingSku({
       companyId: user!.companyId,
       actorId: user!.id,

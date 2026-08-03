@@ -9,7 +9,7 @@ import bcrypt from "bcryptjs";
 export async function GET(req: Request) {
   try {
     const user = await getSessionUser();
-    const denied = requireOwnerOrManager(user);
+    const denied = requireOwner(user);
     if (denied) return denied;
 
     const archived = new URL(req.url).searchParams.get("archived");

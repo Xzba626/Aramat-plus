@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { Role } from "@prisma/client";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
@@ -35,6 +37,8 @@ function materialLabel(
 
 export default function PackagingPage() {
   const { t, formatMoney } = useI18n();
+  const { data: session } = useSession();
+  const isOwner = session?.user?.role === Role.OWNER;
   const [items, setItems] = useState<Sku[]>([]);
   const [stores, setStores] = useState<BranchStore[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -49,9 +53,7 @@ export default function PackagingPage() {
   async function load() {
     setLoading(true);
     const [skuRes, storeRes, whRes] = await Promise.all([
-      fetch(
-        `/api/packaging-skus?seedDefaults=1&archived=${showInactive ? "1" : "0"}`
-      ),
+      fetch(`/api/packaging-skus?archived=${showInactive ? "1" : "0"}`),
       fetch("/api/stores"),
       fetch("/api/warehouses"),
     ]);
@@ -70,6 +72,24 @@ export default function PackagingPage() {
     }
     if (whRes.ok && Array.isArray(whData)) setWarehouses(whData);
     setLoading(false);
+  }
+
+  async function seedDefaults() {
+    if (!isOwner) return;
+    setError("");
+    setMsg("");
+    const res = await fetch("/api/packaging-skus", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seedDefaults: true }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t));
+      return;
+    }
+    setMsg(t("packaging.seedDefaultsDone"));
+    load();
   }
 
   useEffect(() => {
@@ -220,17 +240,29 @@ export default function PackagingPage() {
             >
               {showTransfer ? t("common.cancel") : t("packaging.sendToStore")}
             </Button>
-            <Button
-              fullWidth={false}
-              type="button"
-              onClick={() => {
-                setShowForm((v) => !v);
-                setShowReceive(false);
-                setShowTransfer(false);
-              }}
-            >
-              {showForm ? t("common.cancel") : t("packaging.addSku")}
-            </Button>
+            {isOwner ? (
+              <>
+                <Button
+                  fullWidth={false}
+                  type="button"
+                  variant="secondary"
+                  onClick={seedDefaults}
+                >
+                  {t("packaging.seedDefaults")}
+                </Button>
+                <Button
+                  fullWidth={false}
+                  type="button"
+                  onClick={() => {
+                    setShowForm((v) => !v);
+                    setShowReceive(false);
+                    setShowTransfer(false);
+                  }}
+                >
+                  {showForm ? t("common.cancel") : t("packaging.addSku")}
+                </Button>
+              </>
+            ) : null}
           </div>
         }
       />
@@ -288,14 +320,20 @@ export default function PackagingPage() {
             </div>
             <div>
               <FieldLabel>{t("packaging.planCost")}</FieldLabel>
-              <input
-                name="costPerUnit"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder={t("packaging.defaultCost")}
-                className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
-              />
+              {isOwner ? (
+                <input
+                  name="costPerUnit"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder={t("packaging.defaultCost")}
+                  className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                />
+              ) : (
+                <p className="mt-1 text-sm text-muted">
+                  {t("packaging.defaultCostHint")}
+                </p>
+              )}
             </div>
             <div className="sm:col-span-2">
               <Button type="submit">{t("packaging.addReceive")}</Button>
@@ -372,7 +410,7 @@ export default function PackagingPage() {
         </Card>
       ) : null}
 
-      {showForm ? (
+      {showForm && isOwner ? (
         <Card className="p-5">
           <SectionTitle>{t("packaging.addSku")}</SectionTitle>
           <form onSubmit={onCreate} className="mt-4 grid gap-3 sm:grid-cols-2">

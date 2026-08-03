@@ -1,0 +1,31 @@
+{
+  "at": "2026-08-03T13:04:42.272Z",
+  "wipeAfter": {
+    "products": 0,
+    "packaging": 0,
+    "stores": 0,
+    "branches": 0,
+    "ownerDirect": 0,
+    "users": 1,
+    "owners": 1,
+    "journal": 1,
+    "wipeRow": {
+      "id": "cmsd8rivg0001um4wbmag33y0",
+      "userId": "cmsd5wr6q001kumvg7jvfs752",
+      "companyId": "cmsd5wn270000umvgs8pgc8pi",
+      "action": "CRM_WIPE",
+      "entityType": "Company",
+      "entityId": "cmsd5wn270000umvgs8pgc8pi",
+      "comment": "CRM очищена владельцем. 03.08.2026, 18:04",
+      "metadata": null,
+      "ip": null,
+      "userAgent": null,
+      "result": "SUCCESS",
+      "createdAt": "2026-08-03T13:04:56.909Z"
+    }
+  },
+  "wipe": "PASS",
+  "packagingCost": "PASS",
+  "managerRbac": "PASS",
+  "pass": true
+}

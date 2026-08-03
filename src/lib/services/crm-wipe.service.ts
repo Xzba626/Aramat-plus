@@ -15,11 +15,10 @@ type Tx = Prisma.TransactionClient;
 
 /**
  * Owner-only CRM wipe.
- * KEEP: Company, Owner account row (credentials reset to seed), Warehouse,
- *        Setting (incl. wipe master / retention), Unit/ProductType/OperationType/ExpenseType,
- *        OWNER_DIRECT store shell.
- * WIPE: operational + catalog data, BRANCH stores, non-owner users, journals.
- * After wipe: owner email/password = seed defaults (factory login).
+ * KEEP: Company, Owner account (reset to seed creds), Warehouse shell,
+ *        Setting, Unit/ProductType/OperationType/ExpenseType.
+ * WIPE: all operational + catalog data, ALL stores (incl. OWNER_DIRECT),
+ *        non-owner users, journals (then one wipe confirmation row).
  */
 export async function wipeCompanyOperationalData(params: {
   companyId: string;
@@ -48,11 +47,11 @@ export async function wipeCompanyOperationalData(params: {
   await verifyWipeMasterPassword(params.companyId, params.masterPassword);
 
   const passwordHash = await bcrypt.hash(SEED_OWNER_PASSWORD, 10);
+  const wipedAt = new Date();
 
   await prisma.$transaction(
     async (tx) => {
       await wipeInTransaction(tx, params.companyId);
-      // Factory credentials — owner must re-login with seed email/password
       await tx.user.update({
         where: { id: owner.id },
         data: {
@@ -68,13 +67,18 @@ export async function wipeCompanyOperationalData(params: {
     { maxWait: 15_000, timeout: 120_000 }
   );
 
+  // Single confirmation row — only journal entry after wipe
+  const when = wipedAt.toLocaleString("ru-RU", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
   await logActivity({
     userId: params.ownerId,
     companyId: params.companyId,
     action: "CRM_WIPE",
     entityType: "Company",
     entityId: params.companyId,
-    comment: `Wiped; owner reset to ${SEED_OWNER_EMAIL}`,
+    comment: `CRM очищена владельцем. ${when}`,
   });
 
   return {
@@ -85,7 +89,6 @@ export async function wipeCompanyOperationalData(params: {
 }
 
 async function wipeInTransaction(tx: Tx, companyId: string) {
-  // Break Sale ↔ DiscountRequest ↔ Reservation cycles
   await tx.reservation.updateMany({
     where: { companyId },
     data: { saleId: null },
@@ -165,23 +168,8 @@ async function wipeInTransaction(tx: Tx, companyId: string) {
     where: { companyId, role: { not: Role.OWNER } },
   });
 
-  await tx.store.deleteMany({
-    where: { companyId, kind: StoreKind.BRANCH },
-  });
-
-  const direct = await tx.store.findFirst({
-    where: { companyId, kind: StoreKind.OWNER_DIRECT },
-  });
-  if (!direct) {
-    await tx.store.create({
-      data: {
-        name: "Личные продажи",
-        companyId,
-        kind: StoreKind.OWNER_DIRECT,
-        isActive: true,
-      },
-    });
-  }
+  // All stores including OWNER_DIRECT / demo branches
+  await tx.store.deleteMany({ where: { companyId } });
 
   const warehouse = await tx.warehouse.findFirst({
     where: { companyId, isActive: true },

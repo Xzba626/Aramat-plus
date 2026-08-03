@@ -58,6 +58,29 @@ export function requireSeller(user: SessionUser | null | undefined) {
   return requireRole(user, [Role.SELLER]);
 }
 
+/**
+ * Store Manager mode: MANAGER is scoped to user.storeId only.
+ * OWNER sees the whole company. Returns null = no store filter (owner).
+ */
+export function scopedStoreId(
+  user: SessionUser
+): string | null | undefined {
+  if (user.role === Role.MANAGER) return user.storeId ?? null;
+  return undefined;
+}
+
+/** 403 if MANAGER tries to touch another store (or has no store). */
+export function requireStoreAccess(
+  user: SessionUser,
+  storeId: string | null | undefined
+): NextResponse | null {
+  if (user.role !== Role.MANAGER) return null;
+  if (!user.storeId || !storeId || user.storeId !== storeId) {
+    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  }
+  return null;
+}
+
 export function homePathForRole(role: Role): string {
   return homePath(role);
 }

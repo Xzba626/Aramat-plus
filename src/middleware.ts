@@ -69,6 +69,7 @@ export default auth((req) => {
   if (role === "MANAGER") {
     const managerBlockedPrefixes = [
       "/users",
+      "/journal",
       "/settings/wipe",
       "/warehouse/write-offs",
     ];

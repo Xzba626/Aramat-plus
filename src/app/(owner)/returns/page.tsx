@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
+import { Role } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -29,6 +31,8 @@ type HistoryRow = {
 
 export default function ReturnsPage() {
   const { t, formatMoney, formatDateTime } = useI18n();
+  const { data: session } = useSession();
+  const canDecide = session?.user?.role === Role.OWNER;
   const [tab, setTab] = useState<Tab>("pending");
   const [pending, setPending] = useState<Decision[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
@@ -184,6 +188,8 @@ export default function ReturnsPage() {
                       </div>
                     </div>
                     <div className="flex gap-2">
+                      {canDecide ? (
+                        <>
                       <Button
                         type="button"
                         fullWidth={false}
@@ -201,6 +207,12 @@ export default function ReturnsPage() {
                       >
                         {t("common.reject")}
                       </Button>
+                        </>
+                      ) : (
+                        <span className="text-xs text-muted">
+                          {t("returnsPage.statusPending")}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </Card>
@@ -294,7 +306,7 @@ export default function ReturnsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {r.status === "PENDING" ? (
+                        {r.status === "PENDING" && canDecide ? (
                           <div className="flex gap-2">
                             <button
                               type="button"
