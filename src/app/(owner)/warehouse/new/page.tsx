@@ -133,14 +133,25 @@ export default function NewProductPage() {
         dbg.compressSkipped = meta.skipped;
         dbg.toBlobNull = meta.toBlobNull;
       } catch (e) {
+        const raw = e instanceof Error ? e.message : String(e);
         const code =
-          e instanceof Error && e.message === "IMAGE_HEIC_UNSUPPORTED"
+          raw === "IMAGE_HEIC_UNSUPPORTED" || raw.startsWith("heic_")
             ? "IMAGE_HEIC_UNSUPPORTED"
-            : e instanceof Error && e.message === "INVALID_FILE_TYPE"
+            : raw === "INVALID_FILE_TYPE" ||
+                raw === "createImageBitmap_failed" ||
+                raw === "createImageBitmap_null" ||
+                raw === "createImageBitmap_undefined"
               ? "INVALID_FILE_TYPE"
               : "IMAGE_COMPRESS_FAILED";
-        const msg = t(`errors.${code}`);
-        dbg.compressError = e instanceof Error ? e.message : String(e);
+        // TEMP RCA: surface step code, not only i18n generic
+        const msg = `PHOTO_DEBUG step=client_compress code=${raw} | ${t(`errors.${code}`)}`;
+        console.error("[PHOTO_PROCESS] UI compress catch", {
+          fileName: file.name,
+          mime: file.type,
+          size: file.size,
+          error: e,
+        });
+        dbg.compressError = raw;
         dbg.errorStep = "client_compress";
         dbg.uiErrorShown = msg;
         await reportPhotoUploadDebug(dbg);
@@ -158,7 +169,24 @@ export default function NewProductPage() {
       dbg.uploadStatus = res.status;
       dbg.response = data;
       if (!res.ok) {
-        const msg = apiErrorMessage(data.error, t);
+        const apiCode =
+          typeof data?.error === "string" ? data.error : "UNKNOWN";
+        const cause =
+          typeof data?.cause === "string"
+            ? data.cause
+            : typeof data?.debug === "string"
+              ? data.debug
+              : "";
+        // TEMP RCA: screenshot text was IMAGE_PROCESS_FAILED (server), not compress
+        const msg = `PHOTO_DEBUG step=upload_api status=${res.status} code=${apiCode}${cause ? ` cause=${cause}` : ""} | ${apiErrorMessage(data.error, t)}`;
+        console.error("[PHOTO_PROCESS] UI upload_api fail", {
+          fileName: file.name,
+          preparedName: prepared.name,
+          preparedSize: prepared.size,
+          preparedMime: prepared.type,
+          status: res.status,
+          data,
+        });
         dbg.errorStep = "upload_api";
         dbg.uiErrorShown = msg;
         await reportPhotoUploadDebug(dbg);
@@ -170,9 +198,11 @@ export default function NewProductPage() {
         setImageUrl(data.imageUrl);
       }
     } catch (e) {
-      const msg = t("common.error");
+      const raw = e instanceof Error ? e.message : String(e);
+      const msg = `PHOTO_DEBUG step=outer_catch code=${raw}`;
+      console.error("[PHOTO_PROCESS] UI outer_catch", e);
       dbg.errorStep = "outer_catch";
-      dbg.compressError = e instanceof Error ? e.message : String(e);
+      dbg.compressError = raw;
       dbg.uiErrorShown = msg;
       await reportPhotoUploadDebug(dbg);
       setError(msg);

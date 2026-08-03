@@ -40,10 +40,44 @@ export async function POST(req: Request) {
     const result = await processAndSaveProductImage(input);
     return jsonOk(result, 201);
   } catch (err) {
-    console.error("[upload]", err);
+    // TEMP RCA: log + attach cause so UI can show PHOTO_DEBUG (prod-only evidence)
+    const detail =
+      err instanceof Error &&
+      typeof (err as Error & { detail?: string }).detail === "string"
+        ? (err as Error & { detail?: string }).detail
+        : undefined;
+    const cause =
+      detail || (err instanceof Error ? err.message : String(err));
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error("[PHOTO_PROCESS] upload route", {
+      cause,
+      stack,
+      vercel: Boolean(process.env.VERCEL),
+      hasBlobToken: Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim()),
+    });
     if (err instanceof Error) {
-      return handleApiError(err);
+      const res = handleApiError(err);
+      try {
+        const body = await res.clone().json();
+        return Response.json(
+          {
+            ...body,
+            cause,
+            hasBlobToken: Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim()),
+          },
+          { status: res.status }
+        );
+      } catch {
+        return res;
+      }
     }
-    return handleApiError(new Error("IMAGE_PROCESS_FAILED"));
+    return Response.json(
+      {
+        error: "IMAGE_PROCESS_FAILED",
+        cause,
+        hasBlobToken: Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim()),
+      },
+      { status: 400 }
+    );
   }
 }

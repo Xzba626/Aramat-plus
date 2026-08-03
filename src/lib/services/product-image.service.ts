@@ -102,7 +102,7 @@ function pipeline(input: Buffer, edge: number, quality: number) {
     .webp({ quality });
 }
 
-function mapProcessError(e: unknown): never {
+function mapProcessError(e: unknown, step?: string): never {
   const msg = e instanceof Error ? e.message : String(e);
   if (
     msg === "FILE_REQUIRED" ||
@@ -120,7 +120,18 @@ function mapProcessError(e: unknown): never {
   if (/ENOENT|EACCES|EROFS|read-only|EPERM/i.test(msg)) {
     throw new Error("IMAGE_STORAGE_UNCONFIGURED");
   }
-  throw new Error("IMAGE_PROCESS_FAILED");
+  // TEMP RCA: keep original reason on Error.cause for upload route debug
+  const wrapped = new Error("IMAGE_PROCESS_FAILED");
+  (wrapped as Error & { detail?: string }).detail = `${step ?? "process"}:${msg}`.slice(
+    0,
+    400
+  );
+  console.error("[PHOTO_PROCESS] mapProcessError", {
+    step,
+    msg,
+    detail: (wrapped as Error & { detail?: string }).detail,
+  });
+  throw wrapped;
 }
 
 async function saveToBlob(
@@ -161,7 +172,7 @@ async function saveToBlob(
     };
   } catch (e) {
     console.error("[product-image] blob put failed", e);
-    mapProcessError(e);
+    mapProcessError(e, "blob_put");
   }
 }
 
@@ -185,7 +196,7 @@ async function saveToLocalDisk(
     ]);
   } catch (e) {
     console.error("[product-image] local write failed", e);
-    mapProcessError(e);
+    mapProcessError(e, "local_write");
   }
 
   return {
@@ -220,11 +231,14 @@ export async function processAndSaveProductImage(
   try {
     meta = await sharp(input, { failOn: "none" }).metadata();
   } catch (e) {
-    mapProcessError(e);
+    mapProcessError(e, "sharp_metadata");
   }
 
   if (!meta.width || !meta.height) {
-    throw new Error("IMAGE_PROCESS_FAILED");
+    mapProcessError(
+      new Error("missing_width_or_height"),
+      "sharp_metadata"
+    );
   }
 
   const base =
@@ -241,7 +255,7 @@ export async function processAndSaveProductImage(
       pipeline(input, 300, 78).toBuffer(),
     ]);
   } catch (e) {
-    mapProcessError(e);
+    mapProcessError(e, "sharp_pipeline");
   }
 
   const stored = useBlobStorage()
