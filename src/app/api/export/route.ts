@@ -9,8 +9,6 @@ import {
   type AnalyticsPeriod,
 } from "@/lib/services/analytics.service";
 import {
-  buildCsvBody,
-  csvRow,
   exportTranslate,
   formatExportDateTime,
   formatExportPeriodicity,
@@ -18,6 +16,7 @@ import {
   formatExportYesNo,
   resolveExportLocale,
 } from "@/lib/export/csv";
+import { buildXlsxBuffer, xlsxResponse } from "@/lib/export/xlsx";
 import { labelProductType } from "@/lib/i18n/labels";
 
 function startOfDay(d: Date) {
@@ -67,7 +66,7 @@ function periodLabelText(
   return t("exportCsv.periodCustom");
 }
 
-/** Export CSV: ?type=products|sales|expenses|analytics&period=&from=&to=&storeId=&lang=ru|tj */
+/** Export XLSX: ?type=products|sales|expenses|analytics&period=&from=&to=&storeId=&lang=ru|tj */
 export async function GET(req: Request) {
   try {
     const user = await getSessionUser();
@@ -81,7 +80,12 @@ export async function GET(req: Request) {
     const companyId = user!.companyId;
     const locale = resolveExportLocale(req);
     const t = exportTranslate(locale);
-    let lines: string[] = [];
+
+    const suffix =
+      type === "sales" || type === "analytics" || type === "expenses"
+        ? `-${periodLabel}`
+        : "";
+    const filename = `aramat-${type}${suffix}.xlsx`;
 
     if (type === "products") {
       const rows = await prisma.product.findMany({
@@ -93,35 +97,39 @@ export async function GET(req: Request) {
         },
         orderBy: { name: "asc" },
       });
-      lines = [
-        csvRow([
-          t("exportCsv.colName"),
-          t("exportCsv.colSku"),
-          t("exportCsv.colBarcode"),
-          t("exportCsv.colSalePrice"),
-          t("exportCsv.colCost"),
-          t("exportCsv.colCategory"),
-          t("exportCsv.colType"),
-          t("exportCsv.colBrand"),
-          t("exportCsv.colActive"),
-        ]),
-        ...rows.map((p) =>
-          csvRow([
-            p.name,
-            p.sku,
-            p.barcode,
-            decimalToNumber(p.salePrice),
+      const buffer = await buildXlsxBuffer({
+        sheetName: t("exportCsv.sheetProducts"),
+        columns: [
+          { header: t("exportCsv.colName"), key: "name", width: 28 },
+          { header: t("exportCsv.colSku"), key: "sku", width: 14 },
+          { header: t("exportCsv.colBarcode"), key: "barcode", width: 16 },
+          { header: t("exportCsv.colSalePrice"), key: "salePrice", width: 12 },
+          { header: t("exportCsv.colCost"), key: "cost", width: 12 },
+          { header: t("exportCsv.colCategory"), key: "category", width: 18 },
+          { header: t("exportCsv.colType"), key: "type", width: 14 },
+          { header: t("exportCsv.colBrand"), key: "brand", width: 16 },
+          { header: t("exportCsv.colActive"), key: "active", width: 10 },
+        ],
+        rows: rows.map((p) => ({
+          name: p.name,
+          sku: p.sku,
+          barcode: p.barcode,
+          salePrice: decimalToNumber(p.salePrice),
+          cost:
             p.defaultCostPerUnit != null
               ? decimalToNumber(p.defaultCostPerUnit)
               : "",
-            p.category?.name ?? "",
-            labelProductType(p.productType?.name, t),
-            p.brand?.name ?? "",
-            formatExportYesNo(p.isActive, t),
-          ])
-        ),
-      ];
-    } else if (type === "sales") {
+          category: p.category?.name ?? "",
+          type: labelProductType(p.productType?.name, t),
+          brand: p.brand?.name ?? "",
+          active: formatExportYesNo(p.isActive, t),
+        })),
+        locale,
+      });
+      return xlsxResponse(buffer, filename);
+    }
+
+    if (type === "sales") {
       const rows = await prisma.sale.findMany({
         where: {
           store: { companyId, ...(storeId ? { id: storeId } : {}) },
@@ -135,37 +143,37 @@ export async function GET(req: Request) {
         orderBy: { createdAt: "desc" },
         take: 5000,
       });
-      lines = [
-        csvRow([
-          t("exportCsv.colDateTime"),
-          t("exportCsv.colStore"),
-          t("exportCsv.colSeller"),
-          t("exportCsv.colStatus"),
-          t("exportCsv.colTotal"),
-          t("exportCsv.colItems"),
-          t("exportCsv.colTechId"),
-        ]),
-        ...rows.map((s) =>
-          csvRow([
-            formatExportDateTime(s.createdAt, locale),
-            s.store.name,
-            s.seller.name,
-            formatExportSaleStatus(s.status, t),
-            decimalToNumber(s.total),
-            s.items.length,
-            s.id,
-          ])
-        ),
-      ];
-    } else if (type === "expenses") {
+      const buffer = await buildXlsxBuffer({
+        sheetName: t("exportCsv.sheetSales"),
+        columns: [
+          { header: t("exportCsv.colDateTime"), key: "dt", width: 24 },
+          { header: t("exportCsv.colStore"), key: "store", width: 20 },
+          { header: t("exportCsv.colSeller"), key: "seller", width: 18 },
+          { header: t("exportCsv.colStatus"), key: "status", width: 14 },
+          { header: t("exportCsv.colTotal"), key: "total", width: 12 },
+          { header: t("exportCsv.colItems"), key: "items", width: 10 },
+          { header: t("exportCsv.colTechId"), key: "id", width: 26 },
+        ],
+        rows: rows.map((s) => ({
+          dt: formatExportDateTime(s.createdAt, locale),
+          store: s.store.name,
+          seller: s.seller.name,
+          status: formatExportSaleStatus(s.status, t),
+          total: decimalToNumber(s.total),
+          items: s.items.length,
+          id: s.id,
+        })),
+        locale,
+      });
+      return xlsxResponse(buffer, filename);
+    }
+
+    if (type === "expenses") {
       const rows = await prisma.expense.findMany({
         where: {
           AND: [
             {
-              OR: [
-                { store: { companyId } },
-                { createdBy: { companyId } },
-              ],
+              OR: [{ store: { companyId } }, { createdBy: { companyId } }],
             },
             ...(storeId ? [{ storeId }] : []),
             { startsAt: { lte: to } },
@@ -178,31 +186,42 @@ export async function GET(req: Request) {
         orderBy: { startsAt: "desc" },
         take: 5000,
       });
-      lines = [
-        csvRow([
-          t("exportCsv.colExpenseType"),
-          t("exportCsv.colStore"),
-          t("exportCsv.colAmount"),
-          t("exportCsv.colPeriodicity"),
-          t("exportCsv.colStarts"),
-          t("exportCsv.colEnds"),
-          t("exportCsv.colDescription"),
-          t("exportCsv.colTechId"),
-        ]),
-        ...rows.map((e) =>
-          csvRow([
-            e.expenseType.name,
-            e.store?.name ?? "",
-            decimalToNumber(e.amount),
-            formatExportPeriodicity(e.periodicity, t),
-            formatExportDateTime(e.startsAt, locale),
-            formatExportDateTime(e.endsAt, locale),
-            e.description ?? "",
-            e.id,
-          ])
-        ),
-      ];
-    } else if (type === "analytics") {
+      const buffer = await buildXlsxBuffer({
+        sheetName: t("exportCsv.sheetExpenses"),
+        columns: [
+          { header: t("exportCsv.colExpenseType"), key: "type", width: 18 },
+          { header: t("exportCsv.colStore"), key: "store", width: 18 },
+          { header: t("exportCsv.colAmount"), key: "amount", width: 12 },
+          {
+            header: t("exportCsv.colPeriodicity"),
+            key: "periodicity",
+            width: 14,
+          },
+          { header: t("exportCsv.colStarts"), key: "starts", width: 22 },
+          { header: t("exportCsv.colEnds"), key: "ends", width: 22 },
+          {
+            header: t("exportCsv.colDescription"),
+            key: "description",
+            width: 28,
+          },
+          { header: t("exportCsv.colTechId"), key: "id", width: 26 },
+        ],
+        rows: rows.map((e) => ({
+          type: e.expenseType.name,
+          store: e.store?.name ?? "",
+          amount: decimalToNumber(e.amount),
+          periodicity: formatExportPeriodicity(e.periodicity, t),
+          starts: formatExportDateTime(e.startsAt, locale),
+          ends: formatExportDateTime(e.endsAt, locale),
+          description: e.description ?? "",
+          id: e.id,
+        })),
+        locale,
+      });
+      return xlsxResponse(buffer, filename);
+    }
+
+    if (type === "analytics") {
       const period: AnalyticsPeriod =
         periodLabel === "today" ||
         periodLabel === "week" ||
@@ -233,32 +252,30 @@ export async function GET(req: Request) {
         ? stores.reduce((a, s) => a + s.netProfit, 0)
         : data.network.netProfit;
 
-      lines = [
-        csvRow([t("exportCsv.colMetric"), t("exportCsv.colValue")]),
-        csvRow([t("exportCsv.metricRevenue"), revenue]),
-        csvRow([t("exportCsv.metricCogs"), cogs]),
-        csvRow([t("exportCsv.metricGross"), gross]),
-        csvRow([t("exportCsv.metricExpenses"), expenses]),
-        csvRow([t("exportCsv.metricNet"), net]),
-        csvRow([t("exportCsv.metricPeriod"), periodLabelText(periodLabel, t)]),
-        csvRow([t("exportCsv.metricStore"), storeName]),
-      ];
-    } else {
-      return handleApiError(new Error("VALIDATION_ERROR"));
+      const buffer = await buildXlsxBuffer({
+        sheetName: t("exportCsv.sheetAnalytics"),
+        columns: [
+          { header: t("exportCsv.colMetric"), key: "metric", width: 28 },
+          { header: t("exportCsv.colValue"), key: "value", width: 24 },
+        ],
+        rows: [
+          { metric: t("exportCsv.metricRevenue"), value: revenue },
+          { metric: t("exportCsv.metricCogs"), value: cogs },
+          { metric: t("exportCsv.metricGross"), value: gross },
+          { metric: t("exportCsv.metricExpenses"), value: expenses },
+          { metric: t("exportCsv.metricNet"), value: net },
+          {
+            metric: t("exportCsv.metricPeriod"),
+            value: periodLabelText(periodLabel, t),
+          },
+          { metric: t("exportCsv.metricStore"), value: storeName },
+        ],
+        locale,
+      });
+      return xlsxResponse(buffer, filename);
     }
 
-    const body = buildCsvBody(lines);
-    const suffix =
-      type === "sales" || type === "analytics" || type === "expenses"
-        ? `-${periodLabel}`
-        : "";
-    return new Response(body, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="aramat-${type}${suffix}.csv"`,
-      },
-    });
+    return handleApiError(new Error("VALIDATION_ERROR"));
   } catch (err) {
     return handleApiError(err);
   }

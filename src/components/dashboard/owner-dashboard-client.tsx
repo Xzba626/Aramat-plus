@@ -24,7 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { DashboardPayload } from "@/lib/services/dashboard.service";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { entityHref, labelAction, labelRole } from "@/lib/i18n/labels";
+import { entityHref, labelAction, labelActionComment, labelActivityActor } from "@/lib/i18n/labels";
 
 function greetKey(
   hour: number
@@ -833,18 +833,36 @@ export function OwnerDashboardClient({
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-ink">
                       {labelAction(log.action, t)}
-                      {log.comment ? (
-                        <span className="font-normal text-muted">
-                          {" "}
-                          — {log.comment}
-                        </span>
-                      ) : null}
+                      {(() => {
+                        const c = labelActionComment(
+                          "comment" in log ? (log.comment as string | null) : null,
+                          t
+                        );
+                        return c ? (
+                          <span className="font-normal text-muted"> — {c}</span>
+                        ) : null;
+                      })()}
                     </p>
                     <p className="mt-0.5 text-xs text-muted">
-                      {log.userName || t("dashboard.systemUser")}
-                      {"role" in log && log.role
-                        ? ` · ${labelRole(String(log.role), t)}`
-                        : ""}{" "}
+                      {labelActivityActor(
+                        {
+                          action: log.action,
+                          userName:
+                            "userName" in log
+                              ? (log.userName as string | null)
+                              : null,
+                          role: "role" in log ? (log.role as string | null) : null,
+                          email:
+                            "email" in log
+                              ? (log.email as string | null)
+                              : null,
+                          metadata:
+                            "metadata" in log
+                              ? (log.metadata as { email?: string | null } | null)
+                              : null,
+                        },
+                        t
+                      )}{" "}
                       · {formatDateTime(log.createdAt)}
                     </p>
                   </div>

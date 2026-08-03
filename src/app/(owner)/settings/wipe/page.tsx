@@ -11,8 +11,7 @@ import {
 } from "@/components/ui/module-workspace";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
-
-const PHRASE = "ОЧИСТИТЬ";
+import { CRM_WIPE_PHRASE } from "@/lib/services/crm-wipe.service";
 
 export default function SettingsWipePage() {
   const { t } = useI18n();
@@ -47,7 +46,7 @@ export default function SettingsWipePage() {
       setError(t("wipe.needAck"));
       return;
     }
-    if (phrase.trim() !== PHRASE) {
+    if (phrase.trim() !== CRM_WIPE_PHRASE) {
       setError(t("wipe.phraseMismatch"));
       return;
     }
@@ -174,7 +173,7 @@ export default function SettingsWipePage() {
                   <>
                     <div>
                       <FieldLabel>
-                        {t("wipe.typePhrase", { phrase: PHRASE })}
+                        {t("wipe.typePhrase", { phrase: CRM_WIPE_PHRASE })}
                       </FieldLabel>
                       <input
                         className="w-full"

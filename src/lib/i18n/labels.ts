@@ -67,6 +67,9 @@ export const ACTION_KEYS: Record<string, string> = {
 
 export const ACTION_COMMENT_KEYS: Record<string, string> = {
   "cart cleared": "actionComments.cartCleared",
+  bad_password: "actionComments.badPassword",
+  unknown_or_inactive: "actionComments.unknownOrInactive",
+  account_locked: "actionComments.accountLocked",
 };
 
 export const ENTITY_KEYS: Record<string, string> = {
@@ -140,7 +143,37 @@ export function labelActionComment(
 ): string | null {
   if (!comment) return null;
   const key = ACTION_COMMENT_KEYS[comment];
-  return key ? t(key) : comment;
+  if (key) return t(key);
+  // Legacy lock messages from auth: lock:60000ms / locked_until:ISO
+  if (comment.startsWith("lock:") || comment.startsWith("locked_until:")) {
+    return t("actionComments.accountLocked");
+  }
+  return comment;
+}
+
+/** Actor line for activity feeds — never blame the account owner for failed logins. */
+export function labelActivityActor(
+  log: {
+    action: string;
+    userName?: string | null;
+    role?: string | null;
+    email?: string | null;
+    metadata?: { email?: string | null } | null;
+  },
+  t: TranslateFn
+): string {
+  const email =
+    log.email?.trim() ||
+    (typeof log.metadata?.email === "string" ? log.metadata.email.trim() : "") ||
+    "";
+  if (log.action === "LOGIN_FAIL" || log.action === "LOGIN_LOCKED") {
+    return email
+      ? t("dashboard.loginAttempt", { email })
+      : t("dashboard.loginAttemptUnknown");
+  }
+  const name = log.userName?.trim() || t("dashboard.systemUser");
+  if (log.role) return `${name} · ${labelRole(log.role, t)}`;
+  return name;
 }
 
 export function labelEntity(entityType: string, t: TranslateFn): string {
@@ -215,6 +248,7 @@ export function labelRevisionStatus(status: string, t: TranslateFn): string {
     PENDING_APPROVAL: "revisionPage.statusPendingApproval",
     APPROVED: "revisionPage.statusApproved",
     COMPLETED: "revisionPage.statusApproved",
+    CANCELLED: "revisionPage.statusCancelled",
   };
   const key = map[status];
   return key ? t(key) : status;

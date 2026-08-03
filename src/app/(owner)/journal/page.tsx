@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/module-workspace";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { labelAction, labelActionComment, labelEntity, labelRole } from "@/lib/i18n/labels";
+import { labelAction, labelActionComment, labelActivityActor, labelEntity, labelRole } from "@/lib/i18n/labels";
 
 type LogRow = {
   id: string;
@@ -20,6 +20,8 @@ type LogRow = {
   entityId: string | null;
   comment: string | null;
   result: string | null;
+  email?: string | null;
+  metadata?: { email?: string | null } | null;
 };
 
 type Tab = "all" | "warehouse" | "sales" | "users";
@@ -164,10 +166,13 @@ export default function JournalPage() {
                           {formatTime(d)}
                         </td>
                         <td className="px-4 py-3 font-semibold text-ink">
-                          {log.userName ?? t("journalPage.system")}
+                          {labelActivityActor(log, t)}
                         </td>
                         <td className="px-4 py-3 text-muted">
-                          {labelRole(log.role, t)}
+                          {log.action === "LOGIN_FAIL" ||
+                          log.action === "LOGIN_LOCKED"
+                            ? "—"
+                            : labelRole(log.role, t)}
                         </td>
                         <td className="px-4 py-3 text-ink">
                           {labelAction(log.action, t)}

@@ -17,17 +17,28 @@ export async function GET() {
     });
 
     return jsonOk(
-      rows.map((log) => ({
-        id: log.id,
-        createdAt: log.createdAt.toISOString(),
-        userName: log.user?.name ?? null,
-        role: log.user?.role ?? null,
-        action: log.action,
-        entityType: log.entityType,
-        entityId: log.entityId,
-        comment: log.comment,
-        result: log.result,
-      }))
+      rows.map((log) => {
+        const meta =
+          log.metadata &&
+          typeof log.metadata === "object" &&
+          !Array.isArray(log.metadata)
+            ? (log.metadata as Record<string, unknown>)
+            : null;
+        const email = typeof meta?.email === "string" ? meta.email : null;
+        return {
+          id: log.id,
+          createdAt: log.createdAt.toISOString(),
+          userName: log.user?.name ?? null,
+          role: log.user?.role ?? null,
+          action: log.action,
+          entityType: log.entityType,
+          entityId: log.entityId,
+          comment: log.comment,
+          result: log.result,
+          email,
+          metadata: email ? { email } : null,
+        };
+      })
     );
   } catch (err) {
     return handleApiError(err);

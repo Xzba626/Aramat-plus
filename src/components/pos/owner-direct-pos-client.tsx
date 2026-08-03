@@ -233,7 +233,7 @@ export function OwnerDirectPosClient({
       {
         productId: weightPick.productId,
         name: weightPick.name,
-        unit: weightPick.unit || "мл",
+        unit: weightPick.unit || t("units.ml"),
         salePrice: weightPick.salePrice,
         quantity: qty,
         max: weightPick.quantity,
@@ -431,7 +431,7 @@ export function OwnerDirectPosClient({
                 >
                   <div className="text-xs text-muted">
                     {p.brand} · {p.category}
-                    {p.accountingType === "WEIGHT" ? " · мл" : ""}
+                    {p.accountingType === "WEIGHT" ? ` · ${t("units.ml")}` : ""}
                   </div>
                   <div className="mt-1 font-semibold text-ink">{p.name}</div>
                   <div className="mt-2 flex items-end justify-between">
@@ -625,7 +625,9 @@ export function OwnerDirectPosClient({
                   {bottles.map((b) => (
                     <option key={b.packagingProductId} value={b.packagingProductId}>
                       {b.name}
-                      {b.volumeMl != null ? ` · ${b.volumeMl} мл` : ""}
+                      {b.volumeMl != null
+                        ? ` · ${b.volumeMl} ${t("units.ml")}`
+                        : ""}
                     </option>
                   ))}
                 </select>

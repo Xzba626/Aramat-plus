@@ -1,0 +1,38 @@
+{
+  "generatedAt": "2026-08-03T08:41:00.894Z",
+  "totals": {
+    "ruKeys": 1394,
+    "tjKeys": 1394,
+    "referencedKeys": 882,
+    "activityActions": 42,
+    "failFindings": 0,
+    "warnFindings": 0,
+    "identicalRuTjSuspect": 0,
+    "hardcodedUiSamples": 0,
+    "rawApiErrorFiles": 0
+  },
+  "scoreboard": {
+    "Dashboard": "PASS",
+    "Warehouse": "PASS",
+    "Products": "PASS",
+    "Sales": "PASS",
+    "Returns": "PASS",
+    "Inventory": "PASS",
+    "Bottle Management": "PASS",
+    "Reports": "PASS",
+    "Settings": "PASS",
+    "Notifications": "PASS",
+    "Revision": "PASS",
+    "Discounts": "PASS",
+    "Journal": "PASS",
+    "Localization (RU)": "PASS",
+    "Localization (TJ)": "PASS",
+    "Owner": "PASS",
+    "Manager": "PASS",
+    "Seller": "PASS"
+  },
+  "fails": [],
+  "warns": [],
+  "identicalSuspect": [],
+  "hardcodedUi": []
+}

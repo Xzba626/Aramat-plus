@@ -109,6 +109,7 @@ enum ReturnStatus {
 
 enum InventoryStatus {
   IN_PROGRESS
+  PENDING_APPROVAL
   COMPLETED
   CANCELLED
 }

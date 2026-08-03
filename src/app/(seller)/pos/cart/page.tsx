@@ -353,7 +353,9 @@ export default function PosCartPage() {
                       value={b.packagingProductId}
                     >
                       {b.name}
-                      {b.volumeMl != null ? ` · ${b.volumeMl} мл` : ""}
+                      {b.volumeMl != null
+                        ? ` · ${b.volumeMl} ${t("units.ml")}`
+                        : ""}
                     </option>
                   ))}
                 </select>

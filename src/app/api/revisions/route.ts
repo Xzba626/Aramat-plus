@@ -10,6 +10,7 @@ import {
   cancelInventorySession,
   createInventorySession,
   getInventorySessionDetail,
+  submitInventoryForApproval,
   updateInventoryCounts,
 } from "@/lib/services/revision.service";
 
@@ -31,7 +32,7 @@ const countSchema = z.object({
 });
 
 const decideSchema = z.object({
-  decision: z.enum(["APPROVE", "CANCEL"]),
+  decision: z.enum(["APPROVE", "CANCEL", "SUBMIT"]),
   note: z.string().max(500).optional().nullable(),
 });
 
@@ -123,6 +124,15 @@ export async function PATCH(req: Request) {
     const raw = await req.json();
     if (raw.decision) {
       const body = decideSchema.parse(raw);
+      if (body.decision === "SUBMIT") {
+        return jsonOk(
+          await submitInventoryForApproval({
+            companyId: user!.companyId,
+            sessionId: id,
+            userId: user!.id,
+          })
+        );
+      }
       if (body.decision === "APPROVE") {
         const ownerOnly = requireOwner(user);
         if (ownerOnly) return ownerOnly;
@@ -135,11 +145,13 @@ export async function PATCH(req: Request) {
           })
         );
       }
+      const isOwner = user!.role === Role.OWNER;
       return jsonOk(
         await cancelInventorySession({
           companyId: user!.companyId,
           sessionId: id,
           userId: user!.id,
+          allowPending: isOwner,
         })
       );
     }

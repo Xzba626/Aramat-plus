@@ -34,7 +34,7 @@ async function main() {
     companyId: company.id,
     ownerId: owner.id,
     ownerPassword: "owner1234",
-    confirmPhrase: "ОЧИСТИТЬ",
+    confirmPhrase: "WIPE",
   });
 
   const afterProducts = await prisma.product.count({

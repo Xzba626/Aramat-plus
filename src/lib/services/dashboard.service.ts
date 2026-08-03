@@ -375,7 +375,7 @@ export async function getDashboardPayload(companyId: string) {
       }),
       prisma.inventorySession.findMany({
         where: {
-          status: "IN_PROGRESS",
+          status: { in: ["IN_PROGRESS", "PENDING_APPROVAL"] },
           store: { companyId },
         },
         select: { id: true, storeId: true },
@@ -598,16 +598,26 @@ export async function getDashboardPayload(companyId: string) {
     decisions,
     decisionSummary,
     notifications,
-    recent: recent.map((log) => ({
-      id: log.id,
-      action: log.action,
-      entityType: log.entityType,
-      entityId: log.entityId,
-      comment: log.comment,
-      createdAt: log.createdAt.toISOString(),
-      userName: log.user?.name ?? "",
-      role: log.user?.role ?? "",
-    })),
+    recent: recent.map((log) => {
+      const meta =
+        log.metadata && typeof log.metadata === "object" && !Array.isArray(log.metadata)
+          ? (log.metadata as Record<string, unknown>)
+          : null;
+      const email =
+        typeof meta?.email === "string" ? meta.email : null;
+      return {
+        id: log.id,
+        action: log.action,
+        entityType: log.entityType,
+        entityId: log.entityId,
+        comment: log.comment,
+        createdAt: log.createdAt.toISOString(),
+        userName: log.user?.name ?? "",
+        role: log.user?.role ?? "",
+        email,
+        metadata: email ? { email } : null,
+      };
+    }),
     bestStoreId:
       storeToday.length === 0
         ? null

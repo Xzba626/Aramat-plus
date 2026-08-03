@@ -147,7 +147,7 @@ export default function PosPage() {
     add({
       productId: weightPick.productId,
       name: weightPick.product.name,
-      unitSymbol: weightPick.product.unit?.symbol ?? "мл",
+      unitSymbol: weightPick.product.unit?.symbol ?? t("units.ml"),
       salePrice: weightPick.salePrice,
       max: weightPick.quantity,
       quantity: qty,
@@ -357,7 +357,9 @@ export default function PosPage() {
                   {bottles.map((b) => (
                     <option key={b.packagingProductId} value={b.packagingProductId}>
                       {b.name}
-                      {b.volumeMl != null ? ` · ${b.volumeMl} мл` : ""}
+                      {b.volumeMl != null
+                        ? ` · ${b.volumeMl} ${t("units.ml")}`
+                        : ""}
                     </option>
                   ))}
                 </select>

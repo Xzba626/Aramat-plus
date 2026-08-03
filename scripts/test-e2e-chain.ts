@@ -24,6 +24,7 @@ import { createWarehouseWriteOff } from "../src/lib/services/write-off.service";
 import {
   createInventorySession,
   updateInventoryCounts,
+  submitInventoryForApproval,
   approveInventorySession,
 } from "../src/lib/services/revision.service";
 import { getDashboardPayload } from "../src/lib/services/dashboard.service";
@@ -204,12 +205,24 @@ async function main() {
     where: { sessionId: session.id, productId: product.id },
   });
   assert(invItem, "revision item for product");
-  // Counted 31 → difference -2 vs expected 33
+  // Counted 31 → difference -2 vs expected 33; fill all session lines
+  const sessionLines = await prisma.inventoryItem.findMany({
+    where: { sessionId: session.id },
+  });
   await updateInventoryCounts({
     companyId: company.id,
     sessionId: session.id,
     userId: owner.id,
-    items: [{ productId: product.id, countedQty: 31 }],
+    items: sessionLines.map((line) => ({
+      productId: line.productId,
+      countedQty:
+        line.productId === product.id ? 31 : Number(line.expectedQty),
+    })),
+  });
+  await submitInventoryForApproval({
+    companyId: company.id,
+    sessionId: session.id,
+    userId: owner.id,
   });
   await approveInventorySession({
     companyId: company.id,

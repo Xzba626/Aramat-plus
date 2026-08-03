@@ -16,6 +16,7 @@ import { createTransfer } from "../src/lib/services/transfer.service";
 import {
   createInventorySession,
   updateInventoryCounts,
+  submitInventoryForApproval,
   approveInventorySession,
   getInventorySessionDetail,
 } from "../src/lib/services/revision.service";
@@ -143,7 +144,7 @@ async function main() {
   assert.equal("expectedQty" in mgrIpItem, false);
   assert.equal(mgrIpItem.countedQty, null);
 
-  // Approve without counts must fail
+  // Approve while still IN_PROGRESS must fail (needs PENDING_APPROVAL)
   await assert.rejects(
     () =>
       approveInventorySession({
@@ -151,8 +152,7 @@ async function main() {
         sessionId: session.id,
         approvedById: owner.id,
       }),
-    (err: unknown) =>
-      err instanceof Error && err.message === "REVISION_COUNTS_INCOMPLETE"
+    (err: unknown) => err instanceof Error && err.message === "NOT_FOUND"
   );
 
   // Fill every line: target product = fact (−2), others = their expected (0 variance)
@@ -172,7 +172,7 @@ async function main() {
     })),
   });
 
-  // Still blind until completed
+  // Still blind until submitted
   const ownerStillBlind = await getInventorySessionDetail(
     company.id,
     session.id,
@@ -182,6 +182,48 @@ async function main() {
   assert.equal(
     ownerStillBlind.items.find((i) => i.productId === product.id)?.countedQty,
     fact
+  );
+
+  await submitInventoryForApproval({
+    companyId: company.id,
+    sessionId: session.id,
+    userId: owner.id,
+  });
+
+  const pending = await prisma.inventorySession.findUnique({
+    where: { id: session.id },
+  });
+  assert.equal(pending?.status, InventoryStatus.PENDING_APPROVAL);
+
+  // Owner sees diffs while pending; manager does not
+  const ownerPending = await getInventorySessionDetail(
+    company.id,
+    session.id,
+    Role.OWNER
+  );
+  assert.equal(ownerPending.blind, false);
+  assert.equal(
+    ownerPending.items.find((i) => i.productId === product.id)?.difference,
+    fact - expected
+  );
+  const mgrPending = await getInventorySessionDetail(
+    company.id,
+    session.id,
+    Role.MANAGER
+  );
+  assert.equal(mgrPending.blind, true);
+  assert.equal(mgrPending.items.length, 0);
+
+  // Counts immutable: update while pending must fail
+  await assert.rejects(
+    () =>
+      updateInventoryCounts({
+        companyId: company.id,
+        sessionId: session.id,
+        userId: owner.id,
+        items: [{ productId: product.id, countedQty: fact }],
+      }),
+    (err: unknown) => err instanceof Error && err.message === "NOT_FOUND"
   );
 
   await approveInventorySession({
@@ -245,7 +287,7 @@ async function main() {
   assert.equal(Number(item.difference), fact - expected);
 
   console.log(
-    "\nPASS: ZT Revision — empty fact → blind count → complete → FIFO → owner diffs / manager metadata-only"
+    "\nPASS: ZT Revision — empty fact → blind → submit pending → owner diffs → approve FIFO / manager metadata-only"
   );
   console.log(`  expected=${expected} fact=${fact} diff=${fact - expected} finalStock=${qty}`);
 }

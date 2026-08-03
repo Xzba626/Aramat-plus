@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { verifyWipeMasterPassword } from "@/lib/services/wipe-master.service";
 
-export const CRM_WIPE_PHRASE = "ОЧИСТИТЬ";
+export const CRM_WIPE_PHRASE = "WIPE";
 
 type Tx = Prisma.TransactionClient;
 

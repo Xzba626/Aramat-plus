@@ -28,7 +28,12 @@ export async function createInventorySession(params: {
   if (!store) throw new Error("STORE_NOT_FOUND");
 
   const open = await prisma.inventorySession.findFirst({
-    where: { storeId: store.id, status: InventoryStatus.IN_PROGRESS },
+    where: {
+      storeId: store.id,
+      status: {
+        in: [InventoryStatus.IN_PROGRESS, InventoryStatus.PENDING_APPROVAL],
+      },
+    },
   });
   if (open) throw new Error("REVISION_ALREADY_OPEN");
 
@@ -151,6 +156,49 @@ export async function updateInventoryCounts(params: {
 }
 
 /**
+ * Finish counting: lock facts and send to owner review.
+ * Counts become immutable; stock is NOT adjusted yet.
+ */
+export async function submitInventoryForApproval(params: {
+  companyId: string;
+  sessionId: string;
+  userId: string;
+}) {
+  const session = await prisma.inventorySession.findFirst({
+    where: {
+      id: params.sessionId,
+      status: InventoryStatus.IN_PROGRESS,
+      store: { companyId: params.companyId },
+    },
+    include: { items: true },
+  });
+  if (!session) throw new Error("NOT_FOUND");
+
+  const uncounted = session.items.filter((i) => i.countedQty == null);
+  if (uncounted.length > 0) throw new Error("REVISION_COUNTS_INCOMPLETE");
+
+  await prisma.inventorySession.update({
+    where: { id: session.id },
+    data: { status: InventoryStatus.PENDING_APPROVAL },
+  });
+
+  await logActivity({
+    userId: params.userId,
+    companyId: params.companyId,
+    action: "REVISION_COUNT",
+    entityType: "InventorySession",
+    entityId: session.id,
+    metadata: {
+      lines: session.items.length,
+      before: { status: "IN_PROGRESS" },
+      after: { status: "PENDING_APPROVAL" },
+    },
+  });
+
+  return { ok: true, status: InventoryStatus.PENDING_APPROVAL };
+}
+
+/**
  * Approve revision: apply FIFO deduct for shortages, addBatch(ADJUSTMENT) for surplus.
  */
 export async function approveInventorySession(params: {
@@ -162,7 +210,7 @@ export async function approveInventorySession(params: {
   const session = await prisma.inventorySession.findFirst({
     where: {
       id: params.sessionId,
-      status: InventoryStatus.IN_PROGRESS,
+      status: InventoryStatus.PENDING_APPROVAL,
       store: { companyId: params.companyId },
     },
     include: {
@@ -280,7 +328,7 @@ export async function approveInventorySession(params: {
     metadata: {
       storeId: session.storeId,
       adjustments,
-      before: { status: "IN_PROGRESS" },
+      before: { status: "PENDING_APPROVAL" },
       after: { status: "COMPLETED" },
     },
   });
@@ -296,11 +344,17 @@ export async function cancelInventorySession(params: {
   companyId: string;
   sessionId: string;
   userId: string;
+  /** Owner may cancel pending review; managers only while counting. */
+  allowPending?: boolean;
 }) {
+  const allowedStatuses = params.allowPending
+    ? [InventoryStatus.IN_PROGRESS, InventoryStatus.PENDING_APPROVAL]
+    : [InventoryStatus.IN_PROGRESS];
+
   const session = await prisma.inventorySession.findFirst({
     where: {
       id: params.sessionId,
-      status: InventoryStatus.IN_PROGRESS,
+      status: { in: allowedStatuses },
       store: { companyId: params.companyId },
     },
   });
@@ -323,6 +377,7 @@ export async function cancelInventorySession(params: {
     action: "REVISION_CANCEL",
     entityType: "InventorySession",
     entityId: session.id,
+    metadata: { before: { status: session.status } },
   });
 
   return { ok: true };
@@ -369,6 +424,7 @@ export async function getInventorySessionDetail(
   };
 
   const isInProgress = session.status === InventoryStatus.IN_PROGRESS;
+  const isPending = session.status === InventoryStatus.PENDING_APPROVAL;
 
   // While counting: never expose expected/diff — Owner and Manager alike.
   if (isInProgress) {
@@ -386,7 +442,7 @@ export async function getInventorySessionDetail(
     };
   }
 
-  // Completed / cancelled: Manager sees metadata only (no discrepancy lines).
+  // Pending / completed / cancelled: Manager sees metadata only.
   if (role !== Role.OWNER) {
     return {
       ...base,
@@ -401,6 +457,25 @@ export async function getInventorySessionDetail(
     };
   }
 
+  // Owner: full discrepancy table for pending review and completed sessions.
+  if (isPending || session.status === InventoryStatus.COMPLETED) {
+    return {
+      ...base,
+      blind: false as const,
+      items: session.items.map((i) => ({
+        productId: i.productId,
+        name: nameMap.get(i.productId)?.name ?? i.productId,
+        unit: nameMap.get(i.productId)?.unit?.symbol ?? "",
+        expectedQty: decimalToNumber(i.expectedQty),
+        countedQty:
+          i.countedQty == null ? null : decimalToNumber(i.countedQty),
+        difference: decimalToNumber(i.difference),
+        reason: i.discrepancyReason,
+      })),
+    };
+  }
+
+  // Cancelled: owner may see locked snapshot if counts existed
   return {
     ...base,
     blind: false as const,

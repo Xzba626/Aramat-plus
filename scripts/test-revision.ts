@@ -14,6 +14,7 @@ import { addBatch, getQtyAtLocation } from "../src/lib/services/stock.service";
 import {
   createInventorySession,
   updateInventoryCounts,
+  submitInventoryForApproval,
   approveInventorySession,
 } from "../src/lib/services/revision.service";
 
@@ -96,6 +97,13 @@ async function main() {
     })),
   });
   console.log("✓ Counted 7 (shortage 3)");
+
+  await submitInventoryForApproval({
+    companyId: company.id,
+    sessionId: session.id,
+    userId: owner.id,
+  });
+  console.log("✓ Submitted for approval");
 
   await approveInventorySession({
     companyId: company.id,
