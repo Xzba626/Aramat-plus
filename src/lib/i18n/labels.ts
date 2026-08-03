@@ -17,9 +17,11 @@ export const ACTION_KEYS: Record<string, string> = {
   SALE_CREATE: "actions.saleCreate",
   BATCH_CREATE: "actions.batchCreate",
   TRANSFER_CREATE: "actions.transferCreate",
+  STORE_TRANSFER_CREATE: "actions.storeTransferCreate",
   WAREHOUSE_RETURN_IN: "actions.warehouseReturn",
   PRODUCT_CREATE: "actions.productCreate",
   PRODUCT_UPDATE: "actions.productUpdate",
+  PRODUCT_DEACTIVATE: "actions.productDeactivate",
   DISCOUNT_REQUEST: "actions.discountRequest",
   DISCOUNT_APPROVE: "actions.discountApprove",
   DISCOUNT_REJECT: "actions.discountReject",
@@ -27,8 +29,12 @@ export const ACTION_KEYS: Record<string, string> = {
   RETURN_APPROVE: "actions.returnApprove",
   RETURN_REJECT: "actions.returnReject",
   LOGIN: "actions.login",
+  LOGIN_FAIL: "actions.loginFail",
+  LOGIN_LOCKED: "actions.loginLocked",
   PASSWORD_RESET: "actions.passwordReset",
+  PASSWORD_CHANGE: "actions.passwordChange",
   USER_CREATE: "actions.userCreate",
+  USER_UPDATE: "actions.userUpdate",
   WRITE_OFF: "actions.writeOff",
   EXPENSE_CREATE: "actions.expenseCreate",
   CATEGORY_CREATE: "actions.categoryCreate",
@@ -43,10 +49,20 @@ export const ACTION_KEYS: Record<string, string> = {
   PACKAGING_SKU_CREATE: "actions.packagingSkuCreate",
   PACKAGING_SKU_UPDATE: "actions.packagingSkuUpdate",
   PRICE_CHANGE: "actions.priceChange",
+  COST_CHANGE: "actions.costChange",
   RESERVATION_CREATE: "actions.reservationCreate",
   RESERVATION_CANCEL: "actions.reservationCancel",
   RESERVATION_COMPLETE: "actions.reservationComplete",
   RESERVATION_EXPIRE: "actions.reservationExpire",
+  REVISION_CREATE: "actions.revisionCreate",
+  REVISION_COUNT: "actions.revisionCount",
+  REVISION_APPROVE: "actions.revisionApprove",
+  REVISION_CANCEL: "actions.revisionCancel",
+  STORE_CREATE: "actions.storeCreate",
+  STORE_UPDATE: "actions.storeUpdate",
+  COMPANY_UPDATE: "actions.companyUpdate",
+  UNIT_CREATE: "actions.unitCreate",
+  CRM_WIPE: "actions.crmWipe",
 };
 
 export const ACTION_COMMENT_KEYS: Record<string, string> = {
@@ -70,6 +86,9 @@ export const ENTITY_KEYS: Record<string, string> = {
   Supplier: "entities.supplier",
   PackagingSku: "entities.packagingSku",
   Reservation: "entities.reservation",
+  InventorySession: "entities.inventorySession",
+  Company: "entities.company",
+  Unit: "entities.unit",
 };
 
 export const EXPENSE_PERIODICITY_KEYS: Record<string, string> = {
@@ -180,6 +199,10 @@ export function entityHref(
       return "/users";
     case "Supplier":
       return "/warehouse/suppliers";
+    case "InventorySession":
+      return "/revision";
+    case "Reservation":
+      return "/reservations";
     default:
       return null;
   }

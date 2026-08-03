@@ -24,7 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { DashboardPayload } from "@/lib/services/dashboard.service";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { entityHref, labelAction } from "@/lib/i18n/labels";
+import { entityHref, labelAction, labelRole } from "@/lib/i18n/labels";
 
 function greetKey(
   hour: number
@@ -141,6 +141,13 @@ export function OwnerDashboardClient({
       ),
     [data.stores]
   );
+
+  function storeDisplayName(s: {
+    name: string;
+    kind?: string;
+  }): string {
+    return s.kind === "OWNER_DIRECT" ? t("nav.storesOwnerDirect") : s.name;
+  }
 
   const displayName = userName.trim() || t("roles.owner");
   const firstName = displayName.split(/\s+/)[0] || displayName;
@@ -300,7 +307,7 @@ export function OwnerDashboardClient({
           }}
           storeExpenses={data.stores.map((s) => ({
             id: s.id,
-            name: s.name,
+            name: storeDisplayName(s),
             expenses: s.expenses ?? 0,
           }))}
           revenueComparison={
@@ -443,7 +450,7 @@ export function OwnerDashboardClient({
           <StoresProfitTable
             rows={sortedStores.map((s) => ({
               id: s.id,
-              name: s.name,
+              name: storeDisplayName(s),
               revenue: s.revenue,
               grossProfit: s.grossProfit ?? s.profit ?? 0,
               expenses: s.expenses ?? 0,
@@ -690,7 +697,9 @@ export function OwnerDashboardClient({
                       {idx + 1}
                     </span>
                     <div className="min-w-0">
-                      <p className="truncate font-bold text-ink">{s.name}</p>
+                      <p className="truncate font-bold text-ink">
+                        {storeDisplayName(s)}
+                      </p>
                       <p className="text-xs text-muted">
                         {t("dashboard.salesN", { n: s.salesCount })}
                         {packagingCost > 0
@@ -832,8 +841,11 @@ export function OwnerDashboardClient({
                       ) : null}
                     </p>
                     <p className="mt-0.5 text-xs text-muted">
-                      {log.userName || t("dashboard.systemUser")} ·{" "}
-                      {formatDateTime(log.createdAt)}
+                      {log.userName || t("dashboard.systemUser")}
+                      {"role" in log && log.role
+                        ? ` · ${labelRole(String(log.role), t)}`
+                        : ""}{" "}
+                      · {formatDateTime(log.createdAt)}
                     </p>
                   </div>
                   {href ? (

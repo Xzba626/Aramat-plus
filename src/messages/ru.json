@@ -580,7 +580,23 @@
     "reservationCreate": "Резерв создан",
     "reservationCancel": "Резерв отменён",
     "reservationComplete": "Резерв закрыт продажей",
-    "reservationExpire": "Резерв истёк"
+    "reservationExpire": "Резерв истёк",
+    "revisionCreate": "Ревизия начата",
+    "revisionCount": "Подсчёт ревизии сохранён",
+    "revisionApprove": "Ревизия утверждена",
+    "revisionCancel": "Ревизия отменена",
+    "storeTransferCreate": "Перемещение между магазинами",
+    "productDeactivate": "Товар деактивирован",
+    "loginFail": "Неудачный вход",
+    "loginLocked": "Вход заблокирован",
+    "passwordChange": "Пароль изменён",
+    "userUpdate": "Пользователь обновлён",
+    "costChange": "Изменение себестоимости",
+    "storeCreate": "Магазин создан",
+    "storeUpdate": "Магазин обновлён",
+    "companyUpdate": "Компания обновлена",
+    "unitCreate": "Единица создана",
+    "crmWipe": "Сброс CRM-данных"
   },
   "actionComments": {
     "cartCleared": "Корзина очищена"
@@ -601,7 +617,10 @@
     "expense": "Расход",
     "category": "Категория",
     "brand": "Бренд",
-    "reservation": "Резерв"
+    "reservation": "Резерв",
+    "inventorySession": "Ревизия",
+    "company": "Компания",
+    "unit": "Единица"
   },
   "purchases": {
     "receiveTitle": "Поступление товара",

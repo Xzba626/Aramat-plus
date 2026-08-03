@@ -577,7 +577,23 @@
     "reservationCreate": "Резерв эҷод шуд",
     "reservationCancel": "Резерв бекор шуд",
     "reservationComplete": "Резерв бо фурӯш пӯшида шуд",
-    "reservationExpire": "Мӯҳлати резерв гузашт"
+    "reservationExpire": "Мӯҳлати резерв гузашт",
+    "revisionCreate": "Ревизия оғоз шуд",
+    "revisionCount": "Шумораи ревизия захира шуд",
+    "revisionApprove": "Ревизия тасдиқ шуд",
+    "revisionCancel": "Ревизия бекор шуд",
+    "storeTransferCreate": "Интиқол байни мағозаҳо",
+    "productDeactivate": "Мол ғайрифаъол шуд",
+    "loginFail": "Воридшавии номуваффақ",
+    "loginLocked": "Воридшавӣ баста шуд",
+    "passwordChange": "Рамз иваз шуд",
+    "userUpdate": "Корбар нав шуд",
+    "costChange": "Тағйири арзиши харид",
+    "storeCreate": "Мағоза эҷод шуд",
+    "storeUpdate": "Мағоза нав шуд",
+    "companyUpdate": "Ширкат нав шуд",
+    "unitCreate": "Воҳид эҷод шуд",
+    "crmWipe": "Пок кардани маълумоти CRM"
   },
   "actionComments": {
     "cartCleared": "Сабад тоза шуд"
@@ -598,7 +614,10 @@
     "expense": "Хароҷот",
     "category": "Категория",
     "brand": "Бренд",
-    "reservation": "Резерв"
+    "reservation": "Резерв",
+    "inventorySession": "Ревизия",
+    "company": "Ширкат",
+    "unit": "Воҳид"
   },
   "purchases": {
     "receiveTitle": "Қабули мол",

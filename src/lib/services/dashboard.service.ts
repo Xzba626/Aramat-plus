@@ -93,9 +93,13 @@ export async function getDashboardPayload(companyId: string) {
         include: { items: true },
       }),
       prisma.store.findMany({
-        where: { companyId, isActive: true, kind: "BRANCH" },
+        where: {
+          companyId,
+          isActive: true,
+          kind: { in: ["BRANCH", "OWNER_DIRECT"] },
+        },
         orderBy: { name: "asc" },
-        select: { id: true, name: true },
+        select: { id: true, name: true, kind: true },
       }),
       sumAllocatedExpenses({
         companyId,
@@ -176,6 +180,7 @@ export async function getDashboardPayload(companyId: string) {
     return {
       id: store.id,
       name: store.name,
+      kind: store.kind,
       revenue: m.revenue,
       cogs: m.cogs,
       grossProfit: m.grossProfit,
