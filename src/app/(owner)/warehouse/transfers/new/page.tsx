@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
+import { QtyInput } from "@/components/ui/qty-input";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
 import { ProductCard } from "@/components/products/product-card";
@@ -36,6 +37,7 @@ type CartLine = {
   imageUrl: string | null;
   quantity: number;
   max: number;
+  accountingType: string;
 };
 
 export default function NewTransferPage() {
@@ -82,6 +84,7 @@ export default function NewTransferPage() {
     const max = Number(item.quantity);
     const existing = cartMap.get(item.productId);
     const imageUrl = resolveProductImageUrl(item.product);
+    const accountingType = item.product.accountingType || "PIECE";
     if (existing) {
       if (existing.quantity >= max) return;
       setCart((prev) =>
@@ -100,34 +103,44 @@ export default function NewTransferPage() {
           imageUrl,
           quantity: 1,
           max,
+          accountingType,
         },
       ]);
     }
   }
 
+  /** Update qty — never removes the line (use removeFromCart). */
   function setQty(productId: string, quantity: number) {
     setCart((prev) =>
-      prev
-        .map((c) =>
-          c.productId === productId
-            ? { ...c, quantity: Math.max(0, Math.min(quantity, c.max)) }
-            : c
-        )
-        .filter((c) => c.quantity > 0)
+      prev.map((c) =>
+        c.productId === productId
+          ? { ...c, quantity: Math.max(0, Math.min(quantity, c.max)) }
+          : c
+      )
     );
+  }
+
+  function removeFromCart(productId: string) {
+    setCart((prev) => prev.filter((c) => c.productId !== productId));
   }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError("");
+    const items = cart.filter((c) => c.quantity > 0);
+    if (items.length === 0) {
+      setError(t("errors.VALIDATION_ERROR"));
+      setLoading(false);
+      return;
+    }
     const res = await fetch("/api/transfers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         fromWarehouseId: warehouseId,
         toStoreId: storeId,
-        items: cart.map((c) => ({
+        items: items.map((c) => ({
           productId: c.productId,
           quantity: c.quantity,
         })),
@@ -195,45 +208,42 @@ export default function NewTransferPage() {
           {cart.length === 0 ? (
             <div className="py-4 text-center text-text-dim">{t("pos.cartEmpty")}</div>
           ) : (
-            cart.map((c) => (
-              <div
-                key={c.productId}
-                className="mb-3 flex items-start gap-3 border-b border-line pb-3 last:mb-0 last:border-0 last:pb-0"
-              >
-                <ProductThumb src={c.imageUrl} name={c.name} size="sm" />
-                <div className="min-w-0 flex-1">
-                  <div className="mb-1 font-semibold">{c.name}</div>
-                  <div className="flex items-center gap-2.5">
-                    <button
-                      type="button"
-                      className="h-9 w-9 rounded-[9px] border border-line bg-surface2"
-                      onClick={() => setQty(c.productId, c.quantity - 1)}
-                    >
-                      −
-                    </button>
-                    <input
-                      type="number"
-                      className="w-24 text-center"
-                      value={c.quantity}
-                      min={0.001}
-                      max={c.max}
-                      step="0.001"
-                      onChange={(e) => setQty(c.productId, Number(e.target.value))}
-                    />
-                    <button
-                      type="button"
-                      className="h-9 w-9 rounded-[9px] border border-line bg-surface2"
-                      onClick={() => setQty(c.productId, c.quantity + 1)}
-                    >
-                      +
-                    </button>
-                    <span className="text-xs text-text-dim">
-                      {t("wh.colQty")} {c.max}
-                    </span>
+            cart.map((c) => {
+              const isPiece = c.accountingType !== "WEIGHT";
+              return (
+                <div
+                  key={c.productId}
+                  className="relative mb-3 flex items-start gap-3 border-b border-line pb-3 last:mb-0 last:border-0 last:pb-0"
+                >
+                  <button
+                    type="button"
+                    className="absolute right-0 top-0 z-10 flex h-8 w-8 items-center justify-center rounded-full text-base leading-none text-muted hover:bg-danger/10 hover:text-danger"
+                    onClick={() => removeFromCart(c.productId)}
+                    aria-label={t("pos.remove")}
+                    title={t("pos.remove")}
+                  >
+                    ✕
+                  </button>
+                  <ProductThumb src={c.imageUrl} name={c.name} size="sm" />
+                  <div className="min-w-0 flex-1 pr-8">
+                    <div className="mb-1 font-semibold">{c.name}</div>
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <QtyInput
+                        value={c.quantity}
+                        max={c.max}
+                        min={isPiece ? 1 : 0.001}
+                        integer={isPiece}
+                        onChange={(n) => setQty(c.productId, n)}
+                        aria-label={t("wh.colQty")}
+                      />
+                      <span className="text-xs text-text-dim">
+                        {t("wh.colQty")} {c.max}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </Card>
 

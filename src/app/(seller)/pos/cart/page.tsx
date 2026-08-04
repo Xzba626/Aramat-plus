@@ -17,6 +17,7 @@ import { useToast } from "@/components/ui/toast";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
 import { ProductThumb } from "@/components/products/product-thumb";
+import { QtyInput } from "@/components/ui/qty-input";
 
 type BottleOption = {
   packagingSkuId: string | null;
@@ -306,21 +307,16 @@ export default function PosCartPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="h-9 w-9 rounded-xl border border-border"
-                onClick={() => setQty(l.productId, l.quantity - 1)}
-              >
-                −
-              </button>
-              <span className="w-8 text-center font-semibold">{l.quantity}</span>
-              <button
-                type="button"
-                className="h-9 w-9 rounded-xl border border-border"
-                onClick={() => setQty(l.productId, l.quantity + 1)}
-              >
-                +
-              </button>
+              <QtyInput
+                value={l.quantity}
+                max={l.max}
+                min={0}
+                integer={l.accountingType !== "WEIGHT"}
+                onChange={(n) => setQty(l.productId, n)}
+                buttonClassName="rounded-xl border-border bg-card"
+                inputClassName="border-border bg-card"
+                aria-label={t("pos.qtyMl")}
+              />
             </div>
           </div>
           {l.accountingType === "WEIGHT" ? (

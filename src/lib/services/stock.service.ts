@@ -184,7 +184,11 @@ export async function addBatch(
   return batch;
 }
 
-export async function getWarehouseStock(companyId: string, warehouseId?: string) {
+export async function getWarehouseStock(
+  companyId: string,
+  warehouseId?: string,
+  opts?: { includeZero?: boolean }
+) {
   const warehouse =
     warehouseId != null
       ? await prisma.warehouse.findFirst({ where: { id: warehouseId, companyId } })
@@ -196,7 +200,8 @@ export async function getWarehouseStock(companyId: string, warehouseId?: string)
     where: {
       locationType: LocationType.WAREHOUSE,
       locationId: warehouse.id,
-      quantity: { gt: 0 },
+      ...(opts?.includeZero ? {} : { quantity: { gt: 0 } }),
+      product: { isActive: true },
     },
     include: {
       product: {
@@ -244,12 +249,17 @@ export async function getWarehouseStock(companyId: string, warehouseId?: string)
   };
 }
 
-export async function getStoreStock(storeId: string) {
+export async function getStoreStock(
+  storeId: string,
+  opts?: { includeZero?: boolean }
+) {
   const balances = await prisma.stockBalance.findMany({
     where: {
       locationType: LocationType.STORE,
       locationId: storeId,
-      quantity: { gt: 0 },
+      // POS catalog needs qty=0 rows so cards stay visible as OUT
+      ...(opts?.includeZero === false ? { quantity: { gt: 0 } } : {}),
+      product: { isActive: true },
     },
     include: {
       product: {

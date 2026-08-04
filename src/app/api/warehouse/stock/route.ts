@@ -15,7 +15,9 @@ export async function GET(req: Request) {
     const sp = new URL(req.url).searchParams;
     const warehouseId = sp.get("warehouseId") ?? undefined;
     const forPos = sp.get("forPos") === "1";
-    const data = await getWarehouseStock(user!.companyId, warehouseId);
+    const data = await getWarehouseStock(user!.companyId, warehouseId, {
+      includeZero: forPos,
+    });
 
     if (!forPos || !data.warehouse) {
       return jsonOk(data);
@@ -33,16 +35,28 @@ export async function GET(req: Request) {
       productIds: sellable.map((i) => i.productId),
     });
 
+    const { getLowStockThresholds, resolveStockStatus } = await import(
+      "@/lib/services/low-stock-thresholds.service"
+    );
+    const thresholds = await getLowStockThresholds(user!.companyId);
+
     return jsonOk({
       ...data,
       items: sellable.map((item) => {
         const physical = decimalToNumber(item.quantity as never);
         const held = reserved.get(item.productId) ?? 0;
+        const quantity = Math.max(0, physical - held);
         return {
           ...item,
           physicalQty: physical,
           reservedQty: held,
-          quantity: Math.max(0, physical - held),
+          quantity,
+          stockStatus: resolveStockStatus({
+            quantity,
+            accountingType: item.product.accountingType,
+            locationType: LocationType.WAREHOUSE,
+            thresholds,
+          }),
         };
       }),
     });

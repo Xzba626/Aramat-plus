@@ -23,12 +23,6 @@ function startOfMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
-function stockStatus(qty: number, minStock: number): StockRowStatus {
-  if (qty <= 0) return "OUT";
-  if (minStock > 0 && qty < minStock) return "LOW";
-  return "OK";
-}
-
 async function resolveLocation(companyId: string, storeId: string) {
   const store = await prisma.store.findFirst({
     where: { id: storeId, companyId },
@@ -247,15 +241,31 @@ export async function getStoreStockPaged(
     },
   });
 
+  const {
+    getLowStockThresholds,
+    resolveStockStatus,
+    thresholdForProduct,
+  } = await import("@/lib/services/low-stock-thresholds.service");
+  const thresholds = await getLowStockThresholds(companyId);
+
   let rows = balances.map((b) => {
     const qty = decimalToNumber(b.quantity);
-    const minStock = decimalToNumber(b.product.minStock);
-    const st = stockStatus(qty, minStock);
+    const st = resolveStockStatus({
+      quantity: qty,
+      accountingType: b.product.accountingType,
+      locationType: loc.locationType,
+      thresholds,
+    });
+    const threshold = thresholdForProduct({
+      accountingType: b.product.accountingType,
+      locationType: loc.locationType,
+      thresholds,
+    });
     return {
       id: b.id,
       productId: b.productId,
       quantity: qty,
-      minStock,
+      minStock: threshold,
       salePrice: decimalToNumber(b.product.salePrice),
       status: st,
       product: {

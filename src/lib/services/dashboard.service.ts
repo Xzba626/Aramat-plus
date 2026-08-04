@@ -247,12 +247,22 @@ export async function getDashboardPayload(
       })
     : [];
 
+  const {
+    getLowStockThresholds,
+    resolveStockStatus,
+  } = await import("@/lib/services/low-stock-thresholds.service");
+  const thresholds = await getLowStockThresholds(companyId);
+
   const lowStockFiltered = lowStock
     .filter((b) => {
       const qty = decimalToNumber(b.quantity);
-      const min = decimalToNumber(b.product.minStock);
-      const threshold = min > 0 ? min : 5;
-      return qty <= threshold;
+      const status = resolveStockStatus({
+        quantity: qty,
+        accountingType: b.product.accountingType,
+        locationType: "WAREHOUSE",
+        thresholds,
+      });
+      return status === "LOW" || status === "OUT";
     })
     .slice(0, 12);
 

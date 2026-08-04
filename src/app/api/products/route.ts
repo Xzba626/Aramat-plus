@@ -73,17 +73,28 @@ export async function GET(req: Request) {
       orderBy: { name: "asc" },
     });
 
+    const {
+      getLowStockThresholds,
+      resolveStockStatus,
+    } = await import("@/lib/services/low-stock-thresholds.service");
+    const thresholds = await getLowStockThresholds(user!.companyId);
+
     let rows = items.map((p) => {
       const qty = p.stockBalances.reduce(
         (s, b) => s + decimalToNumber(b.quantity),
         0
       );
-      const min = decimalToNumber(p.minStock);
+      const stockStatus = resolveStockStatus({
+        quantity: qty,
+        accountingType: p.accountingType,
+        locationType: "WAREHOUSE",
+        thresholds,
+      });
       const statusKey = !p.isActive
         ? ("archived" as const)
-        : qty <= 0
+        : stockStatus === "OUT"
           ? ("empty" as const)
-          : min > 0 && qty <= min
+          : stockStatus === "LOW"
             ? ("low" as const)
             : ("active" as const);
       return {
@@ -94,9 +105,7 @@ export async function GET(req: Request) {
     });
 
     if (status === "low") {
-      rows = rows.filter(
-        (p) => p.isActive && p.warehouseQty > 0 && p.warehouseQty <= decimalToNumber(p.minStock || 5)
-      );
+      rows = rows.filter((p) => p.isActive && p.statusKey === "low");
     }
     if (status === "empty") {
       rows = rows.filter((p) => p.isActive && p.warehouseQty <= 0);

@@ -1063,7 +1063,7 @@
     "savePassword": "Рамзро нигоҳ доштан",
     "logout": "Баромад",
     "outOfStock": "Дар мавҷуд нест",
-    "lowStock": "Кам",
+    "lowStock": "Тамом мешавад",
     "inStock": "Дар мавҷуд",
     "qtyMl": "Ҳаҷми фурӯш (мл)",
     "weightAddHint": "Мл ва шишаро интихоб кунед — шиша ҷойи алоҳидаи чек нест",
@@ -1399,6 +1399,16 @@
   "settingsSub": {
     "company": "Ширкат",
     "companySubtitle": "Профили шабака",
+    "archiveRetention": "Мӯҳлати нигоҳдории бойгонӣ (рӯз)",
+    "archiveRetentionHint": "Пас аз ин мӯҳлат мағозаҳо, молҳо, категорияҳо ва брендҳои бойгонӣ худкор нест карда мешаванд.",
+    "archiveRetentionSaved": "Мӯҳлати бойгонӣ захира шуд",
+    "lowStockTitle": "Ҳадди боқимондаи кам",
+    "lowStockHint": "Як қимат ҳам нишонаи карта («Тамом мешавад») ва ҳам огоҳиномаро идора мекунад.",
+    "lowStockWarehousePiece": "Анбор — дона (дона)",
+    "lowStockStorePiece": "Мағоза — дона (дона)",
+    "lowStockStoreWeight": "Мағоза — рехташаванда (мл)",
+    "lowStockBottle": "Шишаҳо дар мағоза (дона)",
+    "lowStockSaved": "Ҳадҳо захира шуданд",
     "password": "Ивази рамз",
     "passwordOk": "Рамз иваз шуд",
     "references": "Маълумотномаҳо",
@@ -1426,10 +1436,7 @@
     "wipeMasterClear": "Хомӯш кардан",
     "wipeMasterSaved": "Рамзи асосӣ нигоҳ дошта шуд",
     "wipeMasterCleared": "Рамзи асосӣ хомӯш шуд",
-    "wipeMasterClearConfirm": "Рамзи асосии поккуниро хомӯш кунем?",
-    "archiveRetention": "Мӯҳлати нигоҳдории архив (рӯз)",
-    "archiveRetentionHint": "Пас аз ин мӯҳлат объектҳои архившуда худкор пурмаъно нест мешаванд.",
-    "archiveRetentionSaved": "Мӯҳлати архив нигоҳ дошта шуд"
+    "wipeMasterClearConfirm": "Рамзи асосии поккуниро хомӯш кунем?"
   },
   "returnsPage": {
     "title": "Бозгашт аз мизоҷон",

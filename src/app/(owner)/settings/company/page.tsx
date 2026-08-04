@@ -36,17 +36,27 @@ export default function CompanySettingsPage() {
   const [retentionDays, setRetentionDays] = useState(30);
   const [retentionMsg, setRetentionMsg] = useState("");
   const [retentionSaving, setRetentionSaving] = useState(false);
+  const [lowStock, setLowStock] = useState({
+    warehousePiece: 100,
+    storePiece: 20,
+    storeWeightMl: 200,
+    bottlePiece: 5,
+  });
+  const [lowStockMsg, setLowStockMsg] = useState("");
+  const [lowStockSaving, setLowStockSaving] = useState(false);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/company"),
       fetch("/api/settings/wipe-master"),
       fetch("/api/settings/archive-retention"),
+      fetch("/api/settings/low-stock-thresholds"),
     ])
-      .then(async ([companyRes, masterRes, retRes]) => {
+      .then(async ([companyRes, masterRes, retRes, lowRes]) => {
         const d = await companyRes.json();
         const m = await masterRes.json();
         const r = await retRes.json();
+        const low = await lowRes.json();
         if (d?.id) setForm({ id: d.id, name: d.name, currency: d.currency });
         else setError(apiErrorMessage(d.error, t, "common.error"));
         if (masterRes.ok) {
@@ -55,6 +65,14 @@ export default function CompanySettingsPage() {
           setMasterHintInput(m.hint ?? "");
         }
         if (retRes.ok && typeof r.days === "number") setRetentionDays(r.days);
+        if (lowRes.ok && low && typeof low.warehousePiece === "number") {
+          setLowStock({
+            warehousePiece: low.warehousePiece,
+            storePiece: low.storePiece,
+            storeWeightMl: low.storeWeightMl,
+            bottlePiece: low.bottlePiece,
+          });
+        }
         setLoading(false);
       })
       .catch(() => {
@@ -80,6 +98,30 @@ export default function CompanySettingsPage() {
     }
     setRetentionDays(data.days);
     setRetentionMsg(t("settingsSub.archiveRetentionSaved"));
+  }
+
+  async function onSaveLowStock(e: FormEvent) {
+    e.preventDefault();
+    setLowStockSaving(true);
+    setLowStockMsg("");
+    const res = await fetch("/api/settings/low-stock-thresholds", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(lowStock),
+    });
+    const data = await res.json();
+    setLowStockSaving(false);
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t, "common.error"));
+      return;
+    }
+    setLowStock({
+      warehousePiece: data.warehousePiece,
+      storePiece: data.storePiece,
+      storeWeightMl: data.storeWeightMl,
+      bottlePiece: data.bottlePiece,
+    });
+    setLowStockMsg(t("settingsSub.lowStockSaved"));
   }
 
   async function onSave(e: FormEvent) {
@@ -212,6 +254,48 @@ export default function CompanySettingsPage() {
           ) : (
             <p className="text-sm text-danger">{error || t("common.error")}</p>
           )}
+        </Card>
+      </ModuleSection>
+
+      <ModuleSection title={t("settingsSub.lowStockTitle")}>
+        <Card className="max-w-xl space-y-3 p-5">
+          <p className="text-sm text-muted">{t("settingsSub.lowStockHint")}</p>
+          <form onSubmit={onSaveLowStock} className="grid gap-3 sm:grid-cols-2">
+            {(
+              [
+                ["warehousePiece", "lowStockWarehousePiece"],
+                ["storePiece", "lowStockStorePiece"],
+                ["storeWeightMl", "lowStockStoreWeight"],
+                ["bottlePiece", "lowStockBottle"],
+              ] as const
+            ).map(([key, labelKey]) => (
+              <div key={key}>
+                <FieldLabel>{t(`settingsSub.${labelKey}`)}</FieldLabel>
+                <input
+                  type="number"
+                  min={0}
+                  step={key === "storeWeightMl" ? 1 : 1}
+                  className="w-full rounded-xl border border-border bg-page px-3 py-2.5 text-sm"
+                  value={lowStock[key]}
+                  onChange={(e) =>
+                    setLowStock((prev) => ({
+                      ...prev,
+                      [key]: Number(e.target.value) || 0,
+                    }))
+                  }
+                  required
+                />
+              </div>
+            ))}
+            <div className="sm:col-span-2">
+              <Button type="submit" fullWidth={false} disabled={lowStockSaving}>
+                {lowStockSaving ? t("common.loading") : t("settingsSub.save")}
+              </Button>
+            </div>
+          </form>
+          {lowStockMsg ? (
+            <p className="text-sm text-success">{lowStockMsg}</p>
+          ) : null}
         </Card>
       </ModuleSection>
 

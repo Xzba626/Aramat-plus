@@ -136,6 +136,43 @@ export async function createTransfer(params: {
     console.error("[createTransfer] bottle low-stock notify failed", err)
   );
 
+  void (async () => {
+    const {
+      getLowStockThresholds,
+      maybeNotifyLowMerchandiseStock,
+    } = await import("@/lib/services/low-stock-thresholds.service");
+    const { getQtyAtLocation } = await import("@/lib/services/stock.service");
+    const thresholds = await getLowStockThresholds(params.companyId);
+    const warehouse = await prisma.warehouse.findFirst({
+      where: { id: params.fromWarehouseId, companyId: params.companyId },
+    });
+    if (!warehouse) return;
+    for (const line of params.items) {
+      const product = await prisma.product.findFirst({
+        where: { id: line.productId, companyId: params.companyId },
+        select: { id: true, name: true, accountingType: true, kind: true },
+      });
+      if (!product || product.kind === "PACKAGING") continue;
+      const qtyAfter = await getQtyAtLocation({
+        productId: line.productId,
+        locationType: LocationType.WAREHOUSE,
+        locationId: warehouse.id,
+      });
+      await maybeNotifyLowMerchandiseStock({
+        companyId: params.companyId,
+        locationType: LocationType.WAREHOUSE,
+        locationName: warehouse.name,
+        productId: product.id,
+        productName: product.name,
+        accountingType: product.accountingType,
+        qtyAfter,
+        thresholds,
+      });
+    }
+  })().catch((err) =>
+    console.error("[createTransfer] merchandise low-stock notify failed", err)
+  );
+
   return txResult.result;
 }
 

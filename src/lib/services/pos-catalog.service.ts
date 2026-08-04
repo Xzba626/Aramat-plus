@@ -4,6 +4,10 @@ import { decimalToNumber } from "@/lib/utils";
 import { resolveProductImageUrl } from "@/lib/product-image";
 import { getStoreStock } from "@/lib/services/stock.service";
 import { reservedQtyByProduct } from "@/lib/services/reservation.service";
+import {
+  getLowStockThresholds,
+  resolveStockStatus,
+} from "@/lib/services/low-stock-thresholds.service";
 
 /** Catalog for Seller POS — available qty = physical − ACTIVE reservations. */
 export async function getPosCatalog(params: {
@@ -22,7 +26,9 @@ export async function getPosCatalog(params: {
   });
   if (!store) throw new Error("SELLER_NO_STORE");
 
-  const balances = await getStoreStock(store.id);
+  // includeZero: keep sold-out cards visible (OUT state)
+  const balances = await getStoreStock(store.id, { includeZero: true });
+  const thresholds = await getLowStockThresholds(params.companyId);
   const reserved = await reservedQtyByProduct({
     companyId: params.companyId,
     locationType: LocationType.STORE,
@@ -34,47 +40,48 @@ export async function getPosCatalog(params: {
   let items = balances
     .filter((b) => b.product.kind !== ProductKind.PACKAGING)
     .map((b) => {
-    const physical = decimalToNumber(b.quantity);
-    const held = reserved.get(b.productId) ?? 0;
-    const qty = Math.max(0, physical - held);
-    const min = decimalToNumber(b.product.minStock);
-    let stockStatus: "OK" | "LOW" | "OUT" = "OK";
-    if (qty <= 0) stockStatus = "OUT";
-    else if (min > 0 && qty <= min) stockStatus = "LOW";
-
-    return {
-      productId: b.productId,
-      quantity: qty,
-      physicalQty: physical,
-      reservedQty: held,
-      stockStatus,
-      salePrice: decimalToNumber(b.product.salePrice),
-      product: {
-        id: b.product.id,
-        name: b.product.name,
-        sku: b.product.sku,
-        barcode: b.product.barcode,
-        kind: b.product.kind,
-        minStock: min,
+      const physical = decimalToNumber(b.quantity);
+      const held = reserved.get(b.productId) ?? 0;
+      const qty = Math.max(0, physical - held);
+      const stockStatus = resolveStockStatus({
+        quantity: qty,
         accountingType: b.product.accountingType,
-        /** Product photo (owner upload). Brand logo is fallback only. */
-        imageUrl: resolveProductImageUrl(b.product),
-        brand: b.product.brand
-          ? {
-              id: b.product.brand.id,
-              name: b.product.brand.name,
-              imageUrl: b.product.brand.imageUrl,
-            }
-          : null,
-        category: b.product.category
-          ? { id: b.product.category.id, name: b.product.category.name }
-          : null,
-        unit: b.product.unit
-          ? { symbol: b.product.unit.symbol, name: b.product.unit.name }
-          : null,
-      },
-    };
-  });
+        locationType: LocationType.STORE,
+        thresholds,
+      });
+
+      return {
+        productId: b.productId,
+        quantity: qty,
+        physicalQty: physical,
+        reservedQty: held,
+        stockStatus,
+        salePrice: decimalToNumber(b.product.salePrice),
+        product: {
+          id: b.product.id,
+          name: b.product.name,
+          sku: b.product.sku,
+          barcode: b.product.barcode,
+          kind: b.product.kind,
+          accountingType: b.product.accountingType,
+          /** Product photo (owner upload). Brand logo is fallback only. */
+          imageUrl: resolveProductImageUrl(b.product),
+          brand: b.product.brand
+            ? {
+                id: b.product.brand.id,
+                name: b.product.brand.name,
+                imageUrl: b.product.brand.imageUrl,
+              }
+            : null,
+          category: b.product.category
+            ? { id: b.product.category.id, name: b.product.category.name }
+            : null,
+          unit: b.product.unit
+            ? { symbol: b.product.unit.symbol, name: b.product.unit.name }
+            : null,
+        },
+      };
+    });
 
   // Defense in depth: never expose packaging consumables as sellable SKUs
   items = items.filter((i) => i.product.kind !== ProductKind.PACKAGING);

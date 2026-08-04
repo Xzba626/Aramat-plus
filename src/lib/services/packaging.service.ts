@@ -14,7 +14,7 @@ import { resolveUnitId } from "@/lib/services/product-nomenclature.service";
 import { deductBatchesFifo } from "@/lib/services/stock.service";
 import { notifyCompanyRoles } from "@/lib/services/notification.service";
 
-export const BOTTLE_LOW_STOCK_THRESHOLD = 5;
+export const BOTTLE_LOW_STOCK_THRESHOLD = 5; // legacy default; runtime uses getLowStockThresholds().bottlePiece
 const BOTTLE_EXPENSE_TYPE_NAME = "Флаконы";
 
 const DEFAULT_VOLUMES = [5, 10, 30, 50, 100] as const;
@@ -534,7 +534,17 @@ export async function maybeNotifyLowBottleStock(params: {
   skuName: string;
   qtyAfter: number;
 }) {
-  if (params.qtyAfter > BOTTLE_LOW_STOCK_THRESHOLD) return;
+  const store = await prisma.store.findFirst({
+    where: { id: params.storeId, companyId: params.companyId },
+    select: { notifyLowStock: true },
+  });
+  if (store && !store.notifyLowStock) return;
+
+  const { getLowStockThresholds } = await import(
+    "@/lib/services/low-stock-thresholds.service"
+  );
+  const thresholds = await getLowStockThresholds(params.companyId);
+  if (params.qtyAfter > thresholds.bottlePiece) return;
   await notifyCompanyRoles({
     companyId: params.companyId,
     type: NotificationType.LOW_STOCK,

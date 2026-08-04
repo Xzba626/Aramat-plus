@@ -88,6 +88,7 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
         name: true,
         minStock: true,
         salePrice: true,
+        accountingType: true,
       },
     }),
     prisma.batch.count({
@@ -166,15 +167,32 @@ export async function getWarehouseOverview(companyId: string, showFinance: boole
   const lowStockItems: OverviewProductAlert[] = [];
   const outOfStockItems: OverviewProductAlert[] = [];
 
+  const {
+    getLowStockThresholds,
+    resolveStockStatus,
+    thresholdForProduct,
+  } = await import("@/lib/services/low-stock-thresholds.service");
+  const thresholds = await getLowStockThresholds(companyId);
+
   for (const p of activeProducts) {
     const qty = balanceByProduct.get(p.id) ?? 0;
-    const min = decimalToNumber(p.minStock) || 5;
+    const min = thresholdForProduct({
+      accountingType: p.accountingType,
+      locationType: "WAREHOUSE",
+      thresholds,
+    });
+    const status = resolveStockStatus({
+      quantity: qty,
+      accountingType: p.accountingType,
+      locationType: "WAREHOUSE",
+      thresholds,
+    });
     if (qty > 0) {
       unitsTotal += qty;
       if (showFinance) {
         totalSaleValue += qty * decimalToNumber(p.salePrice);
       }
-      if (qty <= min) {
+      if (status === "LOW") {
         lowStockItems.push({
           id: p.id,
           name: p.name,

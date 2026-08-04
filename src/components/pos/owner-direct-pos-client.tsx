@@ -10,6 +10,7 @@ import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
 import { useToast } from "@/components/ui/toast";
 import { ProductCard } from "@/components/products/product-card";
+import { QtyInput } from "@/components/ui/qty-input";
 import { resolveProductImageUrl } from "@/lib/product-image";
 
 type CatalogItem = {
@@ -22,6 +23,7 @@ type CatalogItem = {
   quantity: number;
   accountingType: "PIECE" | "WEIGHT";
   imageUrl?: string | null;
+  stockStatus?: "OK" | "LOW" | "OUT";
 };
 
 type BottleOption = {
@@ -109,6 +111,9 @@ export function OwnerDirectPosClient({
       quantity: decimalToNumber(b.quantity as never),
       accountingType: b.product.accountingType === "WEIGHT" ? "WEIGHT" : "PIECE",
       imageUrl: resolveProductImageUrl(b.product),
+      stockStatus:
+        (b as { stockStatus?: "OK" | "LOW" | "OUT" }).stockStatus ??
+        (decimalToNumber(b.quantity as never) <= 0 ? "OUT" : "OK"),
     }));
     setCatalog(items);
     setError("");
@@ -161,7 +166,7 @@ export function OwnerDirectPosClient({
         `${p.name} ${p.brand} ${p.category}`
           .toLowerCase()
           .includes(q.toLowerCase());
-      return matchCat && matchQ && p.quantity > 0;
+      return matchCat && matchQ;
     });
   }, [q, category, catalog]);
 
@@ -430,9 +435,11 @@ export function OwnerDirectPosClient({
               {items.map((p) => (
                 <ProductCard
                   key={p.productId}
-                  mode="store"
+                  mode="pos"
                   asButton
+                  disabled={p.quantity <= 0}
                   quantity={p.quantity}
+                  stockStatus={p.stockStatus}
                   onClick={() => onCardClick(p)}
                   product={{
                     id: p.productId,
@@ -486,23 +493,16 @@ export function OwnerDirectPosClient({
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        className="h-8 w-8 rounded-lg border border-border"
-                        onClick={() => setQty(l.productId, l.quantity - 1, idx)}
-                      >
-                        −
-                      </button>
-                      <span className="w-8 text-center tabular-nums">
-                        {l.quantity}
-                      </span>
-                      <button
-                        type="button"
-                        className="h-8 w-8 rounded-lg border border-border"
-                        onClick={() => setQty(l.productId, l.quantity + 1, idx)}
-                      >
-                        +
-                      </button>
+                      <QtyInput
+                        value={l.quantity}
+                        max={l.max}
+                        min={0}
+                        integer={l.accountingType !== "WEIGHT"}
+                        onChange={(n) => setQty(l.productId, n, idx)}
+                        buttonClassName="h-8 w-8 rounded-lg border-border bg-card"
+                        inputClassName="w-16 border-border bg-card py-1"
+                        aria-label={t("pos.qtyMl")}
+                      />
                     </div>
                   </div>
                 ))}

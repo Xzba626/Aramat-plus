@@ -422,6 +422,44 @@ export async function createSale(params: {
     }
   }
 
+  // Merchandise low / out notifications (store or owner-direct warehouse)
+  try {
+    const {
+      getLowStockThresholds,
+      maybeNotifyLowMerchandiseStock,
+    } = await import("@/lib/services/low-stock-thresholds.service");
+    const { getQtyAtLocation } = await import("@/lib/services/stock.service");
+    const thresholds = await getLowStockThresholds(params.companyId);
+    const locationName =
+      locationType === LocationType.WAREHOUSE
+        ? store.name || "Склад"
+        : store.name;
+    const soldIds = [...new Set(params.items.map((i) => i.productId))];
+    for (const productId of soldIds) {
+      const product = productById.get(productId);
+      if (!product || product.kind === "PACKAGING") continue;
+      const qtyAfter = await getQtyAtLocation({
+        productId,
+        locationType,
+        locationId,
+      });
+      await maybeNotifyLowMerchandiseStock({
+        companyId: params.companyId,
+        locationType,
+        locationName,
+        productId,
+        productName: product.name,
+        accountingType: product.accountingType,
+        qtyAfter,
+        thresholds,
+        storeId:
+          locationType === LocationType.STORE ? store.id : undefined,
+      });
+    }
+  } catch (err) {
+    console.error("[createSale] merchandise low-stock notify failed", err);
+  }
+
   void logActivity({
     userId: params.sellerId,
     companyId: params.companyId,
