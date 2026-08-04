@@ -58,30 +58,8 @@ export async function POST(req: Request) {
       hasBlobToken: Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim()),
     });
     if (err instanceof Error) {
-      const res = handleApiError(err);
-      try {
-        const body = await res.clone().json();
-        return Response.json(
-          {
-            ...body,
-            cause,
-            storageProvider: resolveStorageProvider(),
-            hasBlobToken: Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim()),
-          },
-          { status: res.status }
-        );
-      } catch {
-        return res;
-      }
+      return handleApiError(err);
     }
-    return Response.json(
-      {
-        error: "IMAGE_PROCESS_FAILED",
-        cause,
-        storageProvider: resolveStorageProvider(),
-        hasBlobToken: Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim()),
-      },
-      { status: 400 }
-    );
+    return handleApiError(new Error("IMAGE_PROCESS_FAILED"));
   }
 }

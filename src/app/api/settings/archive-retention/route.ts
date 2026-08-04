@@ -7,6 +7,7 @@ import {
   purgeExpiredArchives,
   setArchiveRetentionDays,
 } from "@/lib/services/archive-retention.service";
+import { purgeExpiredNotifications } from "@/lib/services/notification-retention.service";
 
 export async function GET() {
   try {
@@ -18,7 +19,10 @@ export async function GET() {
       companyId: user!.companyId,
       actorId: user!.id,
     });
-    return jsonOk({ days, purged });
+    const notificationsPurged = await purgeExpiredNotifications({
+      companyId: user!.companyId,
+    });
+    return jsonOk({ days, purged, notificationsPurged });
   } catch (err) {
     return handleApiError(err);
   }

@@ -28,9 +28,14 @@ export type JournalLogRow = {
   comment: string | null;
   result: string | null;
   ip?: string | null;
+  ipDisplay?: string | null;
+  ipKind?: "ok" | "local" | "unavailable";
   userAgent?: string | null;
   browser?: string | null;
   device?: string | null;
+  os?: string | null;
+  deviceType?: string | null;
+  deviceModel?: string | null;
   email?: string | null;
   storeId?: string | null;
   storeName?: string | null;
@@ -60,17 +65,63 @@ function detailLabelKey(key: string): string {
   return key;
 }
 
+function Field({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="font-medium text-ink">{value}</dd>
+    </div>
+  );
+}
+
+function orUnavailable(
+  value: string | null | undefined,
+  unavailable: string
+): string {
+  const v = value?.trim();
+  return v ? v : unavailable;
+}
+
 export function JournalEventCard({ log }: { log: JournalLogRow }) {
   const { t, formatDateTime, formatMoney } = useI18n();
+  const isAuth =
+    log.action === "LOGIN" ||
+    log.action === "LOGIN_FAIL" ||
+    log.action === "LOGIN_LOCKED";
   const isAuthFail =
     log.action === "LOGIN_FAIL" || log.action === "LOGIN_LOCKED";
   const comment = labelActionComment(log.comment, t) ?? log.comment;
   const severity = log.severity ?? "info";
   const sev = SEVERITY_STYLE[severity];
+  const na = t("journalPage.unavailable");
 
   const details = (log.details ?? []).filter(
     (d) => d.key !== "browser" && d.key !== "device"
   );
+
+  const ipLabel =
+    log.ipKind === "local"
+      ? t("journalPage.ipLocal")
+      : log.ipKind === "unavailable" || !log.ipDisplay
+        ? na
+        : log.ipDisplay;
+
+  const deviceLabel = orUnavailable(
+    log.deviceType || log.device,
+    na
+  );
+  const modelExtra =
+    log.deviceModel &&
+    log.deviceType &&
+    !String(log.deviceType).includes(log.deviceModel)
+      ? ` · ${log.deviceModel}`
+      : "";
 
   return (
     <Card className="space-y-3 p-4">
@@ -99,71 +150,108 @@ export function JournalEventCard({ log }: { log: JournalLogRow }) {
         <div className="text-base font-semibold text-ink">
           {labelAction(log.action, t)}
         </div>
-        <div className="mt-1 text-sm text-muted">
-          <span className="font-medium text-ink">
-            {isAuthFail
-              ? labelActivityActor(log, t)
-              : log.userName?.trim() || t("journalPage.system")}
-          </span>
-          {!isAuthFail ? (
-            <span>
-              {" "}
-              · {labelRole(log.role, t)}
+        {!isAuth ? (
+          <div className="mt-1 text-sm text-muted">
+            <span className="font-medium text-ink">
+              {log.userName?.trim() || t("journalPage.system")}
             </span>
-          ) : null}
-        </div>
+            {log.role ? (
+              <span>
+                {" "}
+                · {labelRole(log.role, t)}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
-      <dl className="grid gap-1.5 text-sm sm:grid-cols-2">
-        {(log.storeName || log.storeId) && (
+      {isAuth ? (
+        <dl className="grid gap-1.5 text-sm sm:grid-cols-2">
+          <Field
+            label={t("journalPage.colUser")}
+            value={
+              isAuthFail
+                ? labelActivityActor(log, t)
+                : orUnavailable(log.userName, na)
+            }
+          />
+          <Field
+            label={t("journalPage.colRole")}
+            value={log.role ? labelRole(log.role, t) : na}
+          />
+          <Field
+            label={t("journalPage.device")}
+            value={`${deviceLabel}${modelExtra}`}
+          />
+          <Field
+            label={t("journalPage.metaBrowser")}
+            value={orUnavailable(log.browser, na)}
+          />
+          <Field
+            label={t("journalPage.os")}
+            value={orUnavailable(log.os, na)}
+          />
+          <Field label={t("journalPage.ip")} value={ipLabel} />
+          <Field
+            label={t("journalPage.colDate")}
+            value={formatDateTime(log.createdAt)}
+          />
+        </dl>
+      ) : (
+        <dl className="grid gap-1.5 text-sm sm:grid-cols-2">
+          {(log.storeName || log.storeId) && (
+            <div>
+              <dt className="text-xs text-muted">{t("journalPage.store")}</dt>
+              <dd className="font-medium text-ink">
+                {log.storeName ?? log.storeId}
+              </dd>
+            </div>
+          )}
           <div>
-            <dt className="text-xs text-muted">{t("journalPage.store")}</dt>
+            <dt className="text-xs text-muted">{t("journalPage.object")}</dt>
             <dd className="font-medium text-ink">
-              {log.storeName ?? log.storeId}
+              {labelEntity(log.entityType, t)}
             </dd>
           </div>
-        )}
-        <div>
-          <dt className="text-xs text-muted">{t("journalPage.object")}</dt>
-          <dd className="font-medium text-ink">
-            {labelEntity(log.entityType, t)}
-            {log.entityId ? ` · ${log.entityId.slice(-8).toUpperCase()}` : ""}
-          </dd>
-        </div>
-        {details.map((d) => {
-          const display =
-            d.key === "amount" || d.key === "discount"
-              ? (() => {
-                  const n = Number(d.value);
-                  return Number.isFinite(n) ? formatMoney(n) : d.value;
-                })()
-              : d.value;
-          return (
-            <div key={`${log.id}-${d.key}-${d.value}`}>
-              <dt className="text-xs text-muted">{t(detailLabelKey(d.key))}</dt>
-              <dd className="font-medium text-ink">{display}</dd>
+          {details.map((d) => {
+            const display =
+              d.key === "amount" || d.key === "discount"
+                ? (() => {
+                    const n = Number(d.value);
+                    return Number.isFinite(n) ? formatMoney(n) : d.value;
+                  })()
+                : d.value;
+            return (
+              <div key={`${log.id}-${d.key}-${d.value}`}>
+                <dt className="text-xs text-muted">{t(detailLabelKey(d.key))}</dt>
+                <dd className="font-medium text-ink">{display}</dd>
+              </div>
+            );
+          })}
+          {log.browser ? (
+            <div>
+              <dt className="text-xs text-muted">
+                {t("journalPage.metaBrowser")}
+              </dt>
+              <dd className="font-medium text-ink">{log.browser}</dd>
             </div>
-          );
-        })}
-        {log.browser ? (
-          <div>
-            <dt className="text-xs text-muted">{t("journalPage.metaBrowser")}</dt>
-            <dd className="font-medium text-ink">{log.browser}</dd>
-          </div>
-        ) : null}
-        {log.device ? (
-          <div>
-            <dt className="text-xs text-muted">{t("journalPage.device")}</dt>
-            <dd className="font-medium text-ink">{log.device}</dd>
-          </div>
-        ) : null}
-        {log.ip ? (
-          <div>
-            <dt className="text-xs text-muted">{t("journalPage.ip")}</dt>
-            <dd className="font-medium text-ink tabular-nums">{log.ip}</dd>
-          </div>
-        ) : null}
-      </dl>
+          ) : null}
+          {log.device ? (
+            <div>
+              <dt className="text-xs text-muted">{t("journalPage.device")}</dt>
+              <dd className="font-medium text-ink">{log.device}</dd>
+            </div>
+          ) : null}
+          {log.ipKind === "ok" && log.ipDisplay ? (
+            <div>
+              <dt className="text-xs text-muted">{t("journalPage.ip")}</dt>
+              <dd className="font-medium text-ink tabular-nums">
+                {log.ipDisplay}
+              </dd>
+            </div>
+          ) : null}
+        </dl>
+      )}
 
       {comment ? <div className="text-sm text-muted">{comment}</div> : null}
     </Card>

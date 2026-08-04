@@ -34,27 +34,25 @@ export function formatDateLocale(
 
 export function formatTimeLocale(
   date: Date | string | number,
-  locale: Locale
+  _locale?: Locale
 ): string {
   const d = date instanceof Date ? date : new Date(date);
-  return d.toLocaleTimeString(localeToBcp47(locale), {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  if (Number.isNaN(d.getTime())) return "—";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+/**
+ * Canonical app datetime: DD.MM.YYYY HH:MM:SS in the runtime local timezone
+ * (browser on client, host TZ on server). Never appends UTC/Z.
+ * Locale arg kept for API stability; pattern is fixed for RU/TJ UX.
+ */
 export function formatDateTimeLocale(
   date: Date | string | number,
-  locale: Locale
+  _locale?: Locale
 ): string {
   const d = date instanceof Date ? date : new Date(date);
-  return d.toLocaleString(localeToBcp47(locale), {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  if (Number.isNaN(d.getTime())) return "—";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }

@@ -143,13 +143,14 @@ export default function NewProductPage() {
                 raw === "createImageBitmap_undefined"
               ? "INVALID_FILE_TYPE"
               : "IMAGE_COMPRESS_FAILED";
-        // TEMP RCA: surface step code, not only i18n generic
-        const msg = `PHOTO_DEBUG step=client_compress code=${raw} | ${t(`errors.${code}`)}`;
+        // Keep diagnostics in console only — never show PHOTO_DEBUG to the business user
+        const msg = t(`errors.${code}`);
         console.error("[PHOTO_PROCESS] UI compress catch", {
           fileName: file.name,
           mime: file.type,
           size: file.size,
           error: e,
+          raw,
         });
         dbg.compressError = raw;
         dbg.errorStep = "client_compress";
@@ -170,15 +171,8 @@ export default function NewProductPage() {
       dbg.response = data;
       if (!res.ok) {
         const apiCode =
-          typeof data?.error === "string" ? data.error : "UNKNOWN";
-        const cause =
-          typeof data?.cause === "string"
-            ? data.cause
-            : typeof data?.debug === "string"
-              ? data.debug
-              : "";
-        // TEMP RCA: screenshot text was IMAGE_PROCESS_FAILED (server), not compress
-        const msg = `PHOTO_DEBUG step=upload_api status=${res.status} code=${apiCode}${cause ? ` cause=${cause}` : ""} | ${apiErrorMessage(data.error, t)}`;
+          typeof data?.error === "string" ? data.error : "IMAGE_PROCESS_FAILED";
+        const msg = apiErrorMessage(data.error, t);
         console.error("[PHOTO_PROCESS] UI upload_api fail", {
           fileName: file.name,
           preparedName: prepared.name,
@@ -186,6 +180,7 @@ export default function NewProductPage() {
           preparedMime: prepared.type,
           status: res.status,
           data,
+          apiCode,
         });
         dbg.errorStep = "upload_api";
         dbg.uiErrorShown = msg;
@@ -199,7 +194,7 @@ export default function NewProductPage() {
       }
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
-      const msg = `PHOTO_DEBUG step=outer_catch code=${raw}`;
+      const msg = t("errors.IMAGE_PROCESS_FAILED");
       console.error("[PHOTO_PROCESS] UI outer_catch", e);
       dbg.errorStep = "outer_catch";
       dbg.compressError = raw;

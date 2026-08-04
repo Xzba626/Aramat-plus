@@ -9,7 +9,11 @@ import {
   type ActivityLogCategory,
   type ActivitySeverity,
 } from "@/lib/activity-log-categories";
-import { parseUserAgent } from "@/lib/security/client-fingerprint";
+import {
+  cleanUaLabel,
+  ipForDisplay,
+  parseUserAgent,
+} from "@/lib/security/client-fingerprint";
 
 export type JournalQueryInput = {
   companyId: string;
@@ -39,9 +43,16 @@ export type JournalLogDto = {
   comment: string | null;
   result: string | null;
   ip: string | null;
+  /** Display-safe IP: real public IP, or null when local/unavailable */
+  ipDisplay: string | null;
+  /** local | unavailable | ok — UI picks i18n label when not ok */
+  ipKind: "ok" | "local" | "unavailable";
   userAgent: string | null;
   browser: string | null;
   device: string | null;
+  os: string | null;
+  deviceType: string | null;
+  deviceModel: string | null;
   email: string | null;
   storeId: string | null;
   storeName: string | null;
@@ -107,16 +118,26 @@ function metaString(
 function buildDetails(
   action: string,
   meta: Record<string, unknown> | null,
-  parsedUa: { browser: string; device: string } | null
+  parsedUa: {
+    browser: string;
+    device: string;
+    os: string;
+    deviceType: string;
+  } | null
 ): Array<{ key: string; value: string }> {
   const details: Array<{ key: string; value: string }> = [];
   if (!meta && !parsedUa) return details;
 
   const push = (key: string, value: string | null | undefined) => {
-    if (value != null && String(value).trim()) {
-      details.push({ key, value: String(value).trim() });
-    }
+    const cleaned = cleanUaLabel(value);
+    if (cleaned) details.push({ key, value: cleaned });
   };
+
+  // Login / security rows use dedicated fields on the card — skip UA stubs here
+  const isAuth =
+    action === "LOGIN" ||
+    action === "LOGIN_FAIL" ||
+    action === "LOGIN_LOCKED";
 
   push("product", metaString(meta, "productName", "skuName", "name"));
   push("quantity", metaString(meta, "quantity", "qty", "itemCount"));
@@ -129,15 +150,19 @@ function buildDetails(
   push("newPrice", metaString(meta, "newPrice", "to", "price"));
   push("location", metaString(meta, "locationType", "locationName"));
 
-  if (parsedUa) {
-    push("browser", parsedUa.browser !== "Unknown" ? parsedUa.browser : null);
-    push("device", parsedUa.device !== "Unknown" ? parsedUa.device : null);
-  } else {
-    push("browser", metaString(meta, "browser"));
-    push("device", metaString(meta, "device"));
+  if (!isAuth) {
+    if (parsedUa) {
+      push("browser", parsedUa.browser);
+      push("device", parsedUa.deviceType || parsedUa.device);
+    } else {
+      push("browser", metaString(meta, "browser"));
+      push(
+        "device",
+        metaString(meta, "deviceType") ?? metaString(meta, "device")
+      );
+    }
   }
 
-  // SALE often only has counts/amounts
   if (action === "SALE_CREATE" && meta) {
     if (!details.some((d) => d.key === "quantity") && meta.itemCount != null) {
       push("quantity", String(meta.itemCount));
@@ -298,19 +323,34 @@ export async function queryJournal(input: JournalQueryInput): Promise<{
       metaString(meta, "storeId") ?? metaString(meta, "toStoreId");
     const storeName = metaString(meta, "storeName");
     const uaInfo = log.userAgent ? parseUserAgent(log.userAgent) : null;
-    const browser =
-      metaString(meta, "browser") ??
-      (uaInfo && uaInfo.browser !== "Unknown" ? uaInfo.browser : null);
-    const device =
+    const browser = cleanUaLabel(
+      metaString(meta, "browser") ?? uaInfo?.browser ?? null
+    );
+    const os = cleanUaLabel(metaString(meta, "os") ?? uaInfo?.os ?? null);
+    const deviceType = cleanUaLabel(
+      metaString(meta, "deviceType") ?? uaInfo?.deviceType ?? null
+    );
+    const deviceModel = cleanUaLabel(
+      metaString(meta, "deviceModel") ?? uaInfo?.deviceModel ?? null
+    );
+    const device = cleanUaLabel(
       metaString(meta, "device") ??
-      (uaInfo && uaInfo.device !== "Unknown" ? uaInfo.device : null);
+        (deviceType
+          ? deviceModel
+            ? `${deviceType} · ${deviceModel}`
+            : deviceType
+          : uaInfo?.device) ??
+        null
+    );
+    const ipInfo = ipForDisplay(log.ip);
+    const metaName = metaString(meta, "userName");
 
     return {
       id: log.id,
       createdAt: log.createdAt.toISOString(),
       userId: log.userId,
-      userName: log.user?.name ?? null,
-      role: log.user?.role ?? null,
+      userName: log.user?.name?.trim() || metaName || null,
+      role: log.user?.role ?? metaString(meta, "role") ?? null,
       action: log.action,
       category: categorizeActivityAction(log.action),
       severity: getActivitySeverity(log.action, log.result),
@@ -319,9 +359,14 @@ export async function queryJournal(input: JournalQueryInput): Promise<{
       comment: log.comment,
       result: log.result,
       ip: log.ip,
+      ipDisplay: ipInfo.value,
+      ipKind: ipInfo.kind,
       userAgent: log.userAgent,
       browser,
       device,
+      os,
+      deviceType,
+      deviceModel,
       email,
       storeId: metaStoreId,
       storeName,

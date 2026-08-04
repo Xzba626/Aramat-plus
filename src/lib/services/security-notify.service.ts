@@ -5,19 +5,19 @@ import {
   parseUserAgent,
   type ClientDeviceInfo,
 } from "@/lib/security/client-fingerprint";
+import { formatIpForStorage } from "@/lib/notifications/notification-meta";
 
 function formatLoginDetails(params: {
-  at: Date;
   info: ClientDeviceInfo;
   ip: string | null;
 }) {
-  const time = params.at.toISOString().replace("T", " ").slice(0, 19) + " UTC";
+  // Time is shown from Notification.createdAt via formatDateTime (local).
   const lines = [
-    time,
-    params.info.device,
+    params.info.deviceType || params.info.device,
     params.info.browser,
-    `IP: ${params.ip ?? "—"}`,
-  ];
+    params.info.os,
+    `IP: ${formatIpForStorage(params.ip)}`,
+  ].filter((line) => line && String(line).trim());
   return lines.join("\n");
 }
 
@@ -71,7 +71,6 @@ export async function notifyIfNewLogin(params: {
     type: NotificationType.SYSTEM,
     title: "notif.newLogin",
     message: formatLoginDetails({
-      at: new Date(),
       info,
       ip: params.ip,
     }),
@@ -85,7 +84,7 @@ export async function notifyPasswordChanged(userId: string) {
     userId,
     type: NotificationType.SYSTEM,
     title: "notif.passwordChanged",
-    message: new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC",
+    message: "",
     entityType: "User",
     entityId: userId,
   });
@@ -96,7 +95,7 @@ export async function notifyPasswordReset(userId: string) {
     userId,
     type: NotificationType.SYSTEM,
     title: "notif.passwordReset",
-    message: new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC",
+    message: "",
     entityType: "User",
     entityId: userId,
   });

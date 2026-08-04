@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { useT } from "@/components/i18n/i18n-provider";
 
 /**
- * Owner-only system / ops settings (wipe, references, deploy notes).
+ * Owner-only system / ops settings (wipe, references).
  */
 export default function SystemSettingsPage() {
   const t = useT();
@@ -75,14 +75,6 @@ export default function SystemSettingsPage() {
               </Link>
             ))}
           </div>
-        </Card>
-        <Card className="space-y-2 p-5">
-          <h2 className="text-sm font-bold text-ink">
-            {t("settingsCenter.systemEnvTitle")}
-          </h2>
-          <p className="text-sm text-muted">
-            {t("settingsCenter.systemEnvBody")}
-          </p>
         </Card>
       </div>
     </>

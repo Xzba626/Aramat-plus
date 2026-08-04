@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { clientIpFromHeaders } from "@/lib/security/client-fingerprint";
 
 type LogInput = {
   userId?: string | null;
@@ -17,10 +18,7 @@ type LogInput = {
 
 export function requestAuditMeta(req: Request) {
   return {
-    ip:
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      req.headers.get("x-real-ip") ||
-      null,
+    ip: clientIpFromHeaders(req.headers),
     userAgent: req.headers.get("user-agent"),
   };
 }

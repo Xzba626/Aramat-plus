@@ -98,7 +98,7 @@
     "IMAGE_COMPRESS_FAILED": "Аксро омода карда нашуд. Файли дигарро санҷед.",
     "IMAGE_HEIC_UNSUPPORTED": "Ин формати камера дастгирӣ намешавад. JPEG истифода баред.",
     "IMAGE_STRIPPED": "Акс захира нашуд — дигар маълумоти мол сабт шуд. Аксро аз нав бор кунед.",
-    "IMAGE_STORAGE_UNCONFIGURED": "Захирагоҳи аксҳо дар сервер танзим нашудааст. Vercel Blob (BLOB_READ_WRITE_TOKEN) илова кунед ва Redeploy кунед.",
+    "IMAGE_STORAGE_UNCONFIGURED": "Захирагоҳи аксҳо муваққатан дастрас нест. Ба маъмури система муроҷиат кунед.",
     "CATEGORY_IN_USE": "Категорияро нест кардан мумкин нест — дар молҳо истифода мешавад."
   },
   "productTypes": {
@@ -999,7 +999,7 @@
   },
   "notificationsPage": {
     "title": "Огоҳиномаҳо",
-    "subtitle": "Боқимонда, қабулҳо, дархостҳо ва амалҳои ниёзманди диққат",
+    "subtitle": "Амният, боқимонда, дархостҳо ва ҳодисаҳои муҳим",
     "total": "Ҳамагӣ",
     "unread": "Хонданашуда",
     "onScreen": "Дар экран",
@@ -1010,7 +1010,43 @@
     "tabActions": "Амал лозим",
     "search": "Ҷустуҷӯ дар огоҳиномаҳо…",
     "feed": "Лентаи хабарҳо",
-    "empty": "Огоҳинома аз рӯи филтр нест"
+    "empty": "Огоҳинома аз рӯи филтр нест",
+    "emptyTitle": "Огоҳиномаи нав нест",
+    "emptyBody": "Ҳамаи ҳодисаҳои муҳим дар ин ҷо нишон дода мешаванд.",
+    "viewFeed": "Имрӯз ва лента",
+    "viewHistory": "Таърихи огоҳиномаҳо",
+    "historyTitle": "Таърих",
+    "loadMore": "Бештар бор кардан",
+    "markRead": "Ҳамчун хондашуда",
+    "delete": "Нест кардан",
+    "openDetails": "Кушодани тафсилот",
+    "menu": "Амалҳо",
+    "badgeNew": "Нав",
+    "ipLocal": "шабакаи маҳаллӣ",
+    "periodToday": "Имрӯз",
+    "periodYesterday": "Дирӯз",
+    "periodWeek": "Ҳафта",
+    "periodMonth": "Моҳ",
+    "periodCustom": "Давраи худ",
+    "group": {
+      "today": "Имрӯз",
+      "yesterday": "Дирӯз",
+      "earlier": "Пештар"
+    },
+    "severity": {
+      "info": "Маълумот",
+      "warning": "Огоҳӣ",
+      "critical": "Критикӣ",
+      "success": "Муваффақ"
+    },
+    "cat": {
+      "security": "Амният",
+      "warehouse": "Анбор",
+      "sales": "Фурӯш",
+      "returns": "Бозгашт",
+      "users": "Корбарон",
+      "system": "Система"
+    }
   },
   "journalPage": {
     "title": "Журнали амалҳо",
@@ -1059,6 +1095,9 @@
     "store": "Мағоза",
     "object": "Объект",
     "ip": "IP",
+    "ipLocal": "Шабакаи маҳаллӣ",
+    "unavailable": "Дастрас нест",
+    "os": "Системаи амалиётӣ",
     "device": "Дастгоҳ",
     "prevPage": "Қафо",
     "nextPage": "Пеш",
@@ -1082,7 +1121,7 @@
     "loadMore": "Боз бор кардан",
     "showingOf": "Намоиш {{shown}} аз {{total}}",
     "exportCsv": "Содироти CSV",
-    "exportHint": "Excel/PDF — марҳилаи навбатӣ",
+    "exportHint": "Содирот ба CSV барои Excel",
     "moreFilters": "Филтрҳои бештар"
   },
   "login": {
@@ -1645,10 +1684,8 @@
     "securityEventPassword": "Рамз иваз шуд",
     "securityEventReset": "Рамз аз ҷониби соҳиб бозсозӣ шуд",
     "system": "Система",
-    "systemDesc": "Маълумотномаҳо, тозакунии CRM ва параметрҳои техникӣ.",
+    "systemDesc": "Маълумотномаҳо ва тозакунии CRM.",
     "systemPageSubtitle": "Амалиёти хидматӣ танҳо барои соҳиб",
-    "systemOps": "Амалиётҳо",
-    "systemEnvTitle": "Захира ва муҳит",
-    "systemEnvBody": "Файлҳои акс ва тағйирёбандаҳои муҳит ҳангоми насб танзим мешаванд (Vercel Blob ё диски маҳаллӣ / Docker). Сирҳо дар UI нигоҳ дошта намешаванд."
+    "systemOps": "Амалиётҳо"
   }
 }

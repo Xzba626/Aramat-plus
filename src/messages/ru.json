@@ -99,7 +99,7 @@
     "IMAGE_COMPRESS_FAILED": "Не удалось подготовить фотографию. Попробуйте другой файл.",
     "IMAGE_HEIC_UNSUPPORTED": "Этот формат камеры не поддерживается. Используйте JPEG.",
     "IMAGE_STRIPPED": "Фото не сохранено — остальные данные товара записаны. Загрузите фото снова.",
-    "IMAGE_STORAGE_UNCONFIGURED": "Хранилище фотографий не настроено на сервере. Добавьте Vercel Blob (BLOB_READ_WRITE_TOKEN) и сделайте Redeploy."
+    "IMAGE_STORAGE_UNCONFIGURED": "Хранилище фотографий временно недоступно. Обратитесь к администратору системы."
   },
   "productTypes": {
     "perfume": "Парфюм",
@@ -999,7 +999,7 @@
   },
   "notificationsPage": {
     "title": "Уведомления",
-    "subtitle": "Остатки, поступления, запросы и действия, требующие внимания",
+    "subtitle": "Безопасность, остатки, запросы и важные события",
     "total": "Всего",
     "unread": "Непрочитанные",
     "onScreen": "На экране",
@@ -1010,7 +1010,43 @@
     "tabActions": "Требуют действия",
     "search": "Поиск по уведомлениям…",
     "feed": "Лента",
-    "empty": "Нет уведомлений по выбранному фильтру"
+    "empty": "Нет уведомлений по выбранному фильтру",
+    "emptyTitle": "Нет новых уведомлений",
+    "emptyBody": "Все важные события будут отображаться здесь.",
+    "viewFeed": "Сегодня и лента",
+    "viewHistory": "История уведомлений",
+    "historyTitle": "История",
+    "loadMore": "Загрузить ещё",
+    "markRead": "Отметить прочитанным",
+    "delete": "Удалить",
+    "openDetails": "Открыть детали",
+    "menu": "Действия",
+    "badgeNew": "Новое",
+    "ipLocal": "локальная сеть",
+    "periodToday": "Сегодня",
+    "periodYesterday": "Вчера",
+    "periodWeek": "Неделя",
+    "periodMonth": "Месяц",
+    "periodCustom": "Свой период",
+    "group": {
+      "today": "Сегодня",
+      "yesterday": "Вчера",
+      "earlier": "Ранее"
+    },
+    "severity": {
+      "info": "Инфо",
+      "warning": "Внимание",
+      "critical": "Критично",
+      "success": "Успех"
+    },
+    "cat": {
+      "security": "Безопасность",
+      "warehouse": "Склад",
+      "sales": "Продажи",
+      "returns": "Возвраты",
+      "users": "Пользователи",
+      "system": "Система"
+    }
   },
   "journalPage": {
     "title": "Журнал действий",
@@ -1059,6 +1095,9 @@
     "store": "Магазин",
     "object": "Объект",
     "ip": "IP",
+    "ipLocal": "Локальная сеть",
+    "unavailable": "Недоступно",
+    "os": "Операционная система",
     "device": "Устройство",
     "prevPage": "Назад",
     "nextPage": "Далее",
@@ -1082,7 +1121,7 @@
     "loadMore": "Загрузить ещё",
     "showingOf": "Показано {{shown}} из {{total}}",
     "exportCsv": "Экспорт CSV",
-    "exportHint": "Excel/PDF — следующим этапом",
+    "exportHint": "Экспорт в CSV для Excel",
     "moreFilters": "Ещё фильтры"
   },
   "login": {
@@ -1645,10 +1684,8 @@
     "securityEventPassword": "Пароль изменён",
     "securityEventReset": "Пароль сброшен владельцем",
     "system": "Система",
-    "systemDesc": "Справочники, очистка CRM и технические параметры.",
+    "systemDesc": "Справочники и очистка CRM.",
     "systemPageSubtitle": "Служебные операции только для владельца",
-    "systemOps": "Операции",
-    "systemEnvTitle": "Хранение и окружение",
-    "systemEnvBody": "Файлы фото и переменные окружения настраиваются при развёртывании (Vercel Blob или локальный диск / Docker). См. docs/DEPLOY-VPS.md — в UI секреты не хранятся."
+    "systemOps": "Операции"
   }
 }

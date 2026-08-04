@@ -81,8 +81,11 @@ export async function GET(req: Request) {
           row.storeName ?? row.storeId ?? "",
           labelEntity(row.entityType, t),
           row.entityId ?? "",
-          row.ip ?? "",
-          row.device ?? row.browser ?? "",
+          row.ipDisplay ??
+            (row.ipKind === "local" ? t("journalPage.ipLocal") : ""),
+          [row.deviceType || row.device, row.browser, row.os]
+            .filter(Boolean)
+            .join(" · ") || "",
           row.comment ?? "",
           row.result ?? "",
         ]

@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
+import { headers as nextHeaders } from "next/headers";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
@@ -8,6 +9,7 @@ import { authConfig } from "@/lib/auth.config";
 import { logActivity } from "@/lib/services/activity-log.service";
 import {
   clientIpFromHeaders,
+  deviceMetaForLog,
   parseUserAgent,
 } from "@/lib/security/client-fingerprint";
 import { notifyIfNewLogin } from "@/lib/services/security-notify.service";
@@ -125,13 +127,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!parsed.success) return null;
 
         const email = parsed.data.email.toLowerCase();
-        const headers =
-          request && typeof (request as Request).headers?.get === "function"
-            ? (request as Request).headers
-            : null;
-        const ip = headers ? clientIpFromHeaders(headers) : null;
-        const userAgent = headers?.get("user-agent") ?? null;
+
+        // Prefer Next.js request headers (reliable for Credentials signIn).
+        // Fall back to Auth.js request object when available.
+        let hdrs: Headers | null = null;
+        try {
+          hdrs = await nextHeaders();
+        } catch {
+          hdrs = null;
+        }
+        if (
+          !hdrs &&
+          request &&
+          typeof (request as Request).headers?.get === "function"
+        ) {
+          hdrs = (request as Request).headers;
+        }
+
+        const ip = hdrs ? clientIpFromHeaders(hdrs) : null;
+        const userAgent = hdrs?.get("user-agent") ?? null;
         const deviceInfo = parseUserAgent(userAgent);
+        const deviceMeta = deviceMetaForLog(deviceInfo);
 
         const user = await prisma.user.findUnique({
           where: { email },
@@ -150,10 +166,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             userAgent,
             metadata: {
               email,
-              browser: deviceInfo.browser,
-              device: deviceInfo.device,
-              os: deviceInfo.os,
-              fingerprint: deviceInfo.fingerprint,
+              ...(user?.name ? { userName: user.name } : {}),
+              ...(user?.role ? { role: user.role } : {}),
+              ...deviceMeta,
             },
           });
           return null;
@@ -172,12 +187,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             userAgent,
             metadata: {
               email,
+              userName: user.name,
+              role: user.role,
               failedLoginCount: user.failedLoginCount,
               lockedUntil: user.lockedUntil.toISOString(),
-              browser: deviceInfo.browser,
-              device: deviceInfo.device,
-              os: deviceInfo.os,
-              fingerprint: deviceInfo.fingerprint,
+              ...deviceMeta,
             },
           });
           return null;
@@ -211,12 +225,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             userAgent,
             metadata: {
               email,
+              userName: user.name,
+              role: user.role,
               failedLoginCount: failCount,
               lockedUntil: lockedUntil?.toISOString() ?? null,
-              browser: deviceInfo.browser,
-              device: deviceInfo.device,
-              os: deviceInfo.os,
-              fingerprint: deviceInfo.fingerprint,
+              ...deviceMeta,
             },
           });
           return null;
@@ -241,10 +254,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           ip,
           userAgent,
           metadata: {
-            browser: deviceInfo.browser,
-            device: deviceInfo.device,
-            os: deviceInfo.os,
-            fingerprint: deviceInfo.fingerprint,
+            userName: user.name,
+            role: user.role,
+            email: user.email,
+            ...deviceMeta,
           },
         });
 
