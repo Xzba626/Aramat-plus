@@ -609,7 +609,6 @@ export function OwnerDirectPosClient({
             </div>
             <div>
               <FieldLabel>{t("pos.selectBottle")}</FieldLabel>
-              <p className="mt-0.5 text-[11px] text-muted">{t("pos.bottleHint")}</p>
               {bottlesLoading ? (
                 <p className="mt-1 text-xs text-muted">{t("common.loading")}</p>
               ) : bottles.length === 0 ? (

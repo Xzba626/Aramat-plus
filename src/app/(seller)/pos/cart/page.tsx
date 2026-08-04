@@ -292,44 +292,59 @@ export default function PosCartPage() {
       {lines.map((l) => (
         <div
           key={l.productId}
-          className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-3"
+          className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-sm"
         >
-          <div className="flex items-center gap-3">
-            <ProductThumb src={l.imageUrl} name={l.name} size="sm" />
-            <div className="min-w-0 flex-1">
-              <div className="font-semibold text-ink">{l.name}</div>
-              <div className="text-xs text-muted">
-                {formatMoney(l.salePrice)}
-                {l.unitSymbol ? ` / ${l.unitSymbol}` : ""}
-                {l.accountingType === "WEIGHT" && l.packagingName
-                  ? ` · ${l.packagingName}`
-                  : ""}
+          <div className="flex gap-3">
+            <ProductThumb
+              src={l.imageUrl}
+              name={l.name}
+              size="md"
+              className="rounded-xl"
+            />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <div className="text-[15px] font-semibold leading-snug text-ink">
+                {l.name}
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <QtyInput
-                value={l.quantity}
-                max={l.max}
-                min={0}
-                integer={l.accountingType !== "WEIGHT"}
-                onChange={(n) => setQty(l.productId, n)}
-                buttonClassName="rounded-xl border-border bg-card"
-                inputClassName="border-border bg-card"
-                aria-label={t("pos.qtyMl")}
-              />
+              <div className="text-sm font-medium tabular-nums text-ink">
+                {formatMoney(l.salePrice)}
+                {l.unitSymbol ? (
+                  <span className="font-normal text-muted">
+                    {" "}
+                    / {l.unitSymbol}
+                  </span>
+                ) : null}
+              </div>
+              {l.accountingType === "WEIGHT" && l.packagingName ? (
+                <div className="text-xs leading-relaxed text-muted">
+                  {l.packagingName}
+                </div>
+              ) : null}
+              <div className="pt-1">
+                <QtyInput
+                  value={l.quantity}
+                  max={l.max}
+                  min={0}
+                  integer={l.accountingType !== "WEIGHT"}
+                  onChange={(n) => setQty(l.productId, n)}
+                  buttonClassName="rounded-xl border-border bg-card"
+                  inputClassName="border-border bg-card"
+                  aria-label={t("pos.qtyMl")}
+                />
+              </div>
             </div>
           </div>
           {l.accountingType === "WEIGHT" ? (
-            <div className="border-t border-border pt-2">
+            <div className="border-t border-border pt-3">
               <FieldLabel>{t("pos.selectBottle")}</FieldLabel>
-              <p className="mt-0.5 text-[11px] text-muted">{t("pos.bottleHint")}</p>
               {bottlesLoading ? (
-                <p className="mt-1 text-xs text-muted">{t("common.loading")}</p>
+                <p className="mt-1.5 text-xs text-muted">{t("common.loading")}</p>
               ) : bottles.length === 0 ? (
-                <p className="mt-1 text-xs text-danger">{t("pos.noBottlesInStore")}</p>
+                <p className="mt-1.5 text-xs text-danger">
+                  {t("pos.noBottlesInStore")}
+                </p>
               ) : (
                 <select
-                  className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                  className="mt-1.5 w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm"
                   value={l.packagingProductId ?? ""}
                   onChange={(e) => {
                     const opt = bottles.find(
