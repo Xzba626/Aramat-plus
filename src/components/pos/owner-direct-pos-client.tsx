@@ -352,6 +352,7 @@ export function OwnerDirectPosClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           storeId,
+          ttlMinutes: 30,
           items: cart.map((l) => ({
             productId: l.productId,
             quantity: l.quantity,

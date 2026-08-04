@@ -96,7 +96,11 @@ export async function POST(req: Request) {
       createdById: user.id,
       items: body.items,
       customerNote: body.customerNote ?? undefined,
-      ttlMs: body.ttlMinutes ? body.ttlMinutes * 60 * 1000 : undefined,
+      // Explicit customer hold always has TTL (default 30 min). Cart autosave uses /sync (no TTL).
+      ttlMs:
+        body.ttlMinutes != null
+          ? body.ttlMinutes * 60 * 1000
+          : 30 * 60 * 1000,
     });
 
     return jsonOk(reservation, 201);

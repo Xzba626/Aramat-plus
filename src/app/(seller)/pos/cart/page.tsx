@@ -53,6 +53,9 @@ export default function PosCartPage() {
   const [discountAmountInput, setDiscountAmountInput] = useState("10");
   const [bottles, setBottles] = useState<BottleOption[]>([]);
   const [bottlesLoading, setBottlesLoading] = useState(false);
+  const [reserveTtlMinutes, setReserveTtlMinutes] = useState(30);
+
+  const RESERVE_TTL_OPTIONS = [15, 30, 60, 120, 180] as const;
 
   const weightLines = useMemo(
     () => lines.filter((l) => l.accountingType === "WEIGHT"),
@@ -198,6 +201,7 @@ export default function PosCartPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         customerNote: usePosCart.getState().customerNote || undefined,
+        ttlMinutes: reserveTtlMinutes,
         items: lines.map((l) => ({
           productId: l.productId,
           quantity: l.quantity,
@@ -213,7 +217,7 @@ export default function PosCartPage() {
     clear();
     setDone(t("pos.reserveDone"));
     toast(t("pos.reserveDone"));
-    setTimeout(() => router.push("/pos/reservations"), 1200);
+    setTimeout(() => router.push("/pos/history?tab=reservations"), 1200);
   }
 
   async function submitDiscount(e: FormEvent) {
@@ -481,6 +485,26 @@ export default function PosCartPage() {
             >
               {loading ? "…" : t("pos.sell")}
             </Button>
+          </div>
+          <div className="space-y-2">
+            <FieldLabel>{t("pos.reserveTtl")}</FieldLabel>
+            <div className="flex flex-wrap gap-1.5">
+              {RESERVE_TTL_OPTIONS.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setReserveTtlMinutes(m)}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-xs font-semibold",
+                    reserveTtlMinutes === m
+                      ? "bg-brand text-white"
+                      : "bg-card text-muted ring-1 ring-border"
+                  )}
+                >
+                  {t(`pos.reserveTtl${m}` as "pos.reserveTtl30")}
+                </button>
+              ))}
+            </div>
           </div>
           <Button
             type="button"
