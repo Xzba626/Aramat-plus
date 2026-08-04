@@ -372,41 +372,57 @@ export function OwnerDashboardClient({
                 </button>
               </div>
             </div>
-            <div className="flex items-end gap-1 overflow-x-auto sm:gap-2">
+            <div className="flex items-end gap-1 overflow-x-auto pb-1 sm:gap-1.5">
               {chartValues.map((val, i) => {
                 const barPct = Math.max(8, (Math.abs(val) / chartMax) * 100);
                 const dayLabel = chartLabels[i];
-                const weekday = dayLabel
-                  ? new Date(`${dayLabel}T12:00:00`).toLocaleDateString(
-                      undefined,
-                      {
-                        weekday: chartRange === "7d" ? "short" : undefined,
-                        day: chartRange === "30d" ? "numeric" : undefined,
-                        month: chartRange === "30d" ? "short" : undefined,
-                      }
-                    )
-                  : String(i + 1);
+                const total = chartValues.length;
+                // 30d: ~6–7 ticks so labels never stack; always keep first & last
+                const labelStep =
+                  chartRange === "30d"
+                    ? Math.max(4, Math.ceil(total / 6))
+                    : 1;
+                const showDayLabel =
+                  chartRange === "7d" ||
+                  i === 0 ||
+                  i === total - 1 ||
+                  i % labelStep === 0;
+                const showValueLabel =
+                  chartRange === "7d" || i === 0 || i === total - 1 || i % 3 === 0;
+
+                let tickText = String(i + 1);
+                if (dayLabel) {
+                  const d = new Date(`${dayLabel}T12:00:00`);
+                  if (!Number.isNaN(d.getTime())) {
+                    tickText =
+                      chartRange === "7d"
+                        ? d.toLocaleDateString(undefined, { weekday: "short" })
+                        : d.toLocaleDateString(undefined, {
+                            day: "numeric",
+                            month: "short",
+                          });
+                  }
+                }
+
                 return (
                   <div
                     key={dayLabel ?? i}
                     className={cn(
                       "flex min-w-0 flex-col items-center gap-1",
                       chartRange === "30d"
-                        ? "w-3 shrink-0 sm:w-3.5"
+                        ? "w-4 shrink-0 sm:w-5"
                         : "min-w-[3rem] flex-1"
                     )}
                   >
                     <span
                       className={cn(
-                        "text-center text-[10px] font-semibold tabular-nums sm:text-xs",
+                        "h-4 text-center text-[10px] font-semibold tabular-nums sm:text-xs",
                         val > 0 && "text-zone-money-deep",
                         val < 0 && "text-danger",
                         val === 0 && "text-muted"
                       )}
                     >
-                      {chartRange === "7d" || i % 3 === 0
-                        ? formatMoney(val, { short: true })
-                        : ""}
+                      {showValueLabel ? formatMoney(val, { short: true }) : ""}
                     </span>
                     <div
                       className={cn(
@@ -423,11 +439,19 @@ export function OwnerDashboardClient({
                           val === 0 && "bg-border"
                         )}
                         style={{ height: `${barPct}%` }}
-                        title={`${weekday}: ${formatMoney(val, { short: true })}`}
+                        title={`${tickText}: ${formatMoney(val, { short: true })}`}
                       />
                     </div>
-                    <span className="truncate text-[10px] font-medium text-muted sm:text-xs">
-                      {weekday}
+                    <span
+                      className={cn(
+                        "flex h-8 items-start justify-center text-center text-[9px] font-medium leading-tight text-muted sm:text-[10px]",
+                        chartRange === "30d" && showDayLabel
+                          ? "w-[2.75rem] whitespace-nowrap"
+                          : "w-full truncate"
+                      )}
+                      title={showDayLabel ? tickText : undefined}
+                    >
+                      {showDayLabel ? tickText : ""}
                     </span>
                   </div>
                 );
