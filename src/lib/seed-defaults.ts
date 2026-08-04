@@ -20,3 +20,17 @@ export const DEFAULT_LOW_STOCK_THRESHOLDS = {
   /** Packaging bottles at store (pcs) */
   bottlePiece: 5,
 } as const;
+
+/** Finance → Products: monthly sales baselines (scaled by period day count). */
+export const SALES_PERFORMANCE_THRESHOLDS_SETTING_KEY =
+  "salesPerformanceThresholds";
+
+/** Reference length for monthly baselines (days). */
+export const SALES_PERFORMANCE_REFERENCE_DAYS = 30;
+
+export const DEFAULT_SALES_PERFORMANCE_THRESHOLDS = {
+  /** Piece merchandise — units sold per reference month */
+  monthlyPieces: 10,
+  /** Weight merchandise — ml sold per reference month */
+  monthlyMl: 200,
+} as const;

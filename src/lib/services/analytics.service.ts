@@ -10,6 +10,11 @@ import {
   isMerchandiseProduct,
   merchandiseProductWhere,
 } from "@/lib/product-kind";
+import {
+  getProductPerformanceCategory,
+  getSalesPerformanceThresholds,
+  scaleSalesPerformanceThresholds,
+} from "@/lib/services/sales-performance.service";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -22,6 +27,26 @@ function monthStart(d = new Date()) {
 }
 
 export type AnalyticsPeriod = "today" | "week" | "month" | "year";
+
+type ProductAgg = {
+  name: string;
+  sold: number;
+  revenue: number;
+  cogs: number;
+  profit: number;
+  accountingType: "PIECE" | "WEIGHT";
+};
+
+function serializeProductRow(p: ProductAgg) {
+  return {
+    name: p.name,
+    sold: Math.round(p.sold * 1000) / 1000,
+    revenue: Math.round(p.revenue * 100) / 100,
+    cogs: Math.round(p.cogs * 100) / 100,
+    profit: Math.round(p.profit * 100) / 100,
+    accountingType: p.accountingType,
+  };
+}
 
 /**
  * Inclusive period start for analytics / finance filters.
@@ -68,32 +93,41 @@ export async function getAnalyticsBreakdown(
     ? { companyId, id: storeIdFilter }
     : { companyId };
 
-  const sales = await prisma.sale.findMany({
-    where: {
-      status: { in: ["COMPLETED", "PARTIAL_RETURN"] },
-      createdAt: { gte: from, lte: now },
-      store: saleStoreWhere,
-    },
-    include: {
-      seller: { select: { id: true, name: true } },
-      store: { select: { id: true, name: true, kind: true } },
-      items: {
-        include: {
-          product: {
-            select: {
-              id: true,
-              name: true,
-              kind: true,
-              categoryId: true,
-              productTypeId: true,
-              accountingType: true,
-              category: { select: { id: true, name: true } },
-              productType: { select: { id: true, name: true } },
+  const [sales, monthlyThresholds] = await Promise.all([
+    prisma.sale.findMany({
+      where: {
+        status: { in: ["COMPLETED", "PARTIAL_RETURN"] },
+        createdAt: { gte: from, lte: now },
+        store: saleStoreWhere,
+      },
+      include: {
+        seller: { select: { id: true, name: true } },
+        store: { select: { id: true, name: true, kind: true } },
+        items: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                kind: true,
+                categoryId: true,
+                productTypeId: true,
+                accountingType: true,
+                category: { select: { id: true, name: true } },
+                productType: { select: { id: true, name: true } },
+              },
             },
           },
         },
       },
-    },
+    }),
+    getSalesPerformanceThresholds(companyId),
+  ]);
+
+  const performanceThresholds = scaleSalesPerformanceThresholds({
+    monthly: monthlyThresholds,
+    from,
+    to: now,
   });
 
   const expenses = await sumAllocatedExpenses({
@@ -133,10 +167,7 @@ export async function getAnalyticsBreakdown(
   );
   const network = withNetProfit(networkGross, expenses.total);
 
-  const productMap = new Map<
-    string,
-    { name: string; sold: number; revenue: number; cogs: number; profit: number }
-  >();
+  const productMap = new Map<string, ProductAgg>();
   const sellerMap = new Map<
     string,
     { name: string; store: string; checks: number; revenue: number; profit: number }
@@ -225,6 +256,8 @@ export async function getAnalyticsBreakdown(
         revenue: 0,
         cogs: 0,
         profit: 0,
+        accountingType:
+          item.product.accountingType === "WEIGHT" ? "WEIGHT" : "PIECE",
       };
       prev.sold += qty;
       prev.revenue += lineRev;
@@ -260,33 +293,51 @@ export async function getAnalyticsBreakdown(
     }
   }
 
-  const productsSorted = Array.from(productMap.values())
-    .map((p) => ({
-      name: p.name,
-      sold: Math.round(p.sold * 1000) / 1000,
-      revenue: Math.round(p.revenue * 100) / 100,
-      cogs: Math.round(p.cogs * 100) / 100,
-      profit: Math.round(p.profit * 100) / 100,
-    }))
-    .sort((a, b) => b.revenue - a.revenue);
+  // Partition via single classifier — lists never overlap (except ranking).
+  const soldMerchandise = Array.from(productMap.values());
+  const onPace: ReturnType<typeof serializeProductRow>[] = [];
+  const weakSellers: ReturnType<typeof serializeProductRow>[] = [];
+  for (const p of soldMerchandise) {
+    const cat = getProductPerformanceCategory({
+      sold: p.sold,
+      accountingType: p.accountingType,
+      thresholds: performanceThresholds,
+    });
+    if (cat === "LEADER") onPace.push(serializeProductRow(p));
+    else if (cat === "LOW") weakSellers.push(serializeProductRow(p));
+    // NO_SALES cannot appear in productMap (qty > 0 only)
+  }
+  onPace.sort((a, b) => b.sold - a.sold || b.revenue - a.revenue);
+  weakSellers.sort((a, b) => a.sold - b.sold || a.name.localeCompare(b.name));
 
-  const topSelling = productsSorted.slice(0, 50);
-  const topUnsold = productsSorted
-    .filter((p) => p.sold > 0)
-    .sort((a, b) => a.sold - b.sold)
-    .slice(0, 20);
+  /** Absolute ranking by volume — no threshold. May overlap with onPace. */
+  const topSales = soldMerchandise
+    .map(serializeProductRow)
+    .sort((a, b) => b.sold - a.sold || b.revenue - a.revenue)
+    .slice(0, 50);
 
-  // Merchandise with zero sales in period (never include PACKAGING bottles)
+  // Merchandise with zero sales in period (existing query — not per-SKU).
   const soldIds = new Set(productMap.keys());
   const activeProducts = await prisma.product.findMany({
     where: merchandiseProductWhere({ companyId, isActive: true }),
-    select: { id: true, name: true },
+    select: { id: true, name: true, accountingType: true },
     take: 500,
   });
-  const neverSold = activeProducts
+  const noSales = activeProducts
     .filter((p) => !soldIds.has(p.id))
-    .slice(0, 30)
-    .map((p) => ({ name: p.name, sold: 0, revenue: 0, cogs: 0, profit: 0 }));
+    .map((p) => ({
+      name: p.name,
+      sold: 0,
+      revenue: 0,
+      cogs: 0,
+      profit: 0,
+      accountingType:
+        p.accountingType === "WEIGHT"
+          ? ("WEIGHT" as const)
+          : ("PIECE" as const),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .slice(0, 100);
 
   const stores = Array.from(storeMap.entries()).map(([id, s]) => {
     const exp = expenses.byStore.get(id) ?? 0;
@@ -314,6 +365,13 @@ export async function getAnalyticsBreakdown(
     period,
     periodFrom: from.toISOString(),
     periodTo: now.toISOString(),
+    performanceThresholds: {
+      monthlyPieces: monthlyThresholds.monthlyPieces,
+      monthlyMl: monthlyThresholds.monthlyMl,
+      scaledPieces: Math.round(performanceThresholds.pieces * 1000) / 1000,
+      scaledMl: Math.round(performanceThresholds.ml * 1000) / 1000,
+      dayCount: performanceThresholds.dayCount,
+    },
     network: {
       revenue: Math.round(network.revenue * 100) / 100,
       cogs: Math.round(network.cogs * 100) / 100,
@@ -324,8 +382,17 @@ export async function getAnalyticsBreakdown(
       salesCount: network.count,
       itemsSold: Math.round(network.itemsSold * 1000) / 1000,
     },
-    products: topSelling,
-    topUnsold: [...topUnsold, ...neverSold].slice(0, 30),
+    /**
+     * Absolute volume ranking (no threshold). May overlap with `products`
+     * (on-pace / above threshold) — that is intentional.
+     */
+    topSales,
+    /** On-pace: sold at/above scaled threshold (category LEADER). */
+    products: onPace,
+    /** Weak sellers only (sold > 0 and below threshold). Kept key for API compat. */
+    topUnsold: weakSellers,
+    /** Active merchandise with zero sales in the filtered period. */
+    noSales,
     sellers: Array.from(sellerMap.values())
       .map((s) => ({
         name: s.name,

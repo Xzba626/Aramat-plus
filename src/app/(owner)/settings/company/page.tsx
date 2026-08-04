@@ -44,6 +44,12 @@ export default function CompanySettingsPage() {
   });
   const [lowStockMsg, setLowStockMsg] = useState("");
   const [lowStockSaving, setLowStockSaving] = useState(false);
+  const [salesPerf, setSalesPerf] = useState({
+    monthlyPieces: 10,
+    monthlyMl: 200,
+  });
+  const [salesPerfMsg, setSalesPerfMsg] = useState("");
+  const [salesPerfSaving, setSalesPerfSaving] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -51,12 +57,14 @@ export default function CompanySettingsPage() {
       fetch("/api/settings/wipe-master"),
       fetch("/api/settings/archive-retention"),
       fetch("/api/settings/low-stock-thresholds"),
+      fetch("/api/settings/sales-performance-thresholds"),
     ])
-      .then(async ([companyRes, masterRes, retRes, lowRes]) => {
+      .then(async ([companyRes, masterRes, retRes, lowRes, salesRes]) => {
         const d = await companyRes.json();
         const m = await masterRes.json();
         const r = await retRes.json();
         const low = await lowRes.json();
+        const sales = await salesRes.json();
         if (d?.id) setForm({ id: d.id, name: d.name, currency: d.currency });
         else setError(apiErrorMessage(d.error, t, "common.error"));
         if (masterRes.ok) {
@@ -71,6 +79,12 @@ export default function CompanySettingsPage() {
             storePiece: low.storePiece,
             storeWeightMl: low.storeWeightMl,
             bottlePiece: low.bottlePiece,
+          });
+        }
+        if (salesRes.ok && sales && typeof sales.monthlyPieces === "number") {
+          setSalesPerf({
+            monthlyPieces: sales.monthlyPieces,
+            monthlyMl: sales.monthlyMl,
           });
         }
         setLoading(false);
@@ -122,6 +136,28 @@ export default function CompanySettingsPage() {
       bottlePiece: data.bottlePiece,
     });
     setLowStockMsg(t("settingsSub.lowStockSaved"));
+  }
+
+  async function onSaveSalesPerf(e: FormEvent) {
+    e.preventDefault();
+    setSalesPerfSaving(true);
+    setSalesPerfMsg("");
+    const res = await fetch("/api/settings/sales-performance-thresholds", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(salesPerf),
+    });
+    const data = await res.json();
+    setSalesPerfSaving(false);
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t, "common.error"));
+      return;
+    }
+    setSalesPerf({
+      monthlyPieces: data.monthlyPieces,
+      monthlyMl: data.monthlyMl,
+    });
+    setSalesPerfMsg(t("settingsSub.salesPerfSaved"));
   }
 
   async function onSave(e: FormEvent) {
@@ -295,6 +331,56 @@ export default function CompanySettingsPage() {
           </form>
           {lowStockMsg ? (
             <p className="text-sm text-success">{lowStockMsg}</p>
+          ) : null}
+        </Card>
+      </ModuleSection>
+
+      <ModuleSection title={t("settingsSub.salesPerfTitle")}>
+        <Card className="max-w-xl space-y-3 p-5">
+          <p className="text-sm text-muted">{t("settingsSub.salesPerfHint")}</p>
+          <form onSubmit={onSaveSalesPerf} className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <FieldLabel>{t("settingsSub.salesPerfPieces")}</FieldLabel>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                className="w-full rounded-xl border border-border bg-page px-3 py-2.5 text-sm"
+                value={salesPerf.monthlyPieces}
+                onChange={(e) =>
+                  setSalesPerf((prev) => ({
+                    ...prev,
+                    monthlyPieces: Number(e.target.value) || 0,
+                  }))
+                }
+                required
+              />
+            </div>
+            <div>
+              <FieldLabel>{t("settingsSub.salesPerfMl")}</FieldLabel>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                className="w-full rounded-xl border border-border bg-page px-3 py-2.5 text-sm"
+                value={salesPerf.monthlyMl}
+                onChange={(e) =>
+                  setSalesPerf((prev) => ({
+                    ...prev,
+                    monthlyMl: Number(e.target.value) || 0,
+                  }))
+                }
+                required
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Button type="submit" fullWidth={false} disabled={salesPerfSaving}>
+                {salesPerfSaving ? t("common.loading") : t("settingsSub.save")}
+              </Button>
+            </div>
+          </form>
+          {salesPerfMsg ? (
+            <p className="text-sm text-success">{salesPerfMsg}</p>
           ) : null}
         </Card>
       </ModuleSection>

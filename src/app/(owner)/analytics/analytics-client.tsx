@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   ModuleSection,
   ModuleWorkspace,
@@ -37,6 +38,7 @@ type ProductRow = {
   sold: number;
   revenue: number;
   profit: number;
+  accountingType?: "PIECE" | "WEIGHT";
 };
 
 type SellerRow = {
@@ -76,6 +78,15 @@ type Tab =
 
 type Period = "today" | "week" | "month" | "year";
 
+function formatSoldQty(
+  p: ProductRow,
+  t: (key: string) => string
+): string {
+  const unit =
+    p.accountingType === "WEIGHT" ? t("units.ml") : t("units.pcs");
+  return `${p.sold} ${unit}`;
+}
+
 function expensesLabelKey(period: Period): string {
   if (period === "today") return "dashboard.expensesLabelToday";
   if (period === "week") return "dashboard.expensesLabelWeek";
@@ -103,7 +114,9 @@ export default function AnalyticsClient() {
   const [network, setNetwork] = useState<Network | null>(null);
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
+  const [topSales, setTopSales] = useState<ProductRow[]>([]);
   const [topUnsold, setTopUnsold] = useState<ProductRow[]>([]);
+  const [noSales, setNoSales] = useState<ProductRow[]>([]);
   const [sellers, setSellers] = useState<SellerRow[]>([]);
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
   const [expenseTotal, setExpenseTotal] = useState(0);
@@ -130,7 +143,9 @@ export default function AnalyticsClient() {
       setNetwork(analyticsData.network ?? null);
       setStores(analyticsData.stores ?? []);
       setProducts(analyticsData.products ?? []);
+      setTopSales(analyticsData.topSales ?? analyticsData.products ?? []);
       setTopUnsold(analyticsData.topUnsold ?? []);
+      setNoSales(analyticsData.noSales ?? []);
       setSellers(analyticsData.sellers ?? []);
       setExpenses(analyticsData.expenses?.items ?? []);
       setExpenseTotal(analyticsData.expenses?.total ?? 0);
@@ -144,12 +159,33 @@ export default function AnalyticsClient() {
     load();
   }, [load]);
 
+  const filteredTopSales = useMemo(
+    () =>
+      topSales.filter(
+        (p) => !q.trim() || p.name.toLowerCase().includes(q.toLowerCase())
+      ),
+    [q, topSales]
+  );
   const filteredProducts = useMemo(
     () =>
       products.filter(
         (p) => !q.trim() || p.name.toLowerCase().includes(q.toLowerCase())
       ),
     [q, products]
+  );
+  const filteredWeak = useMemo(
+    () =>
+      topUnsold.filter(
+        (p) => !q.trim() || p.name.toLowerCase().includes(q.toLowerCase())
+      ),
+    [q, topUnsold]
+  );
+  const filteredNoSales = useMemo(
+    () =>
+      noSales.filter(
+        (p) => !q.trim() || p.name.toLowerCase().includes(q.toLowerCase())
+      ),
+    [q, noSales]
   );
   const filteredSellers = useMemo(
     () =>
@@ -344,34 +380,88 @@ export default function AnalyticsClient() {
           />
           <div className="mb-4 space-y-2">
             <div className="text-xs font-semibold uppercase text-muted">
+              {t("analyticsPage.topSales")}
+            </div>
+            {filteredTopSales.length === 0 ? (
+              <EmptyState title={t("analyticsPage.emptyTopSales")} />
+            ) : (
+              filteredTopSales.map((p, i) => (
+                <Card
+                  key={`top-${p.name}`}
+                  className="flex flex-wrap justify-between gap-2 p-3 text-sm"
+                >
+                  <span className="font-medium text-ink">
+                    <span className="mr-1.5 text-muted">
+                      {t("analyticsPage.rankN", { n: i + 1 })}
+                    </span>
+                    {p.name}
+                  </span>
+                  <span className="text-muted">
+                    {formatSoldQty(p, t)} ·{" "}
+                    {formatMoney(p.revenue, { short: true })} ·{" "}
+                    {formatMoney(p.profit, { short: true })}
+                  </span>
+                </Card>
+              ))
+            )}
+          </div>
+          <div className="mb-4 space-y-2">
+            <div className="text-xs font-semibold uppercase text-muted">
               {t("analyticsPage.topSelling")}
             </div>
-            {filteredProducts.map((p) => (
-              <Card
-                key={p.name}
-                className="flex flex-wrap justify-between gap-2 p-3 text-sm"
-              >
-                <span className="font-medium text-ink">{p.name}</span>
-                <span className="text-muted">
-                  {p.sold} · {formatMoney(p.revenue, { short: true })} ·{" "}
-                  {formatMoney(p.profit, { short: true })}
-                </span>
-              </Card>
-            ))}
+            {filteredProducts.length === 0 ? (
+              <EmptyState title={t("analyticsPage.emptyLeaders")} />
+            ) : (
+              filteredProducts.map((p) => (
+                <Card
+                  key={`pace-${p.name}`}
+                  className="flex flex-wrap justify-between gap-2 p-3 text-sm"
+                >
+                  <span className="font-medium text-ink">{p.name}</span>
+                  <span className="text-muted">
+                    {formatSoldQty(p, t)} ·{" "}
+                    {formatMoney(p.revenue, { short: true })} ·{" "}
+                    {formatMoney(p.profit, { short: true })}
+                  </span>
+                </Card>
+              ))
+            )}
           </div>
-          <div className="space-y-2">
+          <div className="mb-4 space-y-2">
             <div className="text-xs font-semibold uppercase text-muted">
               {t("analyticsPage.topUnsold")}
             </div>
-            {topUnsold.map((p) => (
-              <Card
-                key={`u-${p.name}`}
-                className="flex flex-wrap justify-between gap-2 p-3 text-sm"
-              >
-                <span className="font-medium text-ink">{p.name}</span>
-                <span className="text-muted">{p.sold}</span>
-              </Card>
-            ))}
+            {filteredWeak.length === 0 ? (
+              <EmptyState title={t("analyticsPage.emptyWeak")} />
+            ) : (
+              filteredWeak.map((p) => (
+                <Card
+                  key={`weak-${p.name}`}
+                  className="flex flex-wrap justify-between gap-2 p-3 text-sm"
+                >
+                  <span className="font-medium text-ink">{p.name}</span>
+                  <span className="text-muted">{formatSoldQty(p, t)}</span>
+                </Card>
+              ))
+            )}
+          </div>
+          <div className="space-y-2">
+            <div className="text-xs font-semibold uppercase text-muted">
+              {t("analyticsPage.noSales")}
+            </div>
+            {filteredNoSales.length === 0 ? (
+              <EmptyState title={t("analyticsPage.emptyNoSales")} />
+            ) : (
+              filteredNoSales.map((p) => (
+                <Card
+                  key={`zero-${p.name}`}
+                  className="flex flex-wrap justify-between gap-2 p-3 text-sm"
+                >
+                  <span className="font-medium text-ink">{p.name}</span>
+                  <span className="text-muted">{formatSoldQty(p, t)}</span>
+                </Card>
+              ))
+            )}
           </div>
         </ModuleSection>
       ) : null}

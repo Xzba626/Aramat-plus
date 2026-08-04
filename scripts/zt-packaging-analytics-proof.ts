@@ -20,8 +20,10 @@ async function main() {
 
   const data = await getAnalyticsBreakdown(company.id, "month");
   const names = [
+    ...(data.topSales ?? []).map((p: { name: string }) => p.name),
     ...data.products.map((p: { name: string }) => p.name),
     ...data.topUnsold.map((p: { name: string }) => p.name),
+    ...(data.noSales ?? []).map((p: { name: string }) => p.name),
   ];
 
   const leaks = packaging.filter((p) => names.includes(p.name));
