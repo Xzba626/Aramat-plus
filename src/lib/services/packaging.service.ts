@@ -548,8 +548,8 @@ export async function maybeNotifyLowBottleStock(params: {
   await notifyCompanyRoles({
     companyId: params.companyId,
     type: NotificationType.LOW_STOCK,
-    title: "Мало флаконов",
-    message: `${params.storeName}: «${params.skuName}» — осталось ${params.qtyAfter} шт`,
+    title: "notif.lowBottles",
+    message: `${params.storeName}: «${params.skuName}» — ${params.qtyAfter}`,
     entityType: "Product",
     entityId: params.packagingProductId,
   });

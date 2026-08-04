@@ -78,6 +78,13 @@ export default async function RootLayout({
 
   return (
     <html lang="ru" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var k="ap_theme";var t=localStorage.getItem(k)||((document.cookie.match(new RegExp("(?:^|; )"+k+"=([^;]*)"))||[])[1]);if(t==="dark")document.documentElement.classList.add("theme-dark");}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers companyName={companyName}>{children}</Providers>
       </body>

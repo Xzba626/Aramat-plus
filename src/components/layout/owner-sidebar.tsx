@@ -8,6 +8,7 @@ import {
   BarChart3,
   Bell,
   Boxes,
+  ClipboardList,
   Home,
   Package,
   PackagePlus,
@@ -39,6 +40,7 @@ const ICONS: Record<string, LucideIcon> = {
   sales: ShoppingBag,
   users: Users,
   notifications: Bell,
+  journal: ClipboardList,
   settings: Settings,
   // legacy aliases
   products: Package,

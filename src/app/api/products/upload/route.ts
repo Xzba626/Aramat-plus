@@ -7,6 +7,7 @@ import {
   isHeicLike,
   processAndSaveProductImage,
 } from "@/lib/services/product-image.service";
+import { resolveStorageProvider } from "@/lib/storage";
 
 /**
  * Product photo upload — thin auth wrapper around ProductImageService.
@@ -53,6 +54,7 @@ export async function POST(req: Request) {
       cause,
       stack,
       vercel: Boolean(process.env.VERCEL),
+      storageProvider: resolveStorageProvider(),
       hasBlobToken: Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim()),
     });
     if (err instanceof Error) {
@@ -63,6 +65,7 @@ export async function POST(req: Request) {
           {
             ...body,
             cause,
+            storageProvider: resolveStorageProvider(),
             hasBlobToken: Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim()),
           },
           { status: res.status }
@@ -75,6 +78,7 @@ export async function POST(req: Request) {
       {
         error: "IMAGE_PROCESS_FAILED",
         cause,
+        storageProvider: resolveStorageProvider(),
         hasBlobToken: Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim()),
       },
       { status: 400 }

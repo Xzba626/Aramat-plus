@@ -1,17 +1,17 @@
 {
   "totals": {
-    "ruKeys": 1394,
-    "tjKeys": 1394,
-    "shared": 1394,
+    "ruKeys": 1458,
+    "tjKeys": 1458,
+    "shared": 1458,
     "missingInTj": 0,
     "missingInRu": 0,
     "emptyRu": 0,
     "emptyTj": 0,
-    "activityActionsInCode": 42,
-    "actionsMissingFromACTION_KEYS": 0,
+    "activityActionsInCode": 44,
+    "actionsMissingFromACTION_KEYS": 1,
     "unresolvedLabelKeysRu": 0,
     "unresolvedLabelKeysTj": 0,
-    "hardcodedCyrillicSamples": 8
+    "hardcodedCyrillicSamples": 1
   },
   "missingInTjBySection": {},
   "missingInRuBySection": {},
@@ -19,39 +19,13 @@
   "missingInRu": [],
   "unresolvedRu": [],
   "unresolvedTj": [],
-  "actionsMissingMap": [],
+  "actionsMissingMap": [
+    "BRAND_ARCHIVE"
+  ],
   "hardcodedCyrillicSamples": [
-    {
-      "file": "src\\app\\(owner)\\settings\\wipe\\page.tsx",
-      "sample": "ОЧИСТИТЬ"
-    },
-    {
-      "file": "src\\app\\(seller)\\pos\\cart\\page.tsx",
-      "sample": "· ${b.volumeMl} мл"
-    },
-    {
-      "file": "src\\app\\(seller)\\pos\\page.tsx",
-      "sample": "мл"
-    },
-    {
-      "file": "src\\app\\(seller)\\pos\\page.tsx",
-      "sample": "· ${b.volumeMl} мл"
-    },
     {
       "file": "src\\components\\dashboard\\owner-dashboard-client.tsx",
       "sample": "Заканчиваются 0"
-    },
-    {
-      "file": "src\\components\\pos\\owner-direct-pos-client.tsx",
-      "sample": "мл"
-    },
-    {
-      "file": "src\\components\\pos\\owner-direct-pos-client.tsx",
-      "sample": "· мл"
-    },
-    {
-      "file": "src\\components\\pos\\owner-direct-pos-client.tsx",
-      "sample": "· ${b.volumeMl} мл"
     }
   ]
 }

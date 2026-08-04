@@ -124,7 +124,7 @@ export default function PosNotificationsPage() {
                 )}
               >
                 <div className="text-sm font-semibold text-ink">{title}</div>
-                <div className="mt-1 text-sm text-muted">{n.message}</div>
+                <div className="mt-1 text-sm whitespace-pre-line text-muted">{n.message}</div>
                 <div className="mt-2 text-xs text-muted">
                   {formatDateTime(n.createdAt)}
                 </div>

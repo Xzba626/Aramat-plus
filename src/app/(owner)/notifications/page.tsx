@@ -159,7 +159,7 @@ export default function NotificationsPage() {
                     <div className="font-semibold text-ink">
                       {resolveNotifTitle(n.title, n.titleKey, t)}
                     </div>
-                    <div className="text-sm text-muted">{n.message}</div>
+                    <div className="text-sm whitespace-pre-line text-muted">{n.message}</div>
                     <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted">
                       <span>{formatDateTime(n.createdAt)}</span>
                       {n.href ? (

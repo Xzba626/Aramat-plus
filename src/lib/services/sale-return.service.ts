@@ -170,8 +170,8 @@ export async function createSaleReturn(params: {
   await notifyCompanyRoles({
     companyId: params.companyId,
     type: "RETURN_REQUEST",
-    title: "Запрос на возврат",
-    message: `Запрос на возврат — ${sale.store.name}, чек №${sale.id.slice(-8).toUpperCase()}, ${productNames || "товары"}, ${reasonText}`,
+    title: "notif.returnRequest",
+    message: `${sale.store.name} · #${sale.id.slice(-8).toUpperCase()} · ${productNames || "—"} · ${reasonText}`,
     entityType: "SaleReturn",
     entityId: ret.id,
   });

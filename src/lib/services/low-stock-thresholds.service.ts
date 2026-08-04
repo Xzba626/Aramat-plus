@@ -160,7 +160,7 @@ export async function maybeNotifyLowMerchandiseStock(params: {
   const unit =
     params.accountingType === "WEIGHT" ? "мл" : "шт";
   const title =
-    status === "OUT" ? "Нет в наличии" : "Заканчивается";
+    status === "OUT" ? "notif.outOfStock" : "notif.lowStock";
   await notifyCompanyRoles({
     companyId: params.companyId,
     type: NotificationType.LOW_STOCK,

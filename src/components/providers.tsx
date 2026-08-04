@@ -8,6 +8,7 @@ import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persi
 import { get, set, del } from "idb-keyval";
 import { ToastProvider } from "@/components/ui/toast";
 import { I18nProvider } from "@/components/i18n/i18n-provider";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 import { CompanyBrandProvider } from "@/components/company/company-brand-provider";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import { InstallPrompt } from "@/components/pwa/install-prompt";
@@ -47,17 +48,19 @@ function AppProviders({
 }) {
   return (
     <SessionProvider>
-      <I18nProvider>
-        <CompanyBrandProvider initialName={companyName}>
-          <SyncStatusProvider>
-            <ToastProvider>
-              <ServiceWorkerRegister />
-              <InstallPrompt />
-              {children}
-            </ToastProvider>
-          </SyncStatusProvider>
-        </CompanyBrandProvider>
-      </I18nProvider>
+      <ThemeProvider>
+        <I18nProvider>
+          <CompanyBrandProvider initialName={companyName}>
+            <SyncStatusProvider>
+              <ToastProvider>
+                <ServiceWorkerRegister />
+                <InstallPrompt />
+                {children}
+              </ToastProvider>
+            </SyncStatusProvider>
+          </CompanyBrandProvider>
+        </I18nProvider>
+      </ThemeProvider>
     </SessionProvider>
   );
 }

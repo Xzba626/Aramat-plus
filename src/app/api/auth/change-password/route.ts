@@ -5,6 +5,7 @@ import { jsonOk, handleApiError } from "@/lib/api";
 import { requireOwner } from "@/lib/rbac";
 import bcrypt from "bcryptjs";
 import { logActivity } from "@/lib/services/activity-log.service";
+import { notifyPasswordChanged } from "@/lib/services/security-notify.service";
 
 export async function POST(req: Request) {
   try {
@@ -31,6 +32,8 @@ export async function POST(req: Request) {
       entityType: "User",
       entityId: user.id,
     });
+
+    void notifyPasswordChanged(user.id).catch(() => undefined);
 
     return jsonOk({ ok: true });
   } catch (err) {

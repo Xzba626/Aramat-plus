@@ -6,9 +6,11 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import { useSession } from "next-auth/react";
 import ru from "@/messages/ru.json";
 import tj from "@/messages/tj.json";
 import { translate } from "@/lib/i18n/translate";
@@ -71,9 +73,23 @@ function persistLocale(locale: Locale) {
   }
 }
 
+async function saveLocaleToProfile(locale: Locale) {
+  try {
+    await fetch("/api/me/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preferredLocale: locale }),
+    });
+  } catch {
+    /* offline / unauthenticated — cookie cache still works */
+  }
+}
+
 export function I18nProvider({ children }: { children: ReactNode }) {
+  const { status } = useSession();
   const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
   const [ready, setReady] = useState(false);
+  const syncedRef = useRef(false);
 
   useEffect(() => {
     const stored = readStoredLocale();
@@ -82,9 +98,45 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     setReady(true);
   }, []);
 
+  useEffect(() => {
+    if (status !== "authenticated" || syncedRef.current) return;
+    syncedRef.current = true;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/me/preferences");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        if (isLocale(data?.preferredLocale)) {
+          setLocaleState(data.preferredLocale);
+          persistLocale(data.preferredLocale);
+          return;
+        }
+        // First login on this account: persist device locale to profile
+        const local = readStoredLocale();
+        await saveLocaleToProfile(local);
+      } catch {
+        /* ignore */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      syncedRef.current = false;
+    }
+  }, [status]);
+
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
     persistLocale(next);
+    void saveLocaleToProfile(next);
   }, []);
 
   const t = useCallback(

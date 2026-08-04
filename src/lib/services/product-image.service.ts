@@ -2,15 +2,15 @@
  * Server-only product image processing (sharp + storage).
  * Do NOT import this from Client Components — use `@/lib/product-image-url`.
  *
- * Storage:
- * - Production (Vercel): Vercel Blob when `BLOB_READ_WRITE_TOKEN` is set
- * - Local/dev: `public/uploads/products/` on disk
+ * Storage goes through ImageStorageBackend (local FS / Vercel Blob / future S3).
  */
-import { mkdir, writeFile, unlink } from "fs/promises";
-import path from "path";
 import sharp from "sharp";
 import type { Metadata as SharpMetadata } from "sharp";
-import { del, put } from "@vercel/blob";
+import {
+  getImageStorage,
+  isStorageMisconfiguredForHost,
+} from "@/lib/storage";
+import { isVercelBlobUrl } from "@/lib/storage/vercel-blob.backend";
 import {
   productImageSrc,
   type ProductImageSize,
@@ -42,17 +42,6 @@ export type ProductImageVariants = {
     thumb: number;
   };
 };
-
-const UPLOAD_DIR = () =>
-  path.join(process.cwd(), "public", "uploads", "products");
-
-function useBlobStorage(): boolean {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
-}
-
-function isBlobUrl(url: string): boolean {
-  return /^https:\/\//i.test(url) && /blob\.vercel-storage\.com/i.test(url);
-}
 
 /** Magic-byte / MIME / extension gate for phone cameras (incl. octet-stream). */
 export function isAllowedProductImage(file: {
@@ -120,7 +109,6 @@ function mapProcessError(e: unknown, step?: string): never {
   if (/ENOENT|EACCES|EROFS|read-only|EPERM/i.test(msg)) {
     throw new Error("IMAGE_STORAGE_UNCONFIGURED");
   }
-  // TEMP RCA: keep original reason on Error.cause for upload route debug
   const wrapped = new Error("IMAGE_PROCESS_FAILED");
   (wrapped as Error & { detail?: string }).detail = `${step ?? "process"}:${msg}`.slice(
     0,
@@ -134,43 +122,30 @@ function mapProcessError(e: unknown, step?: string): never {
   throw wrapped;
 }
 
-/**
- * sharp Buffer may sit on SharedArrayBuffer; undici/fetch rejects that on Vercel.
- * Copy into a plain ArrayBuffer via Blob before @vercel/blob put().
- */
-function toBlobPutBody(buf: Buffer, contentType: string): Blob {
-  const copy = new Uint8Array(buf.byteLength);
-  copy.set(buf);
-  return new Blob([copy], { type: contentType });
-}
-
-async function saveToBlob(
+async function saveVariants(
   base: string,
   fullBuf: Buffer,
   mdBuf: Buffer,
   thumbBuf: Buffer
 ): Promise<Pick<ProductImageVariants, "imageUrl" | "variants">> {
-  const fullName = `products/${base}.webp`;
-  const mdName = `products/${base}-md.webp`;
-  const thumbName = `products/${base}-thumb.webp`;
+  const storage = getImageStorage();
   const contentType = "image/webp";
-
   try {
     const [full, md, thumb] = await Promise.all([
-      put(fullName, toBlobPutBody(fullBuf, contentType), {
-        access: "public",
+      storage.save({
+        key: `products/${base}.webp`,
+        body: fullBuf,
         contentType,
-        addRandomSuffix: false,
       }),
-      put(mdName, toBlobPutBody(mdBuf, contentType), {
-        access: "public",
+      storage.save({
+        key: `products/${base}-md.webp`,
+        body: mdBuf,
         contentType,
-        addRandomSuffix: false,
       }),
-      put(thumbName, toBlobPutBody(thumbBuf, contentType), {
-        access: "public",
+      storage.save({
+        key: `products/${base}-thumb.webp`,
+        body: thumbBuf,
         contentType,
-        addRandomSuffix: false,
       }),
     ]);
     return {
@@ -182,42 +157,9 @@ async function saveToBlob(
       },
     };
   } catch (e) {
-    console.error("[product-image] blob put failed", e);
-    mapProcessError(e, "blob_put");
+    console.error("[product-image] storage save failed", storage.id, e);
+    mapProcessError(e, `${storage.id}_save`);
   }
-}
-
-async function saveToLocalDisk(
-  base: string,
-  fullBuf: Buffer,
-  mdBuf: Buffer,
-  thumbBuf: Buffer
-): Promise<Pick<ProductImageVariants, "imageUrl" | "variants">> {
-  const uploadDir = UPLOAD_DIR();
-  const fullName = `${base}.webp`;
-  const mdName = `${base}-md.webp`;
-  const thumbName = `${base}-thumb.webp`;
-
-  try {
-    await mkdir(uploadDir, { recursive: true });
-    await Promise.all([
-      writeFile(path.join(uploadDir, fullName), fullBuf),
-      writeFile(path.join(uploadDir, mdName), mdBuf),
-      writeFile(path.join(uploadDir, thumbName), thumbBuf),
-    ]);
-  } catch (e) {
-    console.error("[product-image] local write failed", e);
-    mapProcessError(e, "local_write");
-  }
-
-  return {
-    imageUrl: `/uploads/products/${mdName}`,
-    variants: {
-      full: `/uploads/products/${fullName}`,
-      medium: `/uploads/products/${mdName}`,
-      thumb: `/uploads/products/${thumbName}`,
-    },
-  };
 }
 
 /**
@@ -230,10 +172,9 @@ export async function processAndSaveProductImage(
 ): Promise<ProductImageVariants> {
   if (!input.length) throw new Error("FILE_REQUIRED");
 
-  const onVercel = Boolean(process.env.VERCEL);
-  if (onVercel && !useBlobStorage()) {
+  if (isStorageMisconfiguredForHost()) {
     console.error(
-      "[product-image] Vercel deploy missing BLOB_READ_WRITE_TOKEN — filesystem uploads are not writable"
+      "[product-image] Host has read-only FS and no Blob token — set STORAGE_PROVIDER=vercel-blob + BLOB_READ_WRITE_TOKEN"
     );
     throw new Error("IMAGE_STORAGE_UNCONFIGURED");
   }
@@ -269,9 +210,7 @@ export async function processAndSaveProductImage(
     mapProcessError(e, "sharp_pipeline");
   }
 
-  const stored = useBlobStorage()
-    ? await saveToBlob(base, fullBuf, mdBuf, thumbBuf)
-    : await saveToLocalDisk(base, fullBuf, mdBuf, thumbBuf);
+  const stored = await saveVariants(base, fullBuf, mdBuf, thumbBuf);
 
   return {
     ...stored,
@@ -295,29 +234,19 @@ export async function deleteProductImageFiles(
   const full = productImageSrc(imageUrl, "full");
   const urls = [medium, thumb, full].filter(Boolean) as string[];
 
-  if (isBlobUrl(imageUrl) || useBlobStorage()) {
-    const blobUrls = urls.filter(isBlobUrl);
-    if (blobUrls.length) {
-      try {
-        await del(blobUrls);
-      } catch {
-        /* missing blob ok */
-      }
+  try {
+    const storage = getImageStorage();
+    if (isVercelBlobUrl(imageUrl) || storage.id === "vercel-blob") {
+      const blobUrls = urls.filter(isVercelBlobUrl);
+      if (blobUrls.length) await storage.delete(blobUrls);
+      return;
     }
-    return;
+    if (storage.ownsUrl(imageUrl) || imageUrl.startsWith("/uploads/products/")) {
+      await storage.delete(urls);
+    }
+  } catch {
+    /* best-effort */
   }
-
-  if (!imageUrl.startsWith("/uploads/products/")) return;
-  await Promise.all(
-    urls.map(async (rel) => {
-      if (!rel.startsWith("/")) return;
-      try {
-        await unlink(path.join(process.cwd(), "public", rel.replace(/^\//, "")));
-      } catch {
-        /* missing file ok */
-      }
-    })
-  );
 }
 
 /**

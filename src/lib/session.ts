@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/rbac";
@@ -6,8 +7,10 @@ import type { SessionUser } from "@/lib/rbac";
  * Session identity from Auth.js JWT, then **mutable fields from DB**.
  * Critical: storeId/role/isActive must not stay stale after Owner assigns a seller
  * to a store while the seller is already logged in.
+ *
+ * Wrapped in React `cache()` so layout + page share one DB hit per request.
  */
-export async function getSessionUser(): Promise<SessionUser | null> {
+export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const session = await auth();
   if (!session?.user?.id) return null;
 
@@ -34,4 +37,4 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     companyId: dbUser.companyId,
     storeId: dbUser.storeId,
   };
-}
+});

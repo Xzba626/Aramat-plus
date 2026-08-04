@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { Bell } from "lucide-react";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
+import { ThemeSwitcher } from "@/components/theme/theme-switcher";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { BrandMark } from "@/components/company/brand-mark";
 import { useCompanyBrand } from "@/components/company/company-brand-provider";
@@ -80,8 +81,11 @@ export function PosTopBar({
             </div>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="hidden shrink-0 items-center gap-1 sm:flex">
           <LanguageSwitcher />
+          <ThemeSwitcher />
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
           <Link
             href="/pos/notifications"
             className="relative rounded-xl p-2.5 text-muted hover:bg-page hover:text-ink"

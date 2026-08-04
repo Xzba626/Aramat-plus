@@ -13,6 +13,42 @@ import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { decimalToNumber } from "@/lib/utils";
 
+/** Shared ActivityLog metadata for reservation events (journal filters / product search). */
+export function reservationActivityMeta(params: {
+  storeId: string;
+  storeName?: string | null;
+  items: Array<{
+    productId: string;
+    quantity: number;
+    productName?: string | null;
+  }>;
+  extra?: Record<string, unknown>;
+}): Prisma.InputJsonValue {
+  const quantity = params.items.reduce((s, i) => s + i.quantity, 0);
+  const first = params.items[0];
+  const productNames = params.items
+    .map((i) => i.productName)
+    .filter((n): n is string => Boolean(n && String(n).trim()))
+    .join(", ");
+  return {
+    storeId: params.storeId,
+    ...(params.storeName ? { storeName: params.storeName } : {}),
+    productId: first?.productId ?? null,
+    productName:
+      first?.productName ||
+      (params.items.length > 1 ? `${params.items.length} SKU` : null),
+    productNames: productNames || null,
+    quantity: Math.round(quantity * 1000) / 1000,
+    itemCount: params.items.length,
+    items: params.items.map((i) => ({
+      productId: i.productId,
+      quantity: i.quantity,
+      ...(i.productName ? { productName: i.productName } : {}),
+    })),
+    ...(params.extra ?? {}),
+  };
+}
+
 /** @deprecated Cart holds have no TTL; kept for optional legacy manual TTL. */
 export const DEFAULT_RESERVATION_TTL_MS = 30 * 60 * 1000;
 
@@ -60,7 +96,18 @@ export async function expireStaleReservations(
   };
   const stale = await tx.reservation.findMany({
     where,
-    select: { id: true, companyId: true },
+    select: {
+      id: true,
+      companyId: true,
+      storeId: true,
+      items: {
+        select: {
+          productId: true,
+          quantity: true,
+          product: { select: { name: true } },
+        },
+      },
+    },
     take: 200,
   });
   if (!stale.length) return 0;
@@ -77,6 +124,14 @@ export async function expireStaleReservations(
         action: "RESERVATION_EXPIRE",
         entityType: "Reservation",
         entityId: row.id,
+        metadata: reservationActivityMeta({
+          storeId: row.storeId,
+          items: row.items.map((i) => ({
+            productId: i.productId,
+            quantity: decimalToNumber(i.quantity),
+            productName: i.product.name,
+          })),
+        }),
       }).catch(() => undefined);
     }
   }
@@ -403,13 +458,20 @@ export async function createReservation(params: {
         entityType: "Reservation",
         entityId: created.id,
         comment: `${loc.storeName} · ${lines.length} SKU · hold until sale/cancel`,
-        metadata: {
+        metadata: reservationActivityMeta({
           storeId: params.storeId,
-          locationType: loc.locationType,
-          locationId: loc.locationId,
-          expiresAt: expiresAt?.toISOString() ?? null,
-          items: lines,
-        },
+          storeName: loc.storeName,
+          items: created.items.map((i) => ({
+            productId: i.productId,
+            quantity: decimalToNumber(i.quantity),
+            productName: i.product.name,
+          })),
+          extra: {
+            locationType: loc.locationType,
+            locationId: loc.locationId,
+            expiresAt: expiresAt?.toISOString() ?? null,
+          },
+        }),
       });
 
       return created;
@@ -479,6 +541,15 @@ export async function cancelReservation(params: {
         entityType: "Reservation",
         entityId: row.id,
         comment: row.store.name,
+        metadata: reservationActivityMeta({
+          storeId: row.storeId,
+          storeName: row.store.name,
+          items: row.items.map((i) => ({
+            productId: i.productId,
+            quantity: decimalToNumber(i.quantity),
+            productName: i.product.name,
+          })),
+        }),
       });
 
       return updated;
@@ -611,6 +682,16 @@ export async function completeReservationInTx(
     companyId: string;
   }
 ) {
+  const existing = await tx.reservation.findFirst({
+    where: { id: params.reservationId, companyId: params.companyId },
+    include: {
+      store: { select: { name: true } },
+      items: {
+        include: { product: { select: { name: true } } },
+      },
+    },
+  });
+
   await tx.reservation.update({
     where: { id: params.reservationId },
     data: {
@@ -626,7 +707,16 @@ export async function completeReservationInTx(
     entityType: "Reservation",
     entityId: params.reservationId,
     comment: params.saleId,
-    metadata: { saleId: params.saleId },
+    metadata: reservationActivityMeta({
+      storeId: existing?.storeId ?? "",
+      storeName: existing?.store.name,
+      items: (existing?.items ?? []).map((i) => ({
+        productId: i.productId,
+        quantity: decimalToNumber(i.quantity),
+        productName: i.product.name,
+      })),
+      extra: { saleId: params.saleId },
+    }),
   });
 }
 
@@ -745,6 +835,11 @@ export async function syncSellerCartReservation(params: {
         entityType: "Reservation",
         entityId: existing.id,
         comment: "cart cleared",
+        metadata: reservationActivityMeta({
+          storeId: existing.storeId,
+          items: [],
+          extra: { cartAutosave: true, reason: "cart_cleared" },
+        }),
       });
     }
     return null;
@@ -854,7 +949,20 @@ export async function syncSellerCartReservation(params: {
         entityType: "Reservation",
         entityId: created.id,
         comment: `cart autosave · ${loc.storeName}`,
-        metadata: { items: lines, cartAutosave: true },
+        metadata: reservationActivityMeta({
+          storeId: params.storeId,
+          storeName: loc.storeName,
+          items: created.items.map((i) => ({
+            productId: i.productId,
+            quantity: decimalToNumber(i.quantity),
+            productName: i.product.name,
+          })),
+          extra: {
+            cartAutosave: true,
+            locationType: loc.locationType,
+            locationId: loc.locationId,
+          },
+        }),
       });
 
       return serializeReservation(created);

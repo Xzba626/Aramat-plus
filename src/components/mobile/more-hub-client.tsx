@@ -5,10 +5,7 @@ import { signOut } from "next-auth/react";
 import {
   AlertTriangle,
   Bell,
-  BookOpen,
   Boxes,
-  Building2,
-  KeyRound,
   ScrollText,
   Settings,
   ShoppingBag,
@@ -17,7 +14,7 @@ import {
   ChevronRight,
   Wallet,
 } from "lucide-react";
-import { LanguageSwitcher } from "@/components/i18n/language-switcher";
+import { PreferenceControls } from "@/components/preferences/preference-controls";
 import { useT } from "@/components/i18n/i18n-provider";
 import { cn } from "@/lib/utils";
 
@@ -74,24 +71,6 @@ const LINKS = [
     tone: "neutral" as const,
   },
   {
-    href: "/settings/company",
-    labelKey: "nav.settingsBackup",
-    icon: Building2,
-    tone: "neutral" as const,
-  },
-  {
-    href: "/settings/password",
-    labelKey: "common.changePassword",
-    icon: KeyRound,
-    tone: "neutral" as const,
-  },
-  {
-    href: "/settings/references",
-    labelKey: "dashboard.moreReferences",
-    icon: BookOpen,
-    tone: "neutral" as const,
-  },
-  {
     href: "/settings",
     labelKey: "nav.settingsWorkspace",
     icon: Settings,
@@ -118,9 +97,9 @@ export function MoreHubClient() {
 
       <section className="rounded-[20px] border border-border bg-card p-4 shadow-[var(--shadow-card)]">
         <div className="mb-3 text-xs font-bold uppercase tracking-wide text-muted">
-          {t("dashboard.moreLanguage")}
+          {t("settingsSub.preferences")}
         </div>
-        <LanguageSwitcher />
+        <PreferenceControls layout="stack" showLabels />
       </section>
 
       <section className="space-y-2">

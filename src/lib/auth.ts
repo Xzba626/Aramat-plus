@@ -6,6 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { authConfig } from "@/lib/auth.config";
 import { logActivity } from "@/lib/services/activity-log.service";
+import {
+  clientIpFromHeaders,
+  parseUserAgent,
+} from "@/lib/security/client-fingerprint";
+import { notifyIfNewLogin } from "@/lib/services/security-notify.service";
 
 declare module "next-auth" {
   interface User {
@@ -115,13 +120,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: { label: "email", type: "email" },
         password: { label: "password", type: "password" },
       },
-      async authorize(raw) {
+      async authorize(raw, request) {
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
 
         const email = parsed.data.email.toLowerCase();
-        const ip = null;
-        const userAgent = null;
+        const headers =
+          request && typeof (request as Request).headers?.get === "function"
+            ? (request as Request).headers
+            : null;
+        const ip = headers ? clientIpFromHeaders(headers) : null;
+        const userAgent = headers?.get("user-agent") ?? null;
+        const deviceInfo = parseUserAgent(userAgent);
 
         const user = await prisma.user.findUnique({
           where: { email },
@@ -138,7 +148,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             result: "FAIL",
             ip,
             userAgent,
-            metadata: { email },
+            metadata: {
+              email,
+              browser: deviceInfo.browser,
+              device: deviceInfo.device,
+              os: deviceInfo.os,
+              fingerprint: deviceInfo.fingerprint,
+            },
           });
           return null;
         }
@@ -158,6 +174,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               email,
               failedLoginCount: user.failedLoginCount,
               lockedUntil: user.lockedUntil.toISOString(),
+              browser: deviceInfo.browser,
+              device: deviceInfo.device,
+              os: deviceInfo.os,
+              fingerprint: deviceInfo.fingerprint,
             },
           });
           return null;
@@ -193,6 +213,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               email,
               failedLoginCount: failCount,
               lockedUntil: lockedUntil?.toISOString() ?? null,
+              browser: deviceInfo.browser,
+              device: deviceInfo.device,
+              os: deviceInfo.os,
+              fingerprint: deviceInfo.fingerprint,
             },
           });
           return null;
@@ -207,7 +231,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           },
         });
 
-        await logActivity({
+        const loginLog = await logActivity({
           companyId: user.companyId,
           userId: user.id,
           action: "LOGIN",
@@ -216,7 +240,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           result: "SUCCESS",
           ip,
           userAgent,
+          metadata: {
+            browser: deviceInfo.browser,
+            device: deviceInfo.device,
+            os: deviceInfo.os,
+            fingerprint: deviceInfo.fingerprint,
+          },
         });
+
+        // Fire-and-forget — login must not fail if notify throws
+        void notifyIfNewLogin({
+          userId: user.id,
+          ip,
+          userAgent,
+          excludeLogId: loginLog.id,
+        }).catch(() => undefined);
 
         return {
           id: user.id,

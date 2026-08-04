@@ -81,6 +81,8 @@ export default auth((req) => {
       "/users",
       "/journal",
       "/settings/wipe",
+      "/settings/system",
+      "/settings/references",
       "/warehouse/write-offs",
     ];
     if (managerBlockedPrefixes.some((p) => pathname.startsWith(p))) {

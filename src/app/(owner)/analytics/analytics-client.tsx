@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -103,27 +103,65 @@ function tabFromView(view: string | null): Tab {
   return "network";
 }
 
-export default function AnalyticsClient() {
+export default function AnalyticsClient({
+  initial,
+  initialPeriod = "today",
+}: {
+  initial?: {
+    network: Network | null;
+    stores: StoreRow[];
+    products: ProductRow[];
+    topSales?: ProductRow[];
+    topUnsold?: ProductRow[];
+    noSales?: ProductRow[];
+    sellers: SellerRow[];
+    expenses?: { items: ExpenseRow[]; total: number };
+    categories?: NamedAgg[];
+    productTypes?: NamedAgg[];
+  } | null;
+  initialPeriod?: Period;
+}) {
   const { t, formatMoney, formatDate } = useI18n();
   const searchParams = useSearchParams();
   const view = searchParams.get("view");
   const focus = searchParams.get("focus");
 
   const [tab, setTab] = useState<Tab>(() => tabFromView(view));
-  const [period, setPeriod] = useState<Period>("today");
-  const [network, setNetwork] = useState<Network | null>(null);
-  const [stores, setStores] = useState<StoreRow[]>([]);
-  const [products, setProducts] = useState<ProductRow[]>([]);
-  const [topSales, setTopSales] = useState<ProductRow[]>([]);
-  const [topUnsold, setTopUnsold] = useState<ProductRow[]>([]);
-  const [noSales, setNoSales] = useState<ProductRow[]>([]);
-  const [sellers, setSellers] = useState<SellerRow[]>([]);
-  const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
-  const [expenseTotal, setExpenseTotal] = useState(0);
-  const [categories, setCategories] = useState<NamedAgg[]>([]);
-  const [productTypes, setProductTypes] = useState<NamedAgg[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState<Period>(initialPeriod);
+  const [network, setNetwork] = useState<Network | null>(
+    () => initial?.network ?? null
+  );
+  const [stores, setStores] = useState<StoreRow[]>(() => initial?.stores ?? []);
+  const [products, setProducts] = useState<ProductRow[]>(
+    () => initial?.products ?? []
+  );
+  const [topSales, setTopSales] = useState<ProductRow[]>(
+    () => initial?.topSales ?? initial?.products ?? []
+  );
+  const [topUnsold, setTopUnsold] = useState<ProductRow[]>(
+    () => initial?.topUnsold ?? []
+  );
+  const [noSales, setNoSales] = useState<ProductRow[]>(
+    () => initial?.noSales ?? []
+  );
+  const [sellers, setSellers] = useState<SellerRow[]>(
+    () => initial?.sellers ?? []
+  );
+  const [expenses, setExpenses] = useState<ExpenseRow[]>(
+    () => initial?.expenses?.items ?? []
+  );
+  const [expenseTotal, setExpenseTotal] = useState(
+    () => initial?.expenses?.total ?? 0
+  );
+  const [categories, setCategories] = useState<NamedAgg[]>(
+    () => initial?.categories ?? []
+  );
+  const [productTypes, setProductTypes] = useState<NamedAgg[]>(
+    () => initial?.productTypes ?? []
+  );
+  const [loading, setLoading] = useState(!initial);
   const [q, setQ] = useState("");
+  const bootstrappedPeriod = useRef(initial ? initialPeriod : null);
 
   useEffect(() => {
     setTab(tabFromView(view));
@@ -135,9 +173,9 @@ export default function AnalyticsClient() {
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [focus, tab, network, loading]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (nextPeriod: Period) => {
     setLoading(true);
-    const analyticsRes = await fetch(`/api/analytics?period=${period}`);
+    const analyticsRes = await fetch(`/api/analytics?period=${nextPeriod}`);
     const analyticsData = await analyticsRes.json();
     if (analyticsRes.ok) {
       setNetwork(analyticsData.network ?? null);
@@ -153,11 +191,15 @@ export default function AnalyticsClient() {
       setProductTypes(analyticsData.productTypes ?? []);
     }
     setLoading(false);
-  }, [period]);
+  }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (bootstrappedPeriod.current === period) {
+      bootstrappedPeriod.current = null;
+      return;
+    }
+    void load(period);
+  }, [period, load]);
 
   const filteredTopSales = useMemo(
     () =>

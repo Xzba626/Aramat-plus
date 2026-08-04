@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { revalidateTag } from "next/cache";
 import { getSessionUser } from "@/lib/session";
 import { requireOwner, requireOwnerOrManager } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/services/activity-log.service";
+import { COMPANY_BRAND_TAG } from "@/lib/company-cache";
 
 const patchSchema = z.object({
   name: z.string().min(1).max(120).optional(),
@@ -53,6 +55,11 @@ export async function PATCH(req: Request) {
       entityId: company.id,
       metadata: body,
     });
+
+    if (body.name != null) {
+      revalidateTag(COMPANY_BRAND_TAG, { expire: 0 });
+      revalidateTag(`${COMPANY_BRAND_TAG}:${user!.companyId}`, { expire: 0 });
+    }
 
     return jsonOk(company);
   } catch (err) {

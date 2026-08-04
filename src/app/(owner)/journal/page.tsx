@@ -1,73 +1,217 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   ModuleSection,
   ModuleWorkspace,
 } from "@/components/ui/module-workspace";
-import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { labelAction, labelActionComment, labelActivityActor, labelEntity, labelRole } from "@/lib/i18n/labels";
+import { labelRole } from "@/lib/i18n/labels";
+import {
+  JOURNAL_TAB_CATEGORIES,
+  type ActivityLogCategory,
+} from "@/lib/activity-log-categories";
+import {
+  JournalFilterSelect,
+  type JournalSelectOption,
+} from "@/components/journal/journal-filter-select";
+import {
+  JournalEventCard,
+  type JournalLogRow,
+} from "@/components/journal/journal-event-card";
+import { cn } from "@/lib/utils";
 
-type LogRow = {
-  id: string;
-  createdAt: string;
-  userName: string | null;
-  role: string | null;
-  action: string;
-  entityType: string;
-  entityId: string | null;
-  comment: string | null;
-  result: string | null;
-  email?: string | null;
-  metadata?: { email?: string | null } | null;
+type PeriodKey = "all" | "today" | "week" | "month" | "year";
+
+type Filters = {
+  category: string;
+  userId: string;
+  role: string;
+  storeId: string;
+  period: PeriodKey;
+  q: string;
 };
 
-type Tab = "all" | "warehouse" | "sales" | "users";
+const DEFAULT_FILTERS: Filters = {
+  category: "all",
+  userId: "",
+  role: "",
+  storeId: "",
+  period: "all",
+  q: "",
+};
+
+type UserOpt = { id: string; name: string; role: string };
+type StoreOpt = { id: string; name: string };
+
+function categoryLabelKey(cat: ActivityLogCategory | "all"): string {
+  if (cat === "all") return "journalPage.tabAll";
+  if (cat === "logins") return "journalPage.catLogins";
+  if (cat === "passwords") return "journalPage.catPasswords";
+  if (cat === "sales") return "journalPage.catSales";
+  if (cat === "returns") return "journalPage.catReturns";
+  if (cat === "discounts") return "journalPage.catDiscounts";
+  if (cat === "warehouse") return "journalPage.catWarehouse";
+  if (cat === "products") return "journalPage.catProducts";
+  if (cat === "users") return "journalPage.catUsers";
+  if (cat === "settings") return "journalPage.catSettings";
+  return "journalPage.catOther";
+}
 
 export default function JournalPage() {
-  const { t, formatDate, formatTime } = useI18n();
-  const [rows, setRows] = useState<LogRow[]>([]);
+  const { t } = useI18n();
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [qDraft, setQDraft] = useState("");
+  const [page, setPage] = useState(1);
+  const [items, setItems] = useState<JournalLogRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<Tab>("all");
-  const [q, setQ] = useState("");
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [users, setUsers] = useState<UserOpt[]>([]);
+  const [stores, setStores] = useState<StoreOpt[]>([]);
 
   useEffect(() => {
     let alive = true;
-    async function load() {
-      const res = await fetch("/api/journal");
-      const data = await res.json();
+    (async () => {
+      const [uRes, sRes] = await Promise.all([
+        fetch("/api/users"),
+        fetch("/api/stores"),
+      ]);
+      const uData = await uRes.json();
+      const sData = await sRes.json();
       if (!alive) return;
-      if (res.ok && Array.isArray(data)) setRows(data);
-      setLoading(false);
-    }
-    load();
+      if (uRes.ok && Array.isArray(uData)) {
+        setUsers(
+          uData.map((u: { id: string; name: string; role: string }) => ({
+            id: u.id,
+            name: u.name,
+            role: u.role,
+          }))
+        );
+      }
+      if (sRes.ok && Array.isArray(sData)) {
+        setStores(
+          sData.map((s: { id: string; name: string }) => ({
+            id: s.id,
+            name: s.name,
+          }))
+        );
+      }
+    })();
     return () => {
       alive = false;
     };
   }, []);
 
-  const filtered = useMemo(() => {
-    return rows.filter((log) => {
-      const blob =
-        `${log.action} ${log.entityType} ${log.userName ?? ""} ${log.comment ?? ""}`.toLowerCase();
-      const matchQ = !q.trim() || blob.includes(q.toLowerCase());
-      if (!matchQ) return false;
-      if (tab === "warehouse")
-        return /warehouse|batch|transfer|stock|product|return|write/i.test(blob);
-      if (tab === "sales") return /sale|discount|pos|payment/i.test(blob);
-      if (tab === "users") return /user|password|login|role/i.test(blob);
-      return true;
-    });
-  }, [rows, tab, q]);
+  const buildParams = useCallback(
+    (nextPage: number) => {
+      const sp = new URLSearchParams();
+      sp.set("page", String(nextPage));
+      sp.set("limit", "30");
+      if (filters.category !== "all") sp.set("category", filters.category);
+      if (filters.userId) sp.set("userId", filters.userId);
+      if (filters.role) sp.set("role", filters.role);
+      if (filters.storeId) sp.set("storeId", filters.storeId);
+      if (filters.period !== "all") sp.set("period", filters.period);
+      if (filters.q.trim()) sp.set("q", filters.q.trim());
+      return sp;
+    },
+    [filters]
+  );
 
-  const tabs: { id: Tab; labelKey: string }[] = [
-    { id: "all", labelKey: "journalPage.tabAll" },
-    { id: "warehouse", labelKey: "journalPage.tabWarehouse" },
-    { id: "sales", labelKey: "journalPage.tabSales" },
-    { id: "users", labelKey: "journalPage.tabUsers" },
-  ];
+  const load = useCallback(
+    async (nextPage: number, mode: "replace" | "append") => {
+      if (mode === "replace") setLoading(true);
+      else setLoadingMore(true);
+
+      const res = await fetch(`/api/journal?${buildParams(nextPage).toString()}`);
+      const data = await res.json();
+      if (res.ok && data && Array.isArray(data.items)) {
+        setItems((prev) =>
+          mode === "append" ? [...prev, ...data.items] : data.items
+        );
+        setTotal(Number(data.total) || 0);
+        setPages(Number(data.pages) || 1);
+        setPage(nextPage);
+      } else if (mode === "replace") {
+        setItems([]);
+        setTotal(0);
+        setPages(1);
+      }
+      setLoading(false);
+      setLoadingMore(false);
+    },
+    [buildParams]
+  );
+
+  useEffect(() => {
+    void load(1, "replace");
+  }, [load]);
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setFilters((f) => {
+        if (f.q === qDraft) return f;
+        return { ...f, q: qDraft };
+      });
+    }, 300);
+    return () => clearTimeout(id);
+  }, [qDraft]);
+
+  function patchFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
+    setFilters((f) => ({ ...f, [key]: value }));
+  }
+
+  function exportCsv() {
+    const sp = buildParams(1);
+    sp.delete("page");
+    sp.delete("limit");
+    sp.set("format", "csv");
+    window.open(`/api/journal/export?${sp.toString()}`, "_blank");
+  }
+
+  const hasMore = page < pages;
+
+  const userOptions: JournalSelectOption[] = useMemo(
+    () => [
+      { value: "", label: t("journalPage.allUsers") },
+      ...users.map((u) => ({ value: u.id, label: u.name })),
+    ],
+    [t, users]
+  );
+
+  const roleOptions: JournalSelectOption[] = useMemo(
+    () => [
+      { value: "", label: t("journalPage.allRoles") },
+      { value: "OWNER", label: labelRole("OWNER", t) },
+      { value: "MANAGER", label: labelRole("MANAGER", t) },
+      { value: "SELLER", label: labelRole("SELLER", t) },
+    ],
+    [t]
+  );
+
+  const storeOptions: JournalSelectOption[] = useMemo(
+    () => [
+      { value: "", label: t("journalPage.allStores") },
+      ...stores.map((s) => ({ value: s.id, label: s.name })),
+    ],
+    [t, stores]
+  );
+
+  const periodOptions: JournalSelectOption[] = useMemo(
+    () => [
+      { value: "all", label: t("journalPage.periodAll") },
+      { value: "today", label: t("journalPage.periodToday") },
+      { value: "week", label: t("journalPage.periodWeek") },
+      { value: "month", label: t("journalPage.periodMonth") },
+      { value: "year", label: t("journalPage.periodYear") },
+    ],
+    [t]
+  );
 
   return (
     <ModuleWorkspace
@@ -76,11 +220,11 @@ export default function JournalPage() {
       kpis={[
         {
           label: t("journalPage.loaded"),
-          value: loading ? "…" : String(rows.length),
+          value: loading ? "…" : String(total),
         },
         {
           label: t("journalPage.onScreen"),
-          value: loading ? "…" : String(filtered.length),
+          value: loading ? "…" : String(items.length),
         },
         {
           label: t("journalPage.deletion"),
@@ -88,111 +232,125 @@ export default function JournalPage() {
           hint: t("journalPage.deletionHint"),
         },
       ]}
+      actions={
+        <Button
+          type="button"
+          variant="secondary"
+          fullWidth={false}
+          className="text-xs sm:text-sm"
+          onClick={exportCsv}
+          disabled={loading || total === 0}
+        >
+          {t("journalPage.exportCsv")}
+        </Button>
+      }
     >
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        {tabs.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setTab(item.id)}
-            className={cn(
-              "rounded-xl px-3.5 py-2 text-sm font-semibold",
-              tab === item.id
-                ? "bg-brand text-white"
-                : "bg-card text-muted ring-1 ring-border"
-            )}
-          >
-            {t(item.labelKey)}
-          </button>
-        ))}
+      {/* Category tabs → real ?category= server filters */}
+      <div className="-mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {JOURNAL_TAB_CATEGORIES.map((cat) => {
+          const active = filters.category === cat;
+          return (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => patchFilter("category", cat)}
+              className={cn(
+                "shrink-0 rounded-xl px-3 py-2 text-xs font-semibold transition sm:px-3.5 sm:text-sm",
+                active
+                  ? "bg-brand text-white"
+                  : "bg-card text-muted ring-1 ring-border hover:text-ink"
+              )}
+            >
+              {t(categoryLabelKey(cat))}
+            </button>
+          );
+        })}
       </div>
 
-      <input
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder={t("journalPage.search")}
-        className="mb-4 w-full max-w-lg rounded-xl border border-border bg-card px-3 py-2 text-sm"
-      />
+      <Card className="mb-4 space-y-3 p-3 sm:p-4">
+        <input
+          value={qDraft}
+          onChange={(e) => setQDraft(e.target.value)}
+          placeholder={t("journalPage.search")}
+          className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm"
+        />
+        <details className="group">
+          <summary className="cursor-pointer list-none text-sm font-semibold text-ink marker:content-none [&::-webkit-details-marker]:hidden">
+            <span className="inline-flex items-center gap-1">
+              {t("journalPage.moreFilters")}
+              <span className="text-muted group-open:hidden">▸</span>
+              <span className="hidden text-muted group-open:inline">▾</span>
+            </span>
+          </summary>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <JournalFilterSelect
+              label={t("journalPage.filterUser")}
+              value={filters.userId}
+              options={userOptions}
+              onChange={(v) => patchFilter("userId", v)}
+            />
+            <JournalFilterSelect
+              label={t("journalPage.filterRole")}
+              value={filters.role}
+              options={roleOptions}
+              onChange={(v) => patchFilter("role", v)}
+            />
+            <JournalFilterSelect
+              label={t("journalPage.filterStore")}
+              value={filters.storeId}
+              options={storeOptions}
+              onChange={(v) => patchFilter("storeId", v)}
+            />
+            <JournalFilterSelect
+              label={t("journalPage.filterPeriod")}
+              value={filters.period}
+              options={periodOptions}
+              onChange={(v) => patchFilter("period", v as PeriodKey)}
+            />
+          </div>
+        </details>
+      </Card>
 
       <ModuleSection title={t("journalPage.log")}>
         {loading ? (
           <Card className="p-5 text-sm text-muted">{t("common.loading")}</Card>
-        ) : filtered.length === 0 ? (
-          <Card className="p-8 text-center text-sm text-muted">
-            {t("journalPage.empty")}
-          </Card>
+        ) : items.length === 0 ? (
+          <EmptyState
+            title={t("journalPage.emptyTitle")}
+            description={t("journalPage.emptyDesc")}
+          />
         ) : (
-          <Card className="overflow-hidden p-0">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-border bg-page/80 text-xs uppercase tracking-wide text-muted">
-                  <tr>
-                    <th className="px-4 py-3 font-semibold">
-                      {t("journalPage.colDate")}
-                    </th>
-                    <th className="px-4 py-3 font-semibold">
-                      {t("journalPage.colTime")}
-                    </th>
-                    <th className="px-4 py-3 font-semibold">
-                      {t("journalPage.colUser")}
-                    </th>
-                    <th className="px-4 py-3 font-semibold">
-                      {t("journalPage.colRole")}
-                    </th>
-                    <th className="px-4 py-3 font-semibold">
-                      {t("journalPage.colAction")}
-                    </th>
-                    <th className="px-4 py-3 font-semibold">
-                      {t("journalPage.colObject")}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((log) => {
-                    const d = new Date(log.createdAt);
-                    return (
-                      <tr
-                        key={log.id}
-                        className="border-b border-border last:border-0"
-                      >
-                        <td className="px-4 py-3 tabular-nums text-muted">
-                          {formatDate(d, {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                          })}
-                        </td>
-                        <td className="px-4 py-3 tabular-nums text-muted">
-                          {formatTime(d)}
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-ink">
-                          {labelActivityActor(log, t)}
-                        </td>
-                        <td className="px-4 py-3 text-muted">
-                          {log.action === "LOGIN_FAIL" ||
-                          log.action === "LOGIN_LOCKED"
-                            ? "—"
-                            : labelRole(log.role, t)}
-                        </td>
-                        <td className="px-4 py-3 text-ink">
-                          {labelAction(log.action, t)}
-                          {log.comment ? (
-                            <span className="block text-xs text-muted">
-                              {labelActionComment(log.comment, t) ?? log.comment}
-                            </span>
-                          ) : null}
-                        </td>
-                        <td className="px-4 py-3 text-muted">
-                          {labelEntity(log.entityType, t)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+          <div className="space-y-2">
+            {items.map((log) => (
+              <JournalEventCard key={log.id} log={log} />
+            ))}
+          </div>
         )}
+
+        {!loading && hasMore ? (
+          <div className="mt-4 flex justify-center px-1">
+            <Button
+              type="button"
+              variant="secondary"
+              className="min-h-12 w-full max-w-md sm:w-auto"
+              disabled={loadingMore}
+              onClick={() => void load(page + 1, "append")}
+            >
+              {loadingMore
+                ? t("common.loading")
+                : t("journalPage.loadMore")}
+            </Button>
+          </div>
+        ) : null}
+
+        {!loading && total > 0 ? (
+          <p className="mt-3 text-center text-xs text-muted">
+            {t("journalPage.showingOf", {
+              shown: items.length,
+              total,
+            })}
+          </p>
+        ) : null}
       </ModuleSection>
     </ModuleWorkspace>
   );

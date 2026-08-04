@@ -9,6 +9,8 @@ import { Bell, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sectionTitleKeyForPath } from "@/lib/navigation/owner-nav";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
+import { ThemeSwitcher } from "@/components/theme/theme-switcher";
+import { PreferenceControls } from "@/components/preferences/preference-controls";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { labelRole } from "@/lib/i18n/labels";
 import { BrandMark } from "@/components/company/brand-mark";
@@ -116,7 +118,10 @@ export function OwnerTopBar({
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <SyncStatusDot />
-          <LanguageSwitcher className="hidden sm:inline-flex" />
+          <div className="hidden items-center gap-1.5 sm:flex">
+            <LanguageSwitcher />
+            <ThemeSwitcher />
+          </div>
 
           <Link
             href="/notifications"
@@ -146,10 +151,17 @@ export function OwnerTopBar({
                 <div className="border-b border-border px-3 py-2">
                   <p className="truncate text-sm font-semibold text-ink">{userName}</p>
                   <p className="text-xs text-muted">{labelRole(role, t)}</p>
-                  <div className="mt-2 sm:hidden">
-                    <LanguageSwitcher />
+                  <div className="mt-2 space-y-2 sm:hidden">
+                    <PreferenceControls layout="stack" showLabels />
                   </div>
                 </div>
+                <Link
+                  href="/settings/profile"
+                  className="block px-3 py-2 text-sm text-ink hover:bg-page"
+                  onClick={() => setProfileOpen(false)}
+                >
+                  {t("common.profile")}
+                </Link>
                 <Link
                   href="/settings"
                   className="block px-3 py-2 text-sm text-ink hover:bg-page"
@@ -158,11 +170,11 @@ export function OwnerTopBar({
                   {t("common.settings")}
                 </Link>
                 <Link
-                  href="/settings/password"
+                  href="/settings/security"
                   className="block px-3 py-2 text-sm text-ink hover:bg-page"
                   onClick={() => setProfileOpen(false)}
                 >
-                  {t("common.changePassword")}
+                  {t("settingsCenter.security")}
                 </Link>
                 <button
                   type="button"

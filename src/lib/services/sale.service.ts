@@ -469,12 +469,23 @@ export async function createSale(params: {
     comment: `${store.name} · ${decimalToNumber(committed.total)}`,
     metadata: {
       storeId: store.id,
+      storeName: store.name,
       locationType,
       locationId,
       itemCount: params.items.length,
+      productId: params.items[0]?.productId ?? null,
+      productName:
+        productById.get(params.items[0]?.productId ?? "")?.name ??
+        (params.items.length > 1 ? `${params.items.length} SKU` : null),
+      productNames: params.items
+        .map((i) => productById.get(i.productId)?.name)
+        .filter(Boolean)
+        .join(", "),
+      quantity: params.items.reduce((s, i) => s + i.quantity, 0),
       originalAmount: committed.subtotal.toString(),
       discountAmount: committed.discount.toString(),
       finalAmount: committed.total.toString(),
+      amount: committed.total.toString(),
       discountRequestId: params.discountRequestId ?? null,
       reservationId: params.reservationId ?? null,
     },

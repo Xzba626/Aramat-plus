@@ -105,7 +105,6 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     roles: [Role.OWNER],
     children: [
       { href: "/users", labelKey: "nav.users" },
-      { href: "/journal", labelKey: "nav.journal" },
     ],
   },
   {
@@ -115,19 +114,18 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     icon: "notifications",
   },
   {
+    id: "journal",
+    labelKey: "nav.journal",
+    href: "/journal",
+    icon: "journal",
+    roles: [Role.OWNER],
+  },
+  {
     id: "settings",
     labelKey: "nav.settingsWorkspace",
     href: "/settings",
     icon: "settings",
-    children: [
-      { href: "/settings/company", labelKey: "nav.settingsBackup" },
-      { href: "/settings/password", labelKey: "nav.settingsPassword" },
-      {
-        href: "/settings/wipe",
-        labelKey: "nav.settingsDemo",
-        roles: [Role.OWNER],
-      },
-    ],
+    // Single hub entry — nested settings live inside /settings (Settings Center)
   },
 ];
 
@@ -164,8 +162,8 @@ export function isPathActive(
   } else if (pathOnly === "/analytics") {
     pathOk = pathname === "/analytics" || pathname.startsWith("/analytics");
   } else if (pathOnly === "/settings") {
-    // Exact only — avoid "Настройки → Настройки" when any /settings/* is open
-    pathOk = pathname === "/settings" || pathname === "/settings/";
+    // Hub + all Settings Center pages keep "Настройки" active in the sidebar
+    pathOk = pathname === "/settings" || pathname.startsWith("/settings/");
   } else if (pathOnly === "/returns") {
     pathOk = pathname === "/returns" || pathname.startsWith("/returns/");
   } else if (pathOnly === "/revision") {
@@ -263,8 +261,12 @@ export function sectionForPath(
     return OWNER_NAV_SECTIONS.find((s) => s.id === "sales");
   }
 
-  if (pathname.startsWith("/users") || pathname.startsWith("/journal")) {
+  if (pathname.startsWith("/users")) {
     return OWNER_NAV_SECTIONS.find((s) => s.id === "team");
+  }
+
+  if (pathname.startsWith("/journal")) {
+    return OWNER_NAV_SECTIONS.find((s) => s.id === "journal");
   }
 
   if (pathname.startsWith("/notifications")) {
@@ -326,6 +328,30 @@ export function breadcrumbsForPath(pathname: string): BreadcrumbItem[] {
       crumbs.push({ labelKey: "nav.ownerSales" });
     } else {
       crumbs.push({ labelKey: "nav.storeCard" });
+    }
+    return crumbs;
+  }
+
+  if (pathname.startsWith("/settings/") && pathname !== "/settings") {
+    crumbs.push({ labelKey: "nav.settingsWorkspace", href: "/settings" });
+    if (pathname.startsWith("/settings/company")) {
+      crumbs.push({ labelKey: "settingsCenter.company" });
+    } else if (pathname.startsWith("/settings/profile")) {
+      crumbs.push({ labelKey: "settingsCenter.profile" });
+    } else if (pathname.startsWith("/settings/security")) {
+      crumbs.push({ labelKey: "settingsCenter.security" });
+    } else if (pathname.startsWith("/settings/notifications")) {
+      crumbs.push({ labelKey: "settingsCenter.notifications" });
+    } else if (pathname.startsWith("/settings/system")) {
+      crumbs.push({ labelKey: "settingsCenter.system" });
+    } else if (pathname.startsWith("/settings/wipe")) {
+      crumbs.push({ labelKey: "settingsCenter.system", href: "/settings/system" });
+      crumbs.push({ labelKey: "settingsPage.wipe" });
+    } else if (pathname.startsWith("/settings/references")) {
+      crumbs.push({ labelKey: "settingsCenter.system", href: "/settings/system" });
+      crumbs.push({ labelKey: "settingsPage.references" });
+    } else if (pathname.startsWith("/settings/password")) {
+      crumbs.push({ labelKey: "settingsCenter.security" });
     }
     return crumbs;
   }

@@ -7,6 +7,7 @@
 1. **[MASTER](docs/MASTER.md)** — управляющий порядок разработки
 2. **[FOUNDATION CYCLE](docs/FOUNDATION-CYCLE.md)** — один цикл Склад→Магазин→Продажа (текущий фокус)
 3. **[LOCAL DEV](docs/LOCAL-DEV.md)** — Docker Postgres + localhost (без Vercel)
+4. **[DEPLOY VPS](docs/DEPLOY-VPS.md)** — Docker + PostgreSQL без привязки к Vercel
 4. **[AUDIT 2026-07-28](docs/AUDIT-2026-07-28.md)** — аудит: работает / UI-only / отсутствует
 5. **[Vision](docs/vision.md)** — что создаём и зачем (№1)
 5. **[UX Specification](docs/ux-specification.md)** — как пользователь работает (№3)

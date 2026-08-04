@@ -5,6 +5,7 @@ import { jsonOk, handleApiError } from "@/lib/api";
 import { requireOwner } from "@/lib/rbac";
 import bcrypt from "bcryptjs";
 import { logActivity } from "@/lib/services/activity-log.service";
+import { notifyPasswordReset } from "@/lib/services/security-notify.service";
 
 /** Owner resets another user's password (admin reset). */
 export async function POST(req: Request) {
@@ -33,6 +34,8 @@ export async function POST(req: Request) {
       entityId: target.id,
       comment: `password_reset:${target.name}`,
     });
+
+    void notifyPasswordReset(target.id).catch(() => undefined);
 
     return jsonOk({ ok: true });
   } catch (err) {

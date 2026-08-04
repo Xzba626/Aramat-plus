@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { OwnerSidebar } from "@/components/layout/owner-sidebar";
 import { OwnerTopBar } from "@/components/layout/owner-top-bar";
+import { OwnerNavPrefetch } from "@/components/layout/owner-nav-prefetch";
 import { RightPanel, RightPanelProvider } from "@/components/layout/right-panel";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { breadcrumbsForPath } from "@/lib/navigation/owner-nav";
@@ -70,6 +71,7 @@ export function OwnerShell({
 
   return (
     <RightPanelProvider>
+      <OwnerNavPrefetch role={role} />
       <div className="min-h-screen bg-page">
         <OwnerSidebar
           role={role}

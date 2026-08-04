@@ -199,6 +199,8 @@ model User {
   lastLoginAt       DateTime?
   failedLoginCount  Int       @default(0)
   lockedUntil       DateTime?
+  /** UI language: "ru" | "tj". Null → fall back to cookie/localStorage. */
+  preferredLocale   String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

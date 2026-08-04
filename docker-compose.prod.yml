@@ -1,0 +1,49 @@
+# Full stack on a VPS: Postgres + Next.js (standalone).
+# Usage:
+#   cp .env.example .env.prod   # set AUTH_URL to https://your-domain
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aramat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aramat}
+      POSTGRES_DB: ${POSTGRES_DB:-aramat_plus}
+    volumes:
+      - aramat_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-aramat} -d ${POSTGRES_DB:-aramat_plus}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-aramat}:${POSTGRES_PASSWORD:-aramat}@postgres:5432/${POSTGRES_DB:-aramat_plus}?schema=public
+      DIRECT_URL: postgresql://${POSTGRES_USER:-aramat}:${POSTGRES_PASSWORD:-aramat}@postgres:5432/${POSTGRES_DB:-aramat_plus}?schema=public
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_URL: ${AUTH_URL}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-${AUTH_URL}}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+      BLOB_READ_WRITE_TOKEN: ${BLOB_READ_WRITE_TOKEN:-}
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Aramat Plus}
+      NODE_ENV: production
+    volumes:
+      - aramat_uploads:/app/public/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  aramat_pg_data:
+  aramat_uploads:
