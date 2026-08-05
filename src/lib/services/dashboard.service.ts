@@ -11,6 +11,11 @@ import {
   isMerchandiseProduct,
   merchandiseProductWhere,
 } from "@/lib/product-kind";
+import {
+  aggregatePaymentMethods,
+  ensureKnownPaymentMethods,
+} from "@/lib/analytics/payment-breakdown";
+import { aggregateContainerSourceStats } from "@/lib/analytics/container-source-stats";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -100,9 +105,19 @@ export async function getDashboardPayload(
           status: { in: ["COMPLETED", "PARTIAL_RETURN"] },
           createdAt: { gte: todayStart, lte: now },
         },
-        include: {
+        select: {
+          id: true,
+          total: true,
+          paymentMethod: true,
           items: {
-            include: {
+            select: {
+              productId: true,
+              quantity: true,
+              salePrice: true,
+              costPerUnit: true,
+              isGift: true,
+              containerSource: true,
+              packagingProductId: true,
               product: { select: { id: true, name: true, kind: true } },
             },
           },
@@ -147,6 +162,11 @@ export async function getDashboardPayload(
   );
   const today = withNetProfit(todayGross, expensesToday.total);
   const yday = withNetProfit(ydayGross, expensesYday.total);
+
+  const paymentMethods = ensureKnownPaymentMethods(
+    aggregatePaymentMethods(salesToday)
+  );
+  const containerSource = aggregateContainerSourceStats(salesToday);
 
   const packagingCost = expensesToday.packaging;
   const operationalExpenses = expensesToday.operational;
@@ -591,6 +611,8 @@ export async function getDashboardPayload(
         Math.abs(storesNetSum - today.netProfit) < 0.05,
       weightSold: Math.round(weightSold * 1000) / 1000,
       pieceSold: Math.round(pieceSold * 1000) / 1000,
+      paymentMethods,
+      containerSource,
       yesterday: {
         revenue: yday.revenue,
         grossProfit: yday.grossProfit,

@@ -162,6 +162,9 @@ export function isLoopbackOrLocalIp(ip: string | null | undefined): boolean {
 /**
  * Best-effort client IP behind reverse proxies.
  * Prefer public edge headers; skip obvious loopback hops in X-Forwarded-For.
+ *
+ * Prefer `resolveClientLocation()` from `@/lib/security/client-location` when
+ * you also need country/city — that service reuses this IP logic.
  */
 export function clientIpFromHeaders(
   headers: Headers | { get(name: string): string | null }
@@ -178,6 +181,7 @@ export function clientIpFromHeaders(
 
   pushList(headers.get("cf-connecting-ip"));
   pushList(headers.get("true-client-ip"));
+  pushList(headers.get("x-vercel-forwarded-for"));
   pushList(headers.get("x-real-ip"));
   pushList(headers.get("x-forwarded-for"));
   pushList(headers.get("x-client-ip"));

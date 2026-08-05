@@ -33,6 +33,7 @@ export default function PosCartPage() {
   const lines = usePosCart((s) => s.lines);
   const setQty = usePosCart((s) => s.setQty);
   const setPackaging = usePosCart((s) => s.setPackaging);
+  const setContainerSource = usePosCart((s) => s.setContainerSource);
   const purgePackagingLines = usePosCart((s) => s.purgePackagingLines);
   const clear = usePosCart((s) => s.clear);
   const payment = usePosCart((s) => s.paymentMethod);
@@ -80,7 +81,11 @@ export default function PosCartPage() {
     loadBottles();
   }, [hydrated, loadBottles]);
 
-  const missingBottle = weightLines.some((l) => !l.packagingProductId);
+  const missingBottle = weightLines.some(
+    (l) =>
+      !l.containerSource ||
+      (l.containerSource === "STORE_BOTTLE" && !l.packagingProductId)
+  );
 
   const refreshDiscount = useCallback(
     async (id?: string) => {
@@ -163,11 +168,17 @@ export default function PosCartPage() {
         items: lines.map((l) => ({
           productId: l.productId,
           quantity: l.quantity,
-          ...(l.accountingType === "WEIGHT" && l.packagingProductId
+          ...(l.accountingType === "WEIGHT"
             ? {
-                packagingProductId: l.packagingProductId,
-                ...(l.packagingSkuId
-                  ? { packagingSkuId: l.packagingSkuId }
+                containerSource: l.containerSource ?? "STORE_BOTTLE",
+                ...(l.containerSource !== "CUSTOMER_BOTTLE" &&
+                l.packagingProductId
+                  ? {
+                      packagingProductId: l.packagingProductId,
+                      ...(l.packagingSkuId
+                        ? { packagingSkuId: l.packagingSkuId }
+                        : {}),
+                    }
                   : {}),
               }
             : {}),
@@ -320,7 +331,14 @@ export default function PosCartPage() {
               </div>
               {l.accountingType === "WEIGHT" && l.packagingName ? (
                 <div className="text-xs leading-relaxed text-muted">
-                  {l.packagingName}
+                  {l.containerSource === "CUSTOMER_BOTTLE"
+                    ? t("pos.containerCustomer")
+                    : l.packagingName}
+                </div>
+              ) : l.accountingType === "WEIGHT" &&
+                l.containerSource === "CUSTOMER_BOTTLE" ? (
+                <div className="text-xs leading-relaxed text-muted">
+                  {t("pos.containerCustomer")}
                 </div>
               ) : null}
               <div className="pt-1">
@@ -338,44 +356,79 @@ export default function PosCartPage() {
             </div>
           </div>
           {l.accountingType === "WEIGHT" ? (
-            <div className="border-t border-border pt-3">
-              <FieldLabel>{t("pos.selectBottle")}</FieldLabel>
-              {bottlesLoading ? (
-                <p className="mt-1.5 text-xs text-muted">{t("common.loading")}</p>
-              ) : bottles.length === 0 ? (
-                <p className="mt-1.5 text-xs text-danger">
-                  {t("pos.noBottlesInStore")}
-                </p>
-              ) : (
-                <select
-                  className="mt-1.5 w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm"
-                  value={l.packagingProductId ?? ""}
-                  onChange={(e) => {
-                    const opt = bottles.find(
-                      (b) => b.packagingProductId === e.target.value
-                    );
-                    if (opt) {
-                      setPackaging(l.productId, {
-                        packagingProductId: opt.packagingProductId,
-                        packagingSkuId: opt.packagingSkuId,
-                        packagingName: opt.name,
-                      });
-                    }
-                  }}
-                >
-                  <option value="">{t("pos.bottlePlaceholder")}</option>
-                  {bottles.map((b) => (
-                    <option
-                      key={b.packagingProductId}
-                      value={b.packagingProductId}
+            <div className="space-y-2 border-t border-border pt-3">
+              <div>
+                <FieldLabel>{t("pos.containerSource")}</FieldLabel>
+                <div className="mt-1.5 flex gap-2">
+                  {(
+                    [
+                      ["STORE_BOTTLE", "pos.containerStore"],
+                      ["CUSTOMER_BOTTLE", "pos.containerCustomer"],
+                    ] as const
+                  ).map(([value, labelKey]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setContainerSource(l.productId, value)}
+                      className={cn(
+                        "flex-1 rounded-xl py-2 text-xs font-semibold",
+                        (l.containerSource ?? "STORE_BOTTLE") === value
+                          ? "bg-brand text-white"
+                          : "bg-card text-muted ring-1 ring-border"
+                      )}
                     >
-                      {b.name}
-                      {b.volumeMl != null
-                        ? ` · ${b.volumeMl} ${t("units.ml")}`
-                        : ""}
-                    </option>
+                      {t(labelKey)}
+                    </button>
                   ))}
-                </select>
+                </div>
+              </div>
+              {(l.containerSource ?? "STORE_BOTTLE") === "STORE_BOTTLE" ? (
+                <div>
+                  <FieldLabel>{t("pos.selectBottle")}</FieldLabel>
+                  {bottlesLoading ? (
+                    <p className="mt-1.5 text-xs text-muted">
+                      {t("common.loading")}
+                    </p>
+                  ) : bottles.length === 0 ? (
+                    <p className="mt-1.5 text-xs text-danger">
+                      {t("pos.noBottlesInStore")}
+                    </p>
+                  ) : (
+                    <select
+                      className="mt-1.5 w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm"
+                      value={l.packagingProductId ?? ""}
+                      onChange={(e) => {
+                        const opt = bottles.find(
+                          (b) => b.packagingProductId === e.target.value
+                        );
+                        if (opt) {
+                          setPackaging(l.productId, {
+                            packagingProductId: opt.packagingProductId,
+                            packagingSkuId: opt.packagingSkuId,
+                            packagingName: opt.name,
+                          });
+                        }
+                      }}
+                    >
+                      <option value="">{t("pos.bottlePlaceholder")}</option>
+                      {bottles.map((b) => (
+                        <option
+                          key={b.packagingProductId}
+                          value={b.packagingProductId}
+                        >
+                          {b.name}
+                          {b.volumeMl != null
+                            ? ` · ${b.volumeMl} ${t("units.ml")}`
+                            : ""}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-muted">
+                  {t("pos.containerCustomerHint")}
+                </p>
               )}
             </div>
           ) : null}

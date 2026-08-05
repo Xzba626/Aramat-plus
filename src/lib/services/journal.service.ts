@@ -53,6 +53,8 @@ export type JournalLogDto = {
   os: string | null;
   deviceType: string | null;
   deviceModel: string | null;
+  country: string | null;
+  city: string | null;
   email: string | null;
   storeId: string | null;
   storeName: string | null;
@@ -342,6 +344,8 @@ export async function queryJournal(input: JournalQueryInput): Promise<{
           : uaInfo?.device) ??
         null
     );
+    const country = cleanUaLabel(metaString(meta, "country"));
+    const city = cleanUaLabel(metaString(meta, "city"));
     const ipInfo = ipForDisplay(log.ip);
     const metaName = metaString(meta, "userName");
 
@@ -367,6 +371,8 @@ export async function queryJournal(input: JournalQueryInput): Promise<{
       os,
       deviceType,
       deviceModel,
+      country,
+      city,
       email,
       storeId: metaStoreId,
       storeName,

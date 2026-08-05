@@ -117,6 +117,41 @@ export const DECISION_STATUS_KEYS: Record<string, string> = {
   REJECTED: "decisionStatus.REJECTED",
 };
 
+export const WRITE_OFF_REASON_KEYS: Record<string, string> = {
+  SPOILED: "writeOffReason.SPOILED",
+  BROKEN: "writeOffReason.BROKEN",
+  TESTER: "writeOffReason.TESTER",
+  STOLEN: "writeOffReason.STOLEN",
+  LOSS: "writeOffReason.LOSS",
+  EXPIRED: "writeOffReason.EXPIRED",
+  OTHER: "writeOffReason.OTHER",
+};
+
+export const RETURN_REASON_KEYS: Record<string, string> = {
+  DEFECT: "returnReason.DEFECT",
+  SELLER_ERROR: "returnReason.SELLER_ERROR",
+  CUSTOMER_ERROR: "returnReason.CUSTOMER_ERROR",
+  EXPIRED: "returnReason.EXPIRED",
+  DAMAGED: "returnReason.DAMAGED",
+  OTHER: "returnReason.OTHER",
+};
+
+/** Stable batch.notes markers written by the system (never English prose). */
+export const BATCH_NOTE_MARKERS = {
+  INITIAL_STOCK: "INITIAL_STOCK",
+  PACKAGING_RECEIVE: "PACKAGING_RECEIVE",
+  PACKAGING_TRANSFER: "PACKAGING_TRANSFER",
+} as const;
+
+const BATCH_NOTE_KEYS: Record<string, string> = {
+  INITIAL_STOCK: "warehouse.notesInitialStock",
+  "Initial stock": "warehouse.notesInitialStock",
+  PACKAGING_RECEIVE: "warehouse.notesPackagingReceive",
+  "packaging receive": "warehouse.notesPackagingReceive",
+  PACKAGING_TRANSFER: "warehouse.notesTransfer",
+  "packaging transfer": "warehouse.notesTransfer",
+};
+
 export type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
 export function labelRole(role: string | null | undefined, t: TranslateFn): string {
@@ -201,6 +236,46 @@ export function labelSaleStatus(status: string, t: TranslateFn): string {
 export function labelDecisionStatus(status: string, t: TranslateFn): string {
   const key = DECISION_STATUS_KEYS[status];
   return key ? t(key) : status;
+}
+
+export function labelWriteOffReason(
+  code: string | null | undefined,
+  t: TranslateFn
+): string {
+  if (!code) return "—";
+  const key = WRITE_OFF_REASON_KEYS[code];
+  return key ? t(key) : code;
+}
+
+export function labelReturnReason(
+  code: string | null | undefined,
+  t: TranslateFn
+): string {
+  if (!code) return "—";
+  const key = RETURN_REASON_KEYS[code];
+  return key ? t(key) : code;
+}
+
+/**
+ * Human batch / receipt notes. Maps system markers + legacy English strings.
+ * Tech transfer/return ids stay as structured short labels, not raw cuid dumps.
+ */
+export function labelBatchNotes(
+  notes: string | null | undefined,
+  t: TranslateFn
+): string {
+  if (!notes?.trim()) return "";
+  const raw = notes.trim();
+  const direct = BATCH_NOTE_KEYS[raw];
+  if (direct) return t(direct);
+
+  if (/^transfer:/i.test(raw)) return t("warehouse.notesTransfer");
+  if (/^store_transfer:/i.test(raw)) return t("warehouse.notesStoreTransfer");
+  if (/^warehouse_return:/i.test(raw)) return t("warehouse.notesWarehouseReturn");
+  if (/^sale_return:/i.test(raw)) return t("warehouse.notesSaleReturn");
+  if (/^revision:/i.test(raw)) return t("warehouse.notesRevision");
+
+  return raw;
 }
 
 /** Deep-link from ActivityLog / notifications into a working screen. */

@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { HelpTip } from "@/components/ui/help-tip";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { labelBatchNotes } from "@/lib/i18n/labels";
 import { cn } from "@/lib/utils";
 
 export type WarehouseOverviewData = {
@@ -253,9 +254,10 @@ export function WarehouseOverviewClient({
             line1:
               r.productName != null
                 ? `${r.productName}${r.quantity != null ? ` · ${r.quantity}` : ""}`
-                : (r.comment ?? t("warehouse.receiptDefault")),
+                : labelBatchNotes(r.comment, t) ||
+                  t("warehouse.receiptDefault"),
             line2: [
-              r.supplierName,
+              labelBatchNotes(r.comment, t) || r.supplierName,
               r.userName || t("common.system"),
               formatDateTime(r.createdAt),
             ]

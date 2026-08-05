@@ -13,7 +13,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { apiErrorMessage } from "@/lib/i18n/labels";
+import { apiErrorMessage, labelWriteOffReason } from "@/lib/i18n/labels";
 import { decimalToNumber } from "@/lib/utils";
 
 const REASON_VALUES = [
@@ -38,6 +38,7 @@ type WriteOffRow = {
   createdAt: string;
   actor: string;
   reason: string;
+  reasonCode?: string | null;
   itemCount: number;
   totalCost: number;
 };
@@ -199,7 +200,7 @@ export default function WriteOffsPage() {
                   />
                 </div>
                 <div>
-                  <FieldLabel>{t("warehouse.productBatchNotes")}</FieldLabel>
+                  <FieldLabel>{t("wh.writeOffReason")}</FieldLabel>
                   <select
                     name="reason"
                     required
@@ -207,11 +208,11 @@ export default function WriteOffsPage() {
                     defaultValue=""
                   >
                     <option value="" disabled>
-                      {t("warehouse.productBatchNotes")}
+                      {t("wh.writeOffReasonPlaceholder")}
                     </option>
                     {REASON_VALUES.map((value) => (
                       <option key={value} value={value}>
-                        {value}
+                        {labelWriteOffReason(value, t)}
                       </option>
                     ))}
                   </select>
@@ -271,7 +272,14 @@ export default function WriteOffsPage() {
                         {formatDateTime(r.createdAt)}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="font-semibold text-ink">{r.reason}</div>
+                        <div className="font-semibold text-ink">
+                          {labelWriteOffReason(r.reasonCode ?? r.reason, t)}
+                        </div>
+                        {r.reasonCode &&
+                        r.reason &&
+                        r.reason !== r.reasonCode ? (
+                          <div className="text-xs text-muted">{r.reason}</div>
+                        ) : null}
                         <div className="text-xs text-muted">
                           {formatMoney(r.totalCost)}
                         </div>

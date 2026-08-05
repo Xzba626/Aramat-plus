@@ -36,6 +36,8 @@ export type JournalLogRow = {
   os?: string | null;
   deviceType?: string | null;
   deviceModel?: string | null;
+  country?: string | null;
+  city?: string | null;
   email?: string | null;
   storeId?: string | null;
   storeName?: string | null;
@@ -192,6 +194,17 @@ export function JournalEventCard({ log }: { log: JournalLogRow }) {
             value={orUnavailable(log.os, na)}
           />
           <Field label={t("journalPage.ip")} value={ipLabel} />
+          <Field
+            label={t("journalPage.country")}
+            value={orUnavailable(
+              log.country,
+              t("journalPage.countryUnknown")
+            )}
+          />
+          <Field
+            label={t("journalPage.city")}
+            value={orUnavailable(log.city, t("journalPage.cityUnknown"))}
+          />
           <Field
             label={t("journalPage.colDate")}
             value={formatDateTime(log.createdAt)}

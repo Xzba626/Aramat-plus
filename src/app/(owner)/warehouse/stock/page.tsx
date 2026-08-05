@@ -4,6 +4,7 @@ import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { labelBatchNotes } from "@/lib/i18n/labels";
 import {
   DataTable,
   DataTableBody,
@@ -130,7 +131,9 @@ export default function WarehouseStockPage() {
                                   {showFinance && b.costPerUnit != null
                                     ? ` · ${formatMoney(b.costPerUnit)}`
                                     : ""}
-                                  {b.notes ? ` · ${b.notes}` : ""}
+                                  {b.notes
+                                    ? ` · ${labelBatchNotes(b.notes, t)}`
+                                    : ""}
                                 </li>
                               ))}
                             </ul>

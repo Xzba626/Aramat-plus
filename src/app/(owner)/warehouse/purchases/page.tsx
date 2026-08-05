@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LoadingBlock } from "@/components/ui/empty-state";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { labelBatchNotes } from "@/lib/i18n/labels";
 
 type PurchaseRow = {
   id: string;
@@ -84,7 +85,9 @@ export default function PurchaseHistoryPage() {
                       {row.productName}
                     </Link>
                     {row.notes ? (
-                      <div className="text-xs text-muted">{row.notes}</div>
+                      <div className="text-xs text-muted">
+                        {labelBatchNotes(row.notes, t)}
+                      </div>
                     ) : null}
                   </td>
                   <td className="px-4 py-3">{row.quantity}</td>

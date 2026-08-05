@@ -33,6 +33,7 @@ import { useCompanyBrand } from "@/components/company/company-brand-provider";
 
 const ICONS: Record<string, LucideIcon> = {
   home: Home,
+  ownerSales: ShoppingBag,
   finance: Wallet,
   reports: BarChart3,
   stores: Store,

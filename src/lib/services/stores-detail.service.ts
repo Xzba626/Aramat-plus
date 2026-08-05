@@ -10,6 +10,11 @@ import { decimalToNumber } from "@/lib/utils";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { sumAllocatedExpenses } from "@/lib/services/expense.service";
 import { withNetProfit } from "@/lib/services/profit.service";
+import {
+  aggregatePaymentMethods,
+  ensureKnownPaymentMethods,
+} from "@/lib/analytics/payment-breakdown";
+import { aggregateContainerSourceStats } from "@/lib/analytics/container-source-stats";
 
 export type StockRowStatus = "OK" | "LOW" | "OUT";
 
@@ -69,7 +74,15 @@ export async function getStoreDetail(companyId: string, storeId: string) {
         },
         select: {
           total: true,
-          items: { select: { costPerUnit: true, quantity: true } },
+          paymentMethod: true,
+          items: {
+            select: {
+              costPerUnit: true,
+              quantity: true,
+              containerSource: true,
+              packagingProductId: true,
+            },
+          },
         },
       }),
       prisma.sale.findMany({
@@ -100,7 +113,15 @@ export async function getStoreDetail(companyId: string, storeId: string) {
       }),
     ]);
 
-  const profitOf = (rows: typeof salesToday) => {
+  const profitOf = (
+    rows: Array<{
+      total: { toNumber?: () => number } | number | string;
+      items: Array<{
+        costPerUnit: { toNumber?: () => number } | number | string;
+        quantity: { toNumber?: () => number } | number | string;
+      }>;
+    }>
+  ) => {
     const revenue = rows.reduce((s, x) => s + decimalToNumber(x.total), 0);
     const cost = rows.reduce(
       (s, x) =>
@@ -118,6 +139,11 @@ export async function getStoreDetail(companyId: string, storeId: string) {
   const today = profitOf(salesToday);
   const month = profitOf(salesMonth);
   const avgCheck = today.count > 0 ? today.revenue / today.count : 0;
+
+  const paymentMethods = ensureKnownPaymentMethods(
+    aggregatePaymentMethods(salesToday)
+  );
+  const containerSource = aggregateContainerSourceStats(salesToday);
 
   const expensesToday = await sumAllocatedExpenses({
     companyId,
@@ -184,6 +210,8 @@ export async function getStoreDetail(companyId: string, storeId: string) {
       lastSaleAt: lastSale?.createdAt ?? null,
       lastRevisionAt: lastRevision?.createdAt ?? null,
       lastRevisionStatus: lastRevision?.status ?? null,
+      paymentMethods,
+      containerSource,
     },
   };
 }
@@ -557,6 +585,8 @@ export async function getStoreSalesHistory(
         quantity: decimalToNumber(it.quantity),
         salePrice: decimalToNumber(it.salePrice),
         isGift: it.isGift,
+        containerSource: it.containerSource,
+        packagingProductId: it.packagingProductId,
       })),
     })),
   };

@@ -20,6 +20,10 @@ import {
 } from "@/lib/i18n/labels";
 import { formatExpenseDescriptionForExport } from "@/lib/export/csv";
 import { FinanceFunnel } from "@/components/dashboard/finance-funnel";
+import {
+  ContainerSourceBreakdown,
+  PaymentMethodBreakdown,
+} from "@/components/dashboard/payment-container-breakdown";
 import { ProductThumb } from "@/components/products/product-thumb";
 
 type StoreDetail = {
@@ -55,6 +59,8 @@ type StoreDetail = {
     lastStaffLoginName: string | null;
     lastSaleAt: string | null;
     lastRevisionAt: string | null;
+    paymentMethods?: Array<{ method: string; amount: number; count: number }>;
+    containerSource?: { storeBottles: number; customerBottles: number };
   };
 };
 
@@ -300,6 +306,17 @@ function OverviewTab({
           grossProfit={gross}
           expenses={expenses}
           netProfit={net}
+        />
+        <PaymentMethodBreakdown
+          rows={o.paymentMethods ?? []}
+          formatMoney={formatMoney}
+          t={t}
+        />
+        <ContainerSourceBreakdown
+          salesCount={o.todaySalesCount}
+          storeBottles={o.containerSource?.storeBottles ?? 0}
+          customerBottles={o.containerSource?.customerBottles ?? 0}
+          t={t}
         />
       </div>
 
@@ -739,7 +756,12 @@ function SalesTab({
       total: number;
       paymentMethod: string;
       status: string;
-      items: Array<{ productName: string; quantity: number; isGift: boolean }>;
+      items: Array<{
+        productName: string;
+        quantity: number;
+        isGift: boolean;
+        containerSource?: string | null;
+      }>;
     }>
   >([]);
   const [page, setPage] = useState(1);
@@ -774,10 +796,17 @@ function SalesTab({
                   </div>
                   <div className="mt-1 text-xs text-muted">
                     {s.items
-                      .map(
-                        (it) =>
-                          `${it.productName} ×${it.quantity}${it.isGift ? ` (${t("storeDetail.gift")})` : ""}`
-                      )
+                      .map((it) => {
+                        const bottle =
+                          it.containerSource === "CUSTOMER_BOTTLE"
+                            ? ` (${t("pos.containerCustomerShort")})`
+                            : it.containerSource === "STORE_BOTTLE"
+                              ? ` (${t("pos.containerStoreShort")})`
+                              : "";
+                        return `${it.productName} ×${it.quantity}${
+                          it.isGift ? ` (${t("storeDetail.gift")})` : ""
+                        }${bottle}`;
+                      })
                       .join(", ")}
                   </div>
                 </div>

@@ -75,6 +75,9 @@ export default function PosPage() {
 
   const [weightPick, setWeightPick] = useState<CatalogItem | null>(null);
   const [weightQty, setWeightQty] = useState("10");
+  const [containerSource, setContainerSource] = useState<
+    "STORE_BOTTLE" | "CUSTOMER_BOTTLE"
+  >("STORE_BOTTLE");
   const [bottleId, setBottleId] = useState("");
   const [bottles, setBottles] = useState<BottleOption[]>([]);
   const [bottlesLoading, setBottlesLoading] = useState(false);
@@ -153,6 +156,7 @@ export default function PosPage() {
     async (item: CatalogItem) => {
       setWeightPick(item);
       setWeightQty("10");
+      setContainerSource("STORE_BOTTLE");
       setBottleId("");
       setBottlesLoading(true);
       let list = bottlesQ.data ?? [];
@@ -195,25 +199,48 @@ export default function PosPage() {
       setError(t("pos.qtyExceedsStock"));
       return;
     }
-    const bottle = bottles.find((b) => b.packagingProductId === bottleId);
-    if (!bottle) {
-      setError(t("pos.bottleRequired"));
-      return;
+    if (containerSource === "STORE_BOTTLE") {
+      const bottle = bottles.find((b) => b.packagingProductId === bottleId);
+      if (!bottle) {
+        setError(t("pos.bottleRequired"));
+        return;
+      }
+      add({
+        productId: weightPick.productId,
+        name: weightPick.product.name,
+        unitSymbol: weightPick.product.unit?.symbol ?? t("units.ml"),
+        salePrice: weightPick.salePrice,
+        max: weightPick.quantity,
+        quantity: qty,
+        accountingType: "WEIGHT",
+        imageUrl:
+          weightPick.product.imageUrl ??
+          weightPick.product.brand?.imageUrl ??
+          null,
+        containerSource: "STORE_BOTTLE",
+        packagingProductId: bottle.packagingProductId,
+        packagingSkuId: bottle.packagingSkuId,
+        packagingName: bottle.name,
+      });
+    } else {
+      add({
+        productId: weightPick.productId,
+        name: weightPick.product.name,
+        unitSymbol: weightPick.product.unit?.symbol ?? t("units.ml"),
+        salePrice: weightPick.salePrice,
+        max: weightPick.quantity,
+        quantity: qty,
+        accountingType: "WEIGHT",
+        imageUrl:
+          weightPick.product.imageUrl ??
+          weightPick.product.brand?.imageUrl ??
+          null,
+        containerSource: "CUSTOMER_BOTTLE",
+        packagingProductId: null,
+        packagingSkuId: null,
+        packagingName: t("pos.containerCustomer"),
+      });
     }
-    add({
-      productId: weightPick.productId,
-      name: weightPick.product.name,
-      unitSymbol: weightPick.product.unit?.symbol ?? t("units.ml"),
-      salePrice: weightPick.salePrice,
-      max: weightPick.quantity,
-      quantity: qty,
-      accountingType: "WEIGHT",
-      imageUrl:
-        weightPick.product.imageUrl ?? weightPick.product.brand?.imageUrl ?? null,
-      packagingProductId: bottle.packagingProductId,
-      packagingSkuId: bottle.packagingSkuId,
-      packagingName: bottle.name,
-    });
     setFlash(t("pos.addedToCart", { name: weightPick.product.name }));
     setTimeout(() => setFlash(""), 1200);
     setWeightPick(null);
@@ -409,35 +436,72 @@ export default function PosPage() {
               />
             </div>
             <div>
-              <FieldLabel>{t("pos.selectBottle")}</FieldLabel>
-              {bottlesLoading ? (
-                <p className="mt-1 text-xs text-muted">{t("common.loading")}</p>
-              ) : bottles.length === 0 ? (
-                <p className="mt-1 text-xs text-danger">{t("pos.noBottlesInStore")}</p>
-              ) : (
-                <select
-                  className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
-                  value={bottleId}
-                  onChange={(e) => setBottleId(e.target.value)}
-                >
-                  <option value="">{t("pos.bottlePlaceholder")}</option>
-                  {bottles.map((b) => (
-                    <option key={b.packagingProductId} value={b.packagingProductId}>
-                      {b.name}
-                      {b.volumeMl != null
-                        ? ` · ${b.volumeMl} ${t("units.ml")}`
-                        : ""}
-                    </option>
-                  ))}
-                </select>
-              )}
+              <FieldLabel>{t("pos.containerSource")}</FieldLabel>
+              <div className="mt-1.5 flex gap-2">
+                {(
+                  [
+                    ["STORE_BOTTLE", "pos.containerStore"],
+                    ["CUSTOMER_BOTTLE", "pos.containerCustomer"],
+                  ] as const
+                ).map(([value, labelKey]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setContainerSource(value)}
+                    className={cn(
+                      "flex-1 rounded-xl py-2 text-xs font-semibold",
+                      containerSource === value
+                        ? "bg-brand text-white"
+                        : "bg-card text-muted ring-1 ring-border"
+                    )}
+                  >
+                    {t(labelKey)}
+                  </button>
+                ))}
+              </div>
             </div>
+            {containerSource === "STORE_BOTTLE" ? (
+              <div>
+                <FieldLabel>{t("pos.selectBottle")}</FieldLabel>
+                {bottlesLoading ? (
+                  <p className="mt-1 text-xs text-muted">{t("common.loading")}</p>
+                ) : bottles.length === 0 ? (
+                  <p className="mt-1 text-xs text-danger">
+                    {t("pos.noBottlesInStore")}
+                  </p>
+                ) : (
+                  <select
+                    className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                    value={bottleId}
+                    onChange={(e) => setBottleId(e.target.value)}
+                  >
+                    <option value="">{t("pos.bottlePlaceholder")}</option>
+                    {bottles.map((b) => (
+                      <option
+                        key={b.packagingProductId}
+                        value={b.packagingProductId}
+                      >
+                        {b.name}
+                        {b.volumeMl != null
+                          ? ` · ${b.volumeMl} ${t("units.ml")}`
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted">{t("pos.containerCustomerHint")}</p>
+            )}
             {error ? <p className="text-sm text-danger">{error}</p> : null}
             <Button
               type="button"
               className="w-full"
               onClick={confirmWeightAdd}
-              disabled={bottlesLoading || bottles.length === 0}
+              disabled={
+                containerSource === "STORE_BOTTLE" &&
+                (bottlesLoading || bottles.length === 0)
+              }
             >
               {t("pos.addToCart")}
             </Button>

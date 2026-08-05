@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
 import { LoadingBlock } from "@/components/ui/empty-state";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { apiErrorMessage } from "@/lib/i18n/labels";
+import { apiErrorMessage, BATCH_NOTE_MARKERS } from "@/lib/i18n/labels";
 
 type Sku = {
   id: string;
@@ -156,7 +156,7 @@ export default function PackagingPage() {
       body: JSON.stringify({
         quantity,
         costPerUnit,
-        notes: "packaging receive",
+        notes: BATCH_NOTE_MARKERS.PACKAGING_RECEIVE,
       }),
     });
     const data = await res.json();
@@ -189,7 +189,7 @@ export default function PackagingPage() {
         fromWarehouseId,
         toStoreId,
         items: [{ productId, quantity }],
-        notes: "packaging transfer",
+        notes: BATCH_NOTE_MARKERS.PACKAGING_TRANSFER,
       }),
     });
     const data = await res.json();

@@ -22,11 +22,19 @@ import {
   resolvePackagingProduct,
 } from "@/lib/services/packaging.service";
 
+export type ContainerSourceInput = "STORE_BOTTLE" | "CUSTOMER_BOTTLE";
+
 export type SaleLineInput = {
   productId: string;
   quantity: number;
   isGift?: boolean;
-  /** WEIGHT/decant: bottle from store stock (Product PACKAGING). */
+  /**
+   * WEIGHT/decant: who provides the bottle.
+   * STORE_BOTTLE (default when packaging is sent) deducts stock + bottle opex.
+   * CUSTOMER_BOTTLE: perfume only — no bottle stock / AUTO_BOTTLE expense.
+   */
+  containerSource?: ContainerSourceInput;
+  /** WEIGHT/decant: bottle from store stock (Product PACKAGING). Required for STORE_BOTTLE. */
   packagingProductId?: string;
   packagingSkuId?: string;
 };
@@ -149,6 +157,7 @@ export async function createSale(params: {
     costPerUnit: Prisma.Decimal;
     isGift: boolean;
     isDecant: boolean;
+    containerSource: ContainerSourceInput | null;
     packagingProductId: string | null;
     packagingQuantity: Prisma.Decimal | null;
     packagingCostPerUnit: Prisma.Decimal | null;
@@ -210,8 +219,23 @@ export async function createSale(params: {
         const unitPrice = isGift ? new Prisma.Decimal(0) : product.salePrice;
         const isWeight = product.accountingType === AccountingType.WEIGHT;
 
+        let containerSource: ContainerSourceInput | null = null;
         if (requiresBottle && isWeight && !isGift) {
-          if (!line.packagingProductId && !line.packagingSkuId) {
+          const raw = line.containerSource;
+          if (raw === "CUSTOMER_BOTTLE" || raw === "STORE_BOTTLE") {
+            containerSource = raw;
+          } else if (line.packagingProductId || line.packagingSkuId) {
+            // Backward-compatible: packaging without explicit source → store bottle
+            containerSource = "STORE_BOTTLE";
+          } else {
+            throw new Error("CONTAINER_SOURCE_REQUIRED");
+          }
+
+          if (
+            containerSource === "STORE_BOTTLE" &&
+            !line.packagingProductId &&
+            !line.packagingSkuId
+          ) {
             throw new Error("BOTTLE_REQUIRED");
           }
         }
@@ -236,7 +260,12 @@ export async function createSale(params: {
         let packagingCostPerUnit: Prisma.Decimal | null = null;
         let bottleExpenseAmount = 0;
 
-        if (requiresBottle && isWeight && !isGift) {
+        if (
+          requiresBottle &&
+          isWeight &&
+          !isGift &&
+          containerSource === "STORE_BOTTLE"
+        ) {
           const packaging = await resolvePackagingProduct({
             companyId: params.companyId,
             packagingProductId: line.packagingProductId,
@@ -261,6 +290,10 @@ export async function createSale(params: {
             subtotal = subtotal.add(unitPrice.mul(slice.quantity));
           }
           const isFirstSlice = sliceIdx === 0;
+          const useStoreBottle =
+            isFirstSlice && containerSource === "STORE_BOTTLE";
+          const useCustomerBottle =
+            isFirstSlice && containerSource === "CUSTOMER_BOTTLE";
           lineRows.push({
             productId: line.productId,
             batchId: slice.batchId,
@@ -268,10 +301,16 @@ export async function createSale(params: {
             salePrice: unitPrice,
             costPerUnit: slice.costPerUnit,
             isGift,
-            isDecant: isFirstSlice && Boolean(packagingProductId),
-            packagingProductId: isFirstSlice ? packagingProductId : null,
-            packagingQuantity: isFirstSlice ? packagingQuantity : null,
-            packagingCostPerUnit: isFirstSlice ? packagingCostPerUnit : null,
+            isDecant:
+              useStoreBottle || useCustomerBottle
+                ? true
+                : isFirstSlice && Boolean(packagingProductId),
+            containerSource: isFirstSlice ? containerSource : null,
+            packagingProductId: useStoreBottle ? packagingProductId : null,
+            packagingQuantity: useStoreBottle ? packagingQuantity : null,
+            packagingCostPerUnit: useStoreBottle
+              ? packagingCostPerUnit
+              : null,
           });
           sliceIdx++;
         }
@@ -332,6 +371,7 @@ export async function createSale(params: {
               costPerUnit: r.costPerUnit,
               isGift: r.isGift,
               isDecant: r.isDecant,
+              containerSource: r.containerSource,
               packagingProductId: r.packagingProductId,
               packagingQuantity: r.packagingQuantity,
               packagingCostPerUnit: r.packagingCostPerUnit,
@@ -349,6 +389,7 @@ export async function createSale(params: {
               costPerUnit: true,
               isGift: true,
               isDecant: true,
+              containerSource: true,
               packagingProductId: true,
               packagingQuantity: true,
               packagingCostPerUnit: true,
@@ -488,6 +529,10 @@ export async function createSale(params: {
       amount: committed.total.toString(),
       discountRequestId: params.discountRequestId ?? null,
       reservationId: params.reservationId ?? null,
+      paymentMethod: params.paymentMethod ?? "CASH",
+      containerSources: params.items
+        .map((i) => i.containerSource)
+        .filter((v): v is ContainerSourceInput => Boolean(v)),
     },
   }).catch((err) => console.error("[createSale] audit log failed", err));
 

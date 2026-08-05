@@ -13,6 +13,7 @@ import {
 } from "@/lib/services/product-nomenclature.service";
 import { sanitizeIncomingImageUrl } from "@/lib/product-image-url";
 import { listProductCatalog } from "@/lib/services/products-catalog.service";
+import { BATCH_NOTE_MARKERS } from "@/lib/i18n/labels";
 
 export async function GET(req: Request) {
   try {
@@ -120,7 +121,7 @@ export async function POST(req: Request) {
           locationId: warehouse.id,
           quantity: initialQty,
           costPerUnit,
-          notes: "Initial stock",
+          notes: BATCH_NOTE_MARKERS.INITIAL_STOCK,
           createdById: user!.id,
         });
       }

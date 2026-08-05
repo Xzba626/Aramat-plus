@@ -34,6 +34,12 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     icon: "home",
   },
   {
+    id: "owner-sales",
+    labelKey: "nav.ownerSales",
+    href: "/owner-sales",
+    icon: "ownerSales",
+  },
+  {
     id: "finance",
     labelKey: "nav.finance",
     href: "/analytics?view=expenses",
@@ -157,6 +163,11 @@ export function isPathActive(
     pathOk = pathname === "/warehouse" || pathname === "/warehouse/";
   } else if (pathOnly === "/dashboard") {
     pathOk = pathname === "/dashboard" || pathname === "/";
+  } else if (pathOnly === "/owner-sales") {
+    pathOk =
+      pathname === "/owner-sales" ||
+      pathname === "/owner-sales/" ||
+      /^\/stores\/[^/]+\/pos\/?$/.test(pathname);
   } else if (pathOnly === "/stores") {
     pathOk = pathname === "/stores" || pathname === "/stores/";
   } else if (pathOnly === "/analytics") {
@@ -246,6 +257,11 @@ export function sectionForPath(
     return OWNER_NAV_SECTIONS.find((s) => s.id === "reports");
   }
 
+  // Owner-direct POS — highlight quick-entry, not Magazines
+  if (/^\/stores\/[^/]+\/pos\/?$/.test(pathname) || pathname.startsWith("/owner-sales")) {
+    return OWNER_NAV_SECTIONS.find((s) => s.id === "owner-sales");
+  }
+
   if (
     pathname.startsWith("/warehouse") ||
     pathname.startsWith("/revision")
@@ -329,6 +345,11 @@ export function breadcrumbsForPath(pathname: string): BreadcrumbItem[] {
     } else {
       crumbs.push({ labelKey: "nav.storeCard" });
     }
+    return crumbs;
+  }
+
+  if (pathname.startsWith("/owner-sales")) {
+    crumbs.push({ labelKey: "nav.ownerSales" });
     return crumbs;
   }
 

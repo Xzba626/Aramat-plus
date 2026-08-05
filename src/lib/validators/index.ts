@@ -163,6 +163,9 @@ export const saleSchema = z.object({
         productId: z.string().min(1),
         quantity: z.coerce.number().positive(),
         isGift: z.boolean().optional(),
+        containerSource: z
+          .enum(["STORE_BOTTLE", "CUSTOMER_BOTTLE"])
+          .optional(),
         packagingProductId: z.string().min(1).optional(),
         packagingSkuId: z.string().min(1).optional(),
       })

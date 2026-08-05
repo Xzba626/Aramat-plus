@@ -21,6 +21,10 @@ import {
   FinanceFunnel,
   StoresProfitTable,
 } from "@/components/dashboard/finance-funnel";
+import {
+  ContainerSourceBreakdown,
+  PaymentMethodBreakdown,
+} from "@/components/dashboard/payment-container-breakdown";
 import { cn } from "@/lib/utils";
 import type { DashboardPayload } from "@/lib/services/dashboard.service";
 import { useI18n } from "@/components/i18n/i18n-provider";
@@ -333,6 +337,18 @@ export function OwnerDashboardClient({
             yesterday: today.yesterday?.netProfit ?? 0,
             diff: today.deltas.netProfit.abs,
           }}
+        />
+
+        <PaymentMethodBreakdown
+          rows={today.paymentMethods ?? []}
+          formatMoney={formatMoney}
+          t={t}
+        />
+        <ContainerSourceBreakdown
+          salesCount={today.count}
+          storeBottles={today.containerSource?.storeBottles ?? 0}
+          customerBottles={today.containerSource?.customerBottles ?? 0}
+          t={t}
         />
 
         {chartValues.length > 0 ? (

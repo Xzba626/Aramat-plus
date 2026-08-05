@@ -21,6 +21,8 @@ export type PosCartLine = {
   imageUrl?: string | null;
   /** WEIGHT lines require bottle selection. */
   accountingType?: "PIECE" | "WEIGHT";
+  /** STORE_BOTTLE | CUSTOMER_BOTTLE — who provides the bottle for WEIGHT. */
+  containerSource?: "STORE_BOTTLE" | "CUSTOMER_BOTTLE" | null;
   /** Bottle is an attribute of a WEIGHT line — never a separate cart row. */
   packagingProductId?: string | null;
   packagingSkuId?: string | null;
@@ -69,6 +71,10 @@ type PosCartState = {
       packagingSkuId?: string | null;
       packagingName?: string | null;
     }
+  ) => void;
+  setContainerSource: (
+    productId: string,
+    containerSource: "STORE_BOTTLE" | "CUSTOMER_BOTTLE"
   ) => void;
   /** Drop illegal packaging SKUs if they were persisted in an older cart. */
   purgePackagingLines: (packagingProductIds: string[]) => void;
@@ -295,6 +301,8 @@ export const usePosCart = create<PosCartState>()(
                       item.packagingProductId ?? l.packagingProductId,
                     packagingSkuId: item.packagingSkuId ?? l.packagingSkuId,
                     packagingName: item.packagingName ?? l.packagingName,
+                    containerSource:
+                      item.containerSource ?? l.containerSource,
                   }
                 : l
             );
@@ -310,6 +318,7 @@ export const usePosCart = create<PosCartState>()(
                 max: item.max,
                 imageUrl: item.imageUrl ?? null,
                 accountingType: item.accountingType,
+                containerSource: item.containerSource ?? null,
                 packagingProductId: item.packagingProductId ?? null,
                 packagingSkuId: item.packagingSkuId ?? null,
                 packagingName: item.packagingName ?? null,
@@ -348,12 +357,31 @@ export const usePosCart = create<PosCartState>()(
             l.productId === productId
               ? {
                   ...l,
+                  containerSource: "STORE_BOTTLE",
                   packagingProductId: packaging.packagingProductId,
                   packagingSkuId: packaging.packagingSkuId ?? null,
                   packagingName: packaging.packagingName ?? null,
                 }
               : l
           ),
+        }));
+      },
+
+      setContainerSource: (productId, containerSource) => {
+        set((state) => ({
+          lines: state.lines.map((l) => {
+            if (l.productId !== productId) return l;
+            if (containerSource === "CUSTOMER_BOTTLE") {
+              return {
+                ...l,
+                containerSource,
+                packagingProductId: null,
+                packagingSkuId: null,
+                packagingName: null,
+              };
+            }
+            return { ...l, containerSource };
+          }),
         }));
       },
 

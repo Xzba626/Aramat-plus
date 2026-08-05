@@ -58,6 +58,7 @@ export function handleApiError(err: unknown) {
       "BATCH_QTY_MUST_BE_POSITIVE",
       "BOTTLE_NOT_FOUND",
       "BOTTLE_REQUIRED",
+      "CONTAINER_SOURCE_REQUIRED",
       "BRANCH_NOT_FOUND",
       "BRAND_NAME_REQUIRED",
       "BRAND_NOT_FOUND",

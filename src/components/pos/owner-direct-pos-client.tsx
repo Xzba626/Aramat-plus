@@ -41,6 +41,7 @@ type Line = {
   quantity: number;
   max: number;
   accountingType: "PIECE" | "WEIGHT";
+  containerSource?: "STORE_BOTTLE" | "CUSTOMER_BOTTLE" | null;
   packagingProductId?: string | null;
   packagingSkuId?: string | null;
   packagingName?: string | null;
@@ -88,6 +89,9 @@ export function OwnerDirectPosClient({
 
   const [weightPick, setWeightPick] = useState<CatalogItem | null>(null);
   const [weightQty, setWeightQty] = useState("10");
+  const [containerSource, setContainerSource] = useState<
+    "STORE_BOTTLE" | "CUSTOMER_BOTTLE"
+  >("STORE_BOTTLE");
   const [bottleId, setBottleId] = useState("");
   const [bottles, setBottles] = useState<BottleOption[]>([]);
   const [bottlesLoading, setBottlesLoading] = useState(false);
@@ -179,12 +183,14 @@ export function OwnerDirectPosClient({
     (l) =>
       l.quantity > 0 &&
       l.accountingType === "WEIGHT" &&
-      !l.packagingProductId
+      (!l.containerSource ||
+        (l.containerSource === "STORE_BOTTLE" && !l.packagingProductId))
   );
 
   async function openWeightModal(p: CatalogItem) {
     setWeightPick(p);
     setWeightQty("10");
+    setContainerSource("STORE_BOTTLE");
     setBottleId("");
     setError("");
     setBottlesLoading(true);
@@ -241,26 +247,46 @@ export function OwnerDirectPosClient({
       setError(t("pos.qtyExceedsStock"));
       return;
     }
-    const bottle = bottles.find((b) => b.packagingProductId === bottleId);
-    if (!bottle) {
-      setError(t("pos.bottleRequired"));
-      return;
+    if (containerSource === "STORE_BOTTLE") {
+      const bottle = bottles.find((b) => b.packagingProductId === bottleId);
+      if (!bottle) {
+        setError(t("pos.bottleRequired"));
+        return;
+      }
+      setCart((prev) => [
+        ...prev,
+        {
+          productId: weightPick.productId,
+          name: weightPick.name,
+          unit: weightPick.unit || t("units.ml"),
+          salePrice: weightPick.salePrice,
+          quantity: qty,
+          max: weightPick.quantity,
+          accountingType: "WEIGHT",
+          containerSource: "STORE_BOTTLE",
+          packagingProductId: bottle.packagingProductId,
+          packagingSkuId: bottle.packagingSkuId,
+          packagingName: bottle.name,
+        },
+      ]);
+    } else {
+      setCart((prev) => [
+        ...prev,
+        {
+          productId: weightPick.productId,
+          name: weightPick.name,
+          unit: weightPick.unit || t("units.ml"),
+          salePrice: weightPick.salePrice,
+          quantity: qty,
+          max: weightPick.quantity,
+          accountingType: "WEIGHT",
+          containerSource: "CUSTOMER_BOTTLE",
+          packagingProductId: null,
+          packagingSkuId: null,
+          packagingName: t("pos.containerCustomer"),
+        },
+      ]);
     }
-    setCart((prev) => [
-      ...prev,
-      {
-        productId: weightPick.productId,
-        name: weightPick.name,
-        unit: weightPick.unit || t("units.ml"),
-        salePrice: weightPick.salePrice,
-        quantity: qty,
-        max: weightPick.quantity,
-        accountingType: "WEIGHT",
-        packagingProductId: bottle.packagingProductId,
-        packagingSkuId: bottle.packagingSkuId,
-        packagingName: bottle.name,
-      },
-    ]);
     setWeightPick(null);
     setError("");
   }
@@ -298,7 +324,32 @@ export function OwnerDirectPosClient({
     }
   ) {
     setCart((prev) =>
-      prev.map((l, i) => (i === index ? { ...l, ...packaging } : l))
+      prev.map((l, i) =>
+        i === index
+          ? { ...l, containerSource: "STORE_BOTTLE" as const, ...packaging }
+          : l
+      )
+    );
+  }
+
+  function setLineContainerSource(
+    index: number,
+    source: "STORE_BOTTLE" | "CUSTOMER_BOTTLE"
+  ) {
+    setCart((prev) =>
+      prev.map((l, i) => {
+        if (i !== index) return l;
+        if (source === "CUSTOMER_BOTTLE") {
+          return {
+            ...l,
+            containerSource: source,
+            packagingProductId: null,
+            packagingSkuId: null,
+            packagingName: t("pos.containerCustomer"),
+          };
+        }
+        return { ...l, containerSource: source };
+      })
     );
   }
 
@@ -330,7 +381,12 @@ export function OwnerDirectPosClient({
     const items = cart.filter((l) => l.quantity > 0);
     if (items.length === 0 || checkoutBusy) return;
     if (
-      items.some((l) => l.accountingType === "WEIGHT" && !l.packagingProductId)
+      items.some(
+        (l) =>
+          l.accountingType === "WEIGHT" &&
+          (!l.containerSource ||
+            (l.containerSource === "STORE_BOTTLE" && !l.packagingProductId))
+      )
     ) {
       setError(t("pos.bottleRequired"));
       return;
@@ -348,11 +404,17 @@ export function OwnerDirectPosClient({
           items: items.map((l) => ({
             productId: l.productId,
             quantity: l.quantity,
-            ...(l.accountingType === "WEIGHT" && l.packagingProductId
+            ...(l.accountingType === "WEIGHT"
               ? {
-                  packagingProductId: l.packagingProductId,
-                  ...(l.packagingSkuId
-                    ? { packagingSkuId: l.packagingSkuId }
+                  containerSource: l.containerSource ?? "STORE_BOTTLE",
+                  ...(l.containerSource !== "CUSTOMER_BOTTLE" &&
+                  l.packagingProductId
+                    ? {
+                        packagingProductId: l.packagingProductId,
+                        ...(l.packagingSkuId
+                          ? { packagingSkuId: l.packagingSkuId }
+                          : {}),
+                      }
                     : {}),
                 }
               : {}),
@@ -563,55 +625,96 @@ export function OwnerDirectPosClient({
                       />
                     </div>
                     {l.accountingType === "WEIGHT" ? (
-                      <div>
-                        <FieldLabel>{t("pos.selectBottle")}</FieldLabel>
-                        {l.packagingName ? (
-                          <div className="mt-1 text-xs leading-relaxed text-muted">
-                            {l.packagingName}
+                      <div className="space-y-2">
+                        <div>
+                          <FieldLabel>{t("pos.containerSource")}</FieldLabel>
+                          <div className="mt-1.5 flex gap-2">
+                            {(
+                              [
+                                ["STORE_BOTTLE", "pos.containerStore"],
+                                ["CUSTOMER_BOTTLE", "pos.containerCustomer"],
+                              ] as const
+                            ).map(([value, labelKey]) => (
+                              <button
+                                key={value}
+                                type="button"
+                                onClick={() =>
+                                  setLineContainerSource(idx, value)
+                                }
+                                className={cn(
+                                  "flex-1 rounded-xl py-2 text-xs font-semibold",
+                                  (l.containerSource ?? "STORE_BOTTLE") ===
+                                    value
+                                    ? "bg-brand text-white"
+                                    : "bg-card text-muted ring-1 ring-border"
+                                )}
+                              >
+                                {t(labelKey)}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {(l.containerSource ?? "STORE_BOTTLE") ===
+                        "STORE_BOTTLE" ? (
+                          <div>
+                            <FieldLabel>{t("pos.selectBottle")}</FieldLabel>
+                            {l.packagingName ? (
+                              <div className="mt-1 text-xs leading-relaxed text-muted">
+                                {l.packagingName}
+                              </div>
+                            ) : (
+                              <p className="mt-1 text-xs text-danger">
+                                {t("pos.bottleRequired")}
+                              </p>
+                            )}
+                            {bottlesLoading ? (
+                              <p className="mt-1.5 text-xs text-muted">
+                                {t("common.loading")}
+                              </p>
+                            ) : bottles.length === 0 ? (
+                              <p className="mt-1.5 text-xs text-danger">
+                                {t("pos.noBottlesInStore")}
+                              </p>
+                            ) : (
+                              <select
+                                className="mt-1.5 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                                value={l.packagingProductId ?? ""}
+                                onChange={(e) => {
+                                  const opt = bottles.find(
+                                    (b) =>
+                                      b.packagingProductId === e.target.value
+                                  );
+                                  if (opt) {
+                                    setLinePackaging(idx, {
+                                      packagingProductId:
+                                        opt.packagingProductId,
+                                      packagingSkuId: opt.packagingSkuId,
+                                      packagingName: opt.name,
+                                    });
+                                  }
+                                }}
+                              >
+                                <option value="">
+                                  {t("pos.bottlePlaceholder")}
+                                </option>
+                                {bottles.map((b) => (
+                                  <option
+                                    key={b.packagingProductId}
+                                    value={b.packagingProductId}
+                                  >
+                                    {b.name}
+                                    {b.volumeMl != null
+                                      ? ` · ${b.volumeMl} ${t("units.ml")}`
+                                      : ""}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
                           </div>
                         ) : (
-                          <p className="mt-1 text-xs text-danger">
-                            {t("pos.bottleRequired")}
+                          <p className="text-xs text-muted">
+                            {t("pos.containerCustomerHint")}
                           </p>
-                        )}
-                        {bottlesLoading ? (
-                          <p className="mt-1.5 text-xs text-muted">
-                            {t("common.loading")}
-                          </p>
-                        ) : bottles.length === 0 ? (
-                          <p className="mt-1.5 text-xs text-danger">
-                            {t("pos.noBottlesInStore")}
-                          </p>
-                        ) : (
-                          <select
-                            className="mt-1.5 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
-                            value={l.packagingProductId ?? ""}
-                            onChange={(e) => {
-                              const opt = bottles.find(
-                                (b) => b.packagingProductId === e.target.value
-                              );
-                              if (opt) {
-                                setLinePackaging(idx, {
-                                  packagingProductId: opt.packagingProductId,
-                                  packagingSkuId: opt.packagingSkuId,
-                                  packagingName: opt.name,
-                                });
-                              }
-                            }}
-                          >
-                            <option value="">{t("pos.bottlePlaceholder")}</option>
-                            {bottles.map((b) => (
-                              <option
-                                key={b.packagingProductId}
-                                value={b.packagingProductId}
-                              >
-                                {b.name}
-                                {b.volumeMl != null
-                                  ? ` · ${b.volumeMl} ${t("units.ml")}`
-                                  : ""}
-                              </option>
-                            ))}
-                          </select>
                         )}
                       </div>
                     ) : null}
@@ -724,35 +827,72 @@ export function OwnerDirectPosClient({
               />
             </div>
             <div>
-              <FieldLabel>{t("pos.selectBottle")}</FieldLabel>
-              {bottlesLoading ? (
-                <p className="mt-1 text-xs text-muted">{t("common.loading")}</p>
-              ) : bottles.length === 0 ? (
-                <p className="mt-1 text-xs text-danger">{t("pos.noBottlesInStore")}</p>
-              ) : (
-                <select
-                  className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
-                  value={bottleId}
-                  onChange={(e) => setBottleId(e.target.value)}
-                >
-                  <option value="">{t("pos.bottlePlaceholder")}</option>
-                  {bottles.map((b) => (
-                    <option key={b.packagingProductId} value={b.packagingProductId}>
-                      {b.name}
-                      {b.volumeMl != null
-                        ? ` · ${b.volumeMl} ${t("units.ml")}`
-                        : ""}
-                    </option>
-                  ))}
-                </select>
-              )}
+              <FieldLabel>{t("pos.containerSource")}</FieldLabel>
+              <div className="mt-1.5 flex gap-2">
+                {(
+                  [
+                    ["STORE_BOTTLE", "pos.containerStore"],
+                    ["CUSTOMER_BOTTLE", "pos.containerCustomer"],
+                  ] as const
+                ).map(([value, labelKey]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setContainerSource(value)}
+                    className={cn(
+                      "flex-1 rounded-xl py-2 text-xs font-semibold",
+                      containerSource === value
+                        ? "bg-brand text-white"
+                        : "bg-card text-muted ring-1 ring-border"
+                    )}
+                  >
+                    {t(labelKey)}
+                  </button>
+                ))}
+              </div>
             </div>
+            {containerSource === "STORE_BOTTLE" ? (
+              <div>
+                <FieldLabel>{t("pos.selectBottle")}</FieldLabel>
+                {bottlesLoading ? (
+                  <p className="mt-1 text-xs text-muted">{t("common.loading")}</p>
+                ) : bottles.length === 0 ? (
+                  <p className="mt-1 text-xs text-danger">
+                    {t("pos.noBottlesInStore")}
+                  </p>
+                ) : (
+                  <select
+                    className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                    value={bottleId}
+                    onChange={(e) => setBottleId(e.target.value)}
+                  >
+                    <option value="">{t("pos.bottlePlaceholder")}</option>
+                    {bottles.map((b) => (
+                      <option
+                        key={b.packagingProductId}
+                        value={b.packagingProductId}
+                      >
+                        {b.name}
+                        {b.volumeMl != null
+                          ? ` · ${b.volumeMl} ${t("units.ml")}`
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted">{t("pos.containerCustomerHint")}</p>
+            )}
             {error ? <p className="text-sm text-danger">{error}</p> : null}
             <Button
               type="button"
               className="w-full"
               onClick={confirmWeightAdd}
-              disabled={bottlesLoading || bottles.length === 0}
+              disabled={
+                containerSource === "STORE_BOTTLE" &&
+                (bottlesLoading || bottles.length === 0)
+              }
             >
               {t("pos.addToCart")}
             </Button>

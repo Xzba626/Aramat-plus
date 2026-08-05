@@ -10,7 +10,7 @@ import { getProductImageUrl } from "@/lib/product-image-url";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { apiErrorMessage } from "@/lib/i18n/labels";
+import { apiErrorMessage, labelBatchNotes } from "@/lib/i18n/labels";
 import { cn } from "@/lib/utils";
 
 type Batch = {
@@ -495,7 +495,7 @@ export default function ProductDetailPage() {
                     ? `${formatMoney(Number(b.costPerUnit))} · `
                     : ""}
                   {formatDateTime(b.receivedAt)}
-                  {b.notes ? ` · ${b.notes}` : ""}
+                  {b.notes ? ` · ${labelBatchNotes(b.notes, t)}` : ""}
                 </div>
               </div>
             ))

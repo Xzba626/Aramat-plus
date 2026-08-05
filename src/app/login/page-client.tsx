@@ -28,12 +28,20 @@ export default function LoginPageClient() {
     const res = await signIn("credentials", {
       email,
       password,
+      userAgent:
+        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
       redirect: false,
     });
     setLoading(false);
     if (res?.error) {
       setError(t("login.invalid"));
       return;
+    }
+    // Enrich LOGIN journal with request IP / UA / geo (portable providers).
+    try {
+      await fetch("/api/auth/login-context", { method: "POST" });
+    } catch {
+      /* non-blocking */
     }
     // Only relative paths — never follow absolute localhost from Auth/callback
     const raw = searchParams.get("callbackUrl") || "/";

@@ -75,6 +75,7 @@
     "RESERVATION_WRONG_STORE": "Резерв ба мағозаи дигар тааллуқ дорад",
     "INSUFFICIENT_BATCH_STOCK": "Аз рӯи партияҳо боқимондаи кофӣ нест",
     "BOTTLE_REQUIRED": "Барои рехта шишаро интихоб кунед",
+    "CONTAINER_SOURCE_REQUIRED": "Манбаи шишаро нишон диҳед: мағоза ё муштарӣ",
     "BOTTLE_NOT_FOUND": "Шиша ёфт нашуд ё дастрас нест",
     "PACKAGING_NOT_FOR_SALE": "Шишаро алоҳида фурӯхтан мумкин нест — танҳо ҳангоми рехтан",
     "QTY_MUST_BE_POSITIVE": "Миқдор бояд аз сифр зиёд бошад",
@@ -239,7 +240,9 @@
     "funnelNet": "Формула: Фоидаи умумӣ − Хароҷоти мағозаҳо = Фоидаи соф. Он чи барои соҳиб пас аз фурӯш ва хароҷот боқӣ мемонад.",
     "funnelNetStore": "Фоидаи умумӣ минуси хароҷоти ҳамин мағоза имрӯз. Нишондиҳандаи асосӣ барои мағоза.",
     "funnelChart": "Фоидаи соф аз рӯи рӯзҳо. Сутунҳои сабз — плюс, сурх — минус. Болои сутун — маблағ.",
-    "ownerDirectStore": "Фурӯши мустақим аз анбор: мол ба мағоза фиристода намешавад. Боқимонда ва фурӯш аз анбори марказӣ ҳисоб мешавад."
+    "ownerDirectStore": "Фурӯши мустақим аз анбор: мол ба мағоза фиристода намешавад. Боқимонда ва фурӯш аз анбори марказӣ ҳисоб мешавад.",
+    "paymentMethods": "Ҷамъи фурӯши имрӯз аз рӯи усули пардохт. Ҳамон фурӯшҳое, ки дар воронкаи боло.",
+    "containerSource": "Чанд рехта имрӯз ба шишаи мағоза ва чандто ба шишаи муштарӣ рафт. Хароҷоти шиша танҳо барои шишаи мағоза ҳисоб мешавад."
   },
   "dashboard": {
     "commandCenter": "Aramat Plus · Маркази фармон",
@@ -439,7 +442,18 @@
     "trafficRed": "Фаврӣ",
     "trafficYellow": "Диққат",
     "trafficGreen": "Ҳама хуб",
+    "paymentMethodsTitle": "Усулҳои пардохт имрӯз",
+    "paymentMethodChecks": "{{count}} чек",
+    "containerSourceTitle": "Шишаҳо имрӯз",
+    "containerSalesCount": "Фурӯшҳо",
+    "containerStoreBottles": "Шишаи мағоза",
+    "containerCustomerBottles": "Ба шишаи муштарӣ",
     "moreTheme": "Мавзуи интерфейс"
+  },
+  "payment": {
+    "CASH": "Нақд",
+    "CARD": "Корти бонкӣ",
+    "TRANSFER": "Интиқоли бонкӣ"
   },
   "warehouse": {
     "overviewTitle": "Шарҳи анбор",
@@ -491,6 +505,13 @@
     "alertQtyLine": "Боқимонда {{qty}} · мин. {{min}}",
     "alertOutLine": "Дар анбор нест",
     "receiptDefault": "Қабул",
+    "notesInitialStock": "Боқимондаи ибтидоӣ",
+    "notesPackagingReceive": "Қабули шишаҳо",
+    "notesTransfer": "Фиристодан ба мағоза",
+    "notesStoreTransfer": "Интиқол байни мағозаҳо",
+    "notesWarehouseReturn": "Бозгашт ба анбор",
+    "notesSaleReturn": "Бозгашт аз фурӯш",
+    "notesRevision": "Ревизия",
     "writeOffDefault": "Ҳисоббарорӣ",
     "newBatch": "Қабули нав",
     "returnToWh": "Бозгашт ба анбор",
@@ -1106,6 +1127,10 @@
     "ip": "IP",
     "ipLocal": "Шабакаи маҳаллӣ",
     "unavailable": "Дастрас нест",
+    "country": "Кишвар",
+    "city": "Шаҳр",
+    "countryUnknown": "Муайян нашудааст",
+    "cityUnknown": "Муайян нашудааст",
     "os": "Системаи амалиётӣ",
     "device": "Дастгоҳ",
     "prevPage": "Қафо",
@@ -1255,6 +1280,12 @@
     "reserveTtlHoursMins": "{{h}} соат {{m}} дақ",
     "reserveError": "Резерв эҷод нашуд",
     "selectBottle": "Шиша барои рехта",
+    "containerSource": "Манбаи шиша",
+    "containerStore": "Шишаи мағоза",
+    "containerCustomer": "Шишаи муштарӣ",
+    "containerStoreShort": "шишаи мо",
+    "containerCustomerShort": "шишаи муштарӣ",
+    "containerCustomerHint": "Танҳо атр ҳисоб мешавад. Шиша аз анбор кам намешавад.",
     "bottlePlaceholder": "— шишаро интихоб кунед —",
     "bottleHint": "Шиша позицияи алоҳидаи чек нест — танҳо барои рехта",
     "bottleRequired": "Барои рехта дар ҳар позитсия шишаро интихоб кунед",
@@ -1345,6 +1376,8 @@
     "returnInOk": "Бозгашт ба анбори марказӣ қабул шуд",
     "writeOffTitle": "Ҳисоббарорӣ",
     "writeOffConfirm": "Ҳисоббарориро сабт кардан",
+    "writeOffReason": "Сабаби ҳисоббарорӣ",
+    "writeOffReasonPlaceholder": "Сабабро интихоб кунед",
     "historyTitle": "Таърихи амалиёти анбор",
     "brandsTitle": "Брендҳо",
     "brandsArchive": "Ба архив",
@@ -1645,6 +1678,23 @@
     "PENDING": "Интизор",
     "APPROVED": "Тасдиқ шуд",
     "REJECTED": "Рад шуд"
+  },
+  "writeOffReason": {
+    "SPOILED": "Вайрон шуд",
+    "BROKEN": "Шикаста",
+    "TESTER": "Тестер",
+    "STOLEN": "Дуздида шуд",
+    "LOSS": "Гум шуд",
+    "EXPIRED": "Муҳлат гузашт",
+    "OTHER": "Дигар"
+  },
+  "returnReason": {
+    "DEFECT": "Нуқсон",
+    "SELLER_ERROR": "Хатои фурӯшанда",
+    "CUSTOMER_ERROR": "Хатои муштарӣ",
+    "EXPIRED": "Муҳлат гузашт",
+    "DAMAGED": "Вайрон шуд",
+    "OTHER": "Дигар"
   },
   "units": {
     "ml": "мл.",

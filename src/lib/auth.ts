@@ -8,10 +8,13 @@ import { z } from "zod";
 import { authConfig } from "@/lib/auth.config";
 import { logActivity } from "@/lib/services/activity-log.service";
 import {
-  clientIpFromHeaders,
   deviceMetaForLog,
   parseUserAgent,
 } from "@/lib/security/client-fingerprint";
+import {
+  locationMetaForLog,
+  resolveClientLocation,
+} from "@/lib/security/client-location";
 import { notifyIfNewLogin } from "@/lib/services/security-notify.service";
 
 declare module "next-auth" {
@@ -44,6 +47,8 @@ declare module "@auth/core/jwt" {
 const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  /** Client-supplied UA backup when Next headers() is empty in authorize(). */
+  userAgent: z.string().max(800).optional(),
 });
 
 /** Progressive lockout after consecutive failures: 30s → 1m → 5m → 15m. */
@@ -144,10 +149,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           hdrs = (request as Request).headers;
         }
 
-        const ip = hdrs ? clientIpFromHeaders(hdrs) : null;
-        const userAgent = hdrs?.get("user-agent") ?? null;
+        const location = hdrs ? resolveClientLocation(hdrs) : null;
+        const ip = location?.ip ?? null;
+        const userAgent =
+          hdrs?.get("user-agent")?.trim() ||
+          parsed.data.userAgent?.trim() ||
+          null;
         const deviceInfo = parseUserAgent(userAgent);
         const deviceMeta = deviceMetaForLog(deviceInfo);
+        const locationMeta = location ? locationMetaForLog(location) : {};
 
         const user = await prisma.user.findUnique({
           where: { email },
@@ -169,6 +179,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               ...(user?.name ? { userName: user.name } : {}),
               ...(user?.role ? { role: user.role } : {}),
               ...deviceMeta,
+              ...locationMeta,
             },
           });
           return null;
@@ -192,6 +203,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               failedLoginCount: user.failedLoginCount,
               lockedUntil: user.lockedUntil.toISOString(),
               ...deviceMeta,
+              ...locationMeta,
             },
           });
           return null;
@@ -230,6 +242,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               failedLoginCount: failCount,
               lockedUntil: lockedUntil?.toISOString() ?? null,
               ...deviceMeta,
+              ...locationMeta,
             },
           });
           return null;
@@ -258,6 +271,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             role: user.role,
             email: user.email,
             ...deviceMeta,
+            ...locationMeta,
           },
         });
 

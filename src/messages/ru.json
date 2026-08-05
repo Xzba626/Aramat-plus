@@ -76,6 +76,7 @@
     "RESERVATION_WRONG_STORE": "Резерв принадлежит другому магазину",
     "INSUFFICIENT_BATCH_STOCK": "Недостаточно остатка по партиям",
     "BOTTLE_REQUIRED": "Выберите флакон для разлива",
+    "CONTAINER_SOURCE_REQUIRED": "Укажите источник флакона: магазина или клиента",
     "PACKAGING_NOT_FOR_SALE": "Флакон нельзя продать отдельно — только при разливе",
     "BOTTLE_NOT_FOUND": "Флакон не найден или недоступен",
     "QTY_MUST_BE_POSITIVE": "Количество должно быть больше нуля",
@@ -239,7 +240,9 @@
     "funnelNet": "Формула: Валовая прибыль − Расходы магазинов = Чистая прибыль. Это то, что реально остаётся владельцу после продажи товаров и оплаты расходов.",
     "funnelNetStore": "Валовая прибыль минус расходы этого магазина за сегодня. Главный показатель дня по магазину.",
     "funnelChart": "Чистая прибыль по дням. Зелёный столбец — день в плюсе, красный — в минусе. Над столбцом указана сумма.",
-    "ownerDirectStore": "Прямые продажи со склада: товар не отправляли в магазин. Остатки и продажи считаются с центрального склада."
+    "ownerDirectStore": "Прямые продажи со склада: товар не отправляли в магазин. Остатки и продажи считаются с центрального склада.",
+    "paymentMethods": "Суммы продаж сегодня по способу оплаты. Используются те же продажи, что и в воронке выше.",
+    "containerSource": "Сколько разливов сегодня пошло во флакон магазина и сколько — в собственный флакон клиента. Расход флаконов считается только для флаконов магазина."
   },
   "dashboard": {
     "commandCenter": "Aramat Plus · Командный центр",
@@ -439,7 +442,18 @@
     "actionCheckStock": "Проверить склад",
     "trafficRed": "Срочно",
     "trafficYellow": "Внимание",
-    "trafficGreen": "Всё в порядке"
+    "trafficGreen": "Всё в порядке",
+    "paymentMethodsTitle": "Способы оплаты сегодня",
+    "paymentMethodChecks": "{{count}} чек.",
+    "containerSourceTitle": "Флаконы сегодня",
+    "containerSalesCount": "Продаж",
+    "containerStoreBottles": "Флаконов магазина",
+    "containerCustomerBottles": "В флакон клиента"
+  },
+  "payment": {
+    "CASH": "Наличные",
+    "CARD": "Банковская карта",
+    "TRANSFER": "Банковский перевод"
   },
   "warehouse": {
     "overviewTitle": "Обзор склада",
@@ -491,6 +505,13 @@
     "alertQtyLine": "Остаток {{qty}} · мин. {{min}}",
     "alertOutLine": "Нет на складе",
     "receiptDefault": "Поступление",
+    "notesInitialStock": "Начальный остаток",
+    "notesPackagingReceive": "Поступление флаконов",
+    "notesTransfer": "Отправка в магазин",
+    "notesStoreTransfer": "Перемещение между магазинами",
+    "notesWarehouseReturn": "Возврат на склад",
+    "notesSaleReturn": "Возврат с продажи",
+    "notesRevision": "Ревизия",
     "writeOffDefault": "Списание",
     "newBatch": "Новая партия",
     "returnToWh": "Возврат на склад",
@@ -1106,6 +1127,10 @@
     "ip": "IP",
     "ipLocal": "Локальная сеть",
     "unavailable": "Недоступно",
+    "country": "Страна",
+    "city": "Город",
+    "countryUnknown": "Не определена",
+    "cityUnknown": "Не определён",
     "os": "Операционная система",
     "device": "Устройство",
     "prevPage": "Назад",
@@ -1255,6 +1280,12 @@
     "reserveTtlHoursMins": "{{h}} ч {{m}} мин",
     "reserveError": "Не удалось создать резерв",
     "selectBottle": "Флакон для разлива",
+    "containerSource": "Источник флакона",
+    "containerStore": "Флакон магазина",
+    "containerCustomer": "Флакон клиента",
+    "containerStoreShort": "наш флакон",
+    "containerCustomerShort": "флакон клиента",
+    "containerCustomerHint": "Списывается только парфюм. Флакон со склада не расходуется.",
     "bottlePlaceholder": "— выберите флакон —",
     "bottleHint": "Флакон не отдельная позиция чека — только упаковка для разлива",
     "bottleRequired": "Для разлива выберите флакон по каждой позиции",
@@ -1345,6 +1376,8 @@
     "returnInOk": "Возврат принят на центральный склад",
     "writeOffTitle": "Списания",
     "writeOffConfirm": "Зафиксировать списание",
+    "writeOffReason": "Причина списания",
+    "writeOffReasonPlaceholder": "Выберите причину",
     "historyTitle": "История операций склада",
     "brandsTitle": "Бренды",
     "brandsArchive": "В архив",
@@ -1645,6 +1678,23 @@
     "PENDING": "Ожидает",
     "APPROVED": "Одобрено",
     "REJECTED": "Отклонено"
+  },
+  "writeOffReason": {
+    "SPOILED": "Испорчено",
+    "BROKEN": "Повреждено",
+    "TESTER": "Тестер",
+    "STOLEN": "Украдено",
+    "LOSS": "Утеря",
+    "EXPIRED": "Истёк срок",
+    "OTHER": "Другое"
+  },
+  "returnReason": {
+    "DEFECT": "Брак",
+    "SELLER_ERROR": "Ошибка продавца",
+    "CUSTOMER_ERROR": "Ошибка покупателя",
+    "EXPIRED": "Истёк срок",
+    "DAMAGED": "Повреждено",
+    "OTHER": "Другое"
   },
   "units": {
     "ml": "мл",
