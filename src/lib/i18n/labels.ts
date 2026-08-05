@@ -228,6 +228,47 @@ export function labelExpensePeriodicity(
   return key ? t(key) : periodicity;
 }
 
+/**
+ * Human-readable expense description for UI and exports.
+ * Maps AUTO_BOTTLE / legacy sale:<cuid> markers — never show raw tech tokens.
+ */
+export function formatExpenseDescription(
+  description: string | null | undefined,
+  t: TranslateFn
+): string {
+  const raw = (description ?? "").trim();
+  if (!raw) return "";
+
+  if (raw === "AUTO_BOTTLE") {
+    return t("exportCsv.expenseBottleSale");
+  }
+  const autoNamed = raw.match(/^AUTO_BOTTLE\|(.+)$/);
+  if (autoNamed) {
+    return t("exportCsv.expenseBottleSaleNamed", { name: autoNamed[1].trim() });
+  }
+
+  const legacy = raw.match(/^sale:[a-z0-9]+(?:\s*[·•|]\s*(.+))?$/i);
+  if (legacy) {
+    const name = legacy[1]?.trim();
+    return name
+      ? t("exportCsv.expenseBottleSaleNamed", { name })
+      : t("exportCsv.expenseBottleSale");
+  }
+
+  if (/sale:[a-z0-9]{8,}/i.test(raw)) {
+    const cleaned = raw
+      .replace(/sale:[a-z0-9]+/gi, "")
+      .replace(/^[·•|\-\s]+|[·•|\-\s]+$/g, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    return cleaned
+      ? t("exportCsv.expenseBottleSaleNamed", { name: cleaned })
+      : t("exportCsv.expenseBottleSale");
+  }
+
+  return raw;
+}
+
 export function labelSaleStatus(status: string, t: TranslateFn): string {
   const key = SALE_STATUS_KEYS[status];
   return key ? t(key) : status;

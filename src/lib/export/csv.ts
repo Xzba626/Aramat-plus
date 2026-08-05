@@ -3,6 +3,7 @@ import { LOCALE_COOKIE_KEY } from "@/lib/i18n/types";
 import { translate } from "@/lib/i18n/translate";
 import { formatDateLocale } from "@/lib/i18n/format";
 import {
+  formatExpenseDescription,
   labelExpensePeriodicity,
   labelSaleStatus,
   type TranslateFn,
@@ -78,47 +79,14 @@ export function formatExportSaleStatus(status: string, t: TranslateFn): string {
 }
 
 /**
- * Human-readable expense description for Excel.
- * Strips legacy `sale:<cuid>` technical prefixes from bottle opex rows.
+ * @deprecated Prefer `formatExpenseDescription` from `@/lib/i18n/labels`.
+ * Kept as a stable export alias for CSV / reports.
  */
 export function formatExpenseDescriptionForExport(
   description: string | null | undefined,
   t: TranslateFn
 ): string {
-  const raw = (description ?? "").trim();
-  if (!raw) return "";
-
-  // New marker: AUTO_BOTTLE or AUTO_BOTTLE|<productName>
-  if (raw === "AUTO_BOTTLE") {
-    return t("exportCsv.expenseBottleSale");
-  }
-  const autoNamed = raw.match(/^AUTO_BOTTLE\|(.+)$/);
-  if (autoNamed) {
-    return t("exportCsv.expenseBottleSaleNamed", { name: autoNamed[1].trim() });
-  }
-
-  // Legacy: "sale:cmse8h3g… · Perfume Name" or "sale:cmse8h3g…"
-  const legacy = raw.match(/^sale:[a-z0-9]+(?:\s*[·•|]\s*(.+))?$/i);
-  if (legacy) {
-    const name = legacy[1]?.trim();
-    return name
-      ? t("exportCsv.expenseBottleSaleNamed", { name })
-      : t("exportCsv.expenseBottleSale");
-  }
-
-  // Any leftover sale:<id> substring — strip the tech token
-  if (/sale:[a-z0-9]{8,}/i.test(raw)) {
-    const cleaned = raw
-      .replace(/sale:[a-z0-9]+/gi, "")
-      .replace(/^[·•|\-\s]+|[·•|\-\s]+$/g, "")
-      .replace(/\s{2,}/g, " ")
-      .trim();
-    return cleaned
-      ? t("exportCsv.expenseBottleSaleNamed", { name: cleaned })
-      : t("exportCsv.expenseBottleSale");
-  }
-
-  return raw;
+  return formatExpenseDescription(description, t);
 }
 
 export function buildCsvBody(lines: string[]): string {

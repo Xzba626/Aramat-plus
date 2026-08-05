@@ -118,18 +118,19 @@ async function main() {
   assert.equal(fresh.countedQty, null, "countedQty must start null");
   assert.equal(Number(fresh.difference), 0);
 
-  // While IN_PROGRESS: Owner also blind (no expected/diff in API)
+  // While IN_PROGRESS: Manager blind; Owner sees system stock (docs + UX).
   const ownerInProgress = await getInventorySessionDetail(
     company.id,
     session.id,
     Role.OWNER
   );
-  assert.equal(ownerInProgress.blind, true, "Owner blind during count");
+  assert.equal(ownerInProgress.blind, false, "Owner sees expected during count");
   const ownerIpItem = ownerInProgress.items.find(
     (i) => i.productId === product.id
   );
   assert.ok(ownerIpItem);
-  assert.equal("expectedQty" in ownerIpItem, false);
+  assert.equal("expectedQty" in ownerIpItem, true);
+  assert.equal(ownerIpItem.expectedQty, expected);
   assert.equal("difference" in ownerIpItem, false);
   assert.equal(ownerIpItem.countedQty, null);
 
@@ -172,16 +173,20 @@ async function main() {
     })),
   });
 
-  // Still blind until submitted
+  // Owner still sees expected while counting; manager remains blind
   const ownerStillBlind = await getInventorySessionDetail(
     company.id,
     session.id,
     Role.OWNER
   );
-  assert.equal(ownerStillBlind.blind, true);
+  assert.equal(ownerStillBlind.blind, false);
   assert.equal(
     ownerStillBlind.items.find((i) => i.productId === product.id)?.countedQty,
     fact
+  );
+  assert.equal(
+    ownerStillBlind.items.find((i) => i.productId === product.id)?.expectedQty,
+    expected
   );
 
   await submitInventoryForApproval({
@@ -287,7 +292,7 @@ async function main() {
   assert.equal(Number(item.difference), fact - expected);
 
   console.log(
-    "\nPASS: ZT Revision — empty fact → blind → submit pending → owner diffs → approve FIFO / manager metadata-only"
+    "\nPASS: ZT Revision — empty fact → manager blind / owner expected → submit pending → owner diffs → approve FIFO / manager metadata-only"
   );
   console.log(`  expected=${expected} fact=${fact} diff=${fact - expected} finalStock=${qty}`);
 

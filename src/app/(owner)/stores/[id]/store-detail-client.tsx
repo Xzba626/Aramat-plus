@@ -13,12 +13,12 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   apiErrorMessage,
+  formatExpenseDescription,
   labelDecisionStatus,
   labelRevisionStatus,
   labelRole,
   labelSaleStatus,
 } from "@/lib/i18n/labels";
-import { formatExpenseDescriptionForExport } from "@/lib/export/csv";
 import { FinanceFunnel } from "@/components/dashboard/finance-funnel";
 import {
   ContainerSourceBreakdown,
@@ -1100,7 +1100,7 @@ function StoreExpensesPanel({
   const filtered = rows.filter((r) => {
     const matchQ =
       !q.trim() ||
-      `${r.type} ${r.description ?? ""} ${r.actor}`
+      `${r.type} ${formatExpenseDescription(r.description, t)} ${r.actor}`
         .toLowerCase()
         .includes(q.toLowerCase());
     const matchT = typeFilter === "ALL" || r.typeId === typeFilter;
@@ -1333,7 +1333,7 @@ function StoreExpensesPanel({
                     {formatMoney(r.amount)}
                   </td>
                   <td className="px-4 py-3 text-muted">
-                    {formatExpenseDescriptionForExport(r.description, t) || "—"}
+                    {formatExpenseDescription(r.description, t) || "—"}
                   </td>
                   <td className="px-4 py-3 text-muted">{r.actor}</td>
                 </tr>

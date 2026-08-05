@@ -10,10 +10,13 @@ export function PreferenceControls({
   className,
   showLabels = false,
   layout = "row",
+  showTheme = true,
 }: {
   className?: string;
   showLabels?: boolean;
   layout?: "row" | "stack";
+  /** Login page: language only; theme lives in Profile → Settings after sign-in. */
+  showTheme?: boolean;
 }) {
   const t = useT();
 
@@ -32,14 +35,16 @@ export function PreferenceControls({
         ) : null}
         <LanguageSwitcher />
       </div>
-      <div className={cn(layout === "stack" && "space-y-1.5")}>
-        {showLabels ? (
-          <div className="text-xs font-bold uppercase tracking-wide text-muted">
-            {t("theme.label")}
-          </div>
-        ) : null}
-        <ThemeSwitcher />
-      </div>
+      {showTheme ? (
+        <div className={cn(layout === "stack" && "space-y-1.5")}>
+          {showLabels ? (
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">
+              {t("theme.label")}
+            </div>
+          ) : null}
+          <ThemeSwitcher />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -30,6 +30,8 @@ type Row = {
 type DetailItem = {
   productId: string;
   name: string;
+  category?: string | null;
+  accountingType?: string | null;
   unit: string;
   expectedQty?: number;
   countedQty: number | null;
@@ -54,6 +56,22 @@ function isFactFilled(raw: string | undefined): boolean {
   if (s === "") return false;
   const n = Number(s);
   return Number.isFinite(n) && n >= 0;
+}
+
+function formatQtyDisplay(n: number): string {
+  const rounded = Math.round(n * 1000) / 1000;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+}
+
+function unitForItem(
+  it: DetailItem,
+  t: (key: string) => string
+): string {
+  const symbol = it.unit?.trim();
+  if (symbol) return symbol;
+  return it.accountingType === "WEIGHT"
+    ? t("warehouse.unitMl")
+    : t("warehouse.unitPcs");
 }
 
 export default function RevisionPage() {
@@ -400,14 +418,21 @@ export default function RevisionPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {reviewDetail.items.map((it) => (
+                    {reviewDetail.items.map((it) => {
+                      const unit = unitForItem(it, t);
+                      return (
                       <tr key={it.productId} className="border-t border-border">
-                        <td className="p-3">{it.name}</td>
-                        <td className="p-3 tabular-nums">
-                          {it.expectedQty} {it.unit}
+                        <td className="p-3">
+                          <div className="font-medium text-ink">{it.name}</div>
+                          {it.category ? (
+                            <div className="text-xs text-muted">{it.category}</div>
+                          ) : null}
                         </td>
                         <td className="p-3 tabular-nums">
-                          {it.countedQty} {it.unit}
+                          {it.expectedQty} {unit}
+                        </td>
+                        <td className="p-3 tabular-nums">
+                          {it.countedQty} {unit}
                         </td>
                         <td
                           className={cn(
@@ -417,10 +442,11 @@ export default function RevisionPage() {
                           )}
                         >
                           {(it.difference ?? 0) > 0 ? "+" : ""}
-                          {it.difference}
+                          {it.difference} {unit}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -522,7 +548,9 @@ export default function RevisionPage() {
             </div>
 
             <p className="px-4 pt-3 text-sm text-muted">
-              {t("revisionPage.factAbsoluteHint")}
+              {isOwner && !countModal.blind
+                ? t("revisionPage.factCompareHint")
+                : t("revisionPage.factAbsoluteHint")}
             </p>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
@@ -531,35 +559,97 @@ export default function RevisionPage() {
                   {t("revisionPage.noItemsInStore")}
                 </p>
               ) : (
-                <ul className="space-y-2">
-                  {countModal.items.map((it) => (
-                    <li
-                      key={it.productId}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-ink">
-                          {it.name}
-                        </p>
-                        {it.unit ? (
-                          <p className="text-xs text-muted">{it.unit}</p>
+                <ul className="space-y-3">
+                  {countModal.items.map((it) => {
+                    const unit = unitForItem(it, t);
+                    const factRaw = counts[it.productId];
+                    const factNum = isFactFilled(factRaw)
+                      ? Number(factRaw)
+                      : null;
+                    const showSystem =
+                      isOwner &&
+                      !countModal.blind &&
+                      typeof it.expectedQty === "number";
+                    const liveDiff =
+                      showSystem && factNum != null
+                        ? Math.round((factNum - it.expectedQty!) * 1000) / 1000
+                        : null;
+
+                    return (
+                      <li
+                        key={it.productId}
+                        className="rounded-xl border border-border px-3 py-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted">
+                            {t("revisionPage.productLabel")}
+                          </p>
+                          <p className="text-sm font-semibold text-ink">
+                            {it.name}
+                          </p>
+                          {it.category ? (
+                            <p className="mt-0.5 text-xs text-muted">
+                              {t("revisionPage.categoryLabel")}: {it.category}
+                            </p>
+                          ) : null}
+                          <p className="mt-0.5 text-xs text-muted">
+                            {t("revisionPage.unitLabel")}: {unit}
+                          </p>
+                        </div>
+
+                        {showSystem ? (
+                          <div className="mt-2 grid gap-1 text-sm">
+                            <div className="flex justify-between gap-2">
+                              <span className="text-muted">
+                                {t("revisionPage.systemStock")}
+                              </span>
+                              <span className="font-semibold tabular-nums text-ink">
+                                {formatQtyDisplay(it.expectedQty!)} {unit}
+                              </span>
+                            </div>
+                          </div>
                         ) : null}
-                      </div>
-                      <input
-                        className="w-28 shrink-0 rounded-lg border border-border px-2 py-1.5 text-right tabular-nums"
-                        inputMode="decimal"
-                        placeholder="—"
-                        value={counts[it.productId] ?? ""}
-                        onChange={(e) =>
-                          setCounts((c) => ({
-                            ...c,
-                            [it.productId]: e.target.value,
-                          }))
-                        }
-                        aria-label={`${it.name} ${t("revisionPage.actual")}`}
-                      />
-                    </li>
-                  ))}
+
+                        <div className="mt-2">
+                          <FieldLabel>
+                            {t("revisionPage.actualStock")} ({unit})
+                          </FieldLabel>
+                          <input
+                            className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-right tabular-nums"
+                            inputMode="decimal"
+                            placeholder="—"
+                            value={factRaw ?? ""}
+                            onChange={(e) =>
+                              setCounts((c) => ({
+                                ...c,
+                                [it.productId]: e.target.value,
+                              }))
+                            }
+                            aria-label={`${it.name} ${t("revisionPage.actual")}`}
+                          />
+                        </div>
+
+                        {liveDiff != null ? (
+                          <div
+                            className={cn(
+                              "mt-2 flex justify-between gap-2 text-sm font-semibold",
+                              liveDiff === 0
+                                ? "text-muted"
+                                : liveDiff < 0
+                                  ? "text-danger"
+                                  : "text-success"
+                            )}
+                          >
+                            <span>{t("revisionPage.diff")}</span>
+                            <span className="tabular-nums">
+                              {liveDiff > 0 ? "+" : ""}
+                              {formatQtyDisplay(liveDiff)} {unit}
+                            </span>
+                          </div>
+                        ) : null}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>

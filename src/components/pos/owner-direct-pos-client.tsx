@@ -554,6 +554,7 @@ export function OwnerDirectPosClient({
                   asButton
                   disabled={p.quantity <= 0}
                   quantity={p.quantity}
+                  showExactStock
                   stockStatus={p.stockStatus}
                   onClick={() => onCardClick(p)}
                   product={{
@@ -610,6 +611,16 @@ export function OwnerDirectPosClient({
                       </div>
                       <div className="text-xs text-muted">
                         {formatMoney(l.salePrice)} / {l.unit}
+                      </div>
+                      <div className="mt-0.5 text-xs font-medium text-ink">
+                        {t("pos.stockAvailable", {
+                          qty: Math.round(l.max * 1000) / 1000,
+                          unit:
+                            l.unit ||
+                            (l.accountingType === "WEIGHT"
+                              ? t("warehouse.unitMl")
+                              : t("warehouse.unitPcs")),
+                        })}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -802,6 +813,13 @@ export function OwnerDirectPosClient({
             <div className="flex items-start justify-between gap-2">
               <div>
                 <h2 className="text-lg font-bold text-ink">{weightPick.name}</h2>
+                <p className="text-sm font-medium text-ink">
+                  {t("pos.stockAvailable", {
+                    qty: Math.round(weightPick.quantity * 1000) / 1000,
+                    unit:
+                      weightPick.unit || t("warehouse.unitMl"),
+                  })}
+                </p>
                 <p className="text-sm text-muted">{t("pos.weightAddHint")}</p>
               </div>
               <button

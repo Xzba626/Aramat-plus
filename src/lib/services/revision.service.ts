@@ -405,7 +405,9 @@ export async function getInventorySessionDetail(
     select: {
       id: true,
       name: true,
+      accountingType: true,
       unit: { select: { symbol: true } },
+      category: { select: { name: true } },
     },
   });
   const nameMap = new Map(products.map((p) => [p.id, p]));
@@ -425,31 +427,52 @@ export async function getInventorySessionDetail(
 
   const isInProgress = session.status === InventoryStatus.IN_PROGRESS;
   const isPending = session.status === InventoryStatus.PENDING_APPROVAL;
+  const isOwner = role === Role.OWNER;
 
-  // While counting: never expose expected/diff — Owner and Manager alike.
-  if (isInProgress) {
+  const mapItemMeta = (i: (typeof session.items)[number]) => {
+    const p = nameMap.get(i.productId);
+    return {
+      productId: i.productId,
+      name: p?.name ?? i.productId,
+      category: p?.category?.name ?? null,
+      accountingType: p?.accountingType ?? null,
+      unit: p?.unit?.symbol ?? "",
+      countedQty: i.countedQty == null ? null : decimalToNumber(i.countedQty),
+      reason: i.discrepancyReason,
+    };
+  };
+
+  // Manager: blind count — fact only, never expected / difference.
+  if (isInProgress && !isOwner) {
     return {
       ...base,
       blind: true as const,
+      items: session.items.map(mapItemMeta),
+    };
+  }
+
+  // Owner while counting: may see system stock (docs: expectation only for Owner).
+  if (isInProgress && isOwner) {
+    return {
+      ...base,
+      blind: false as const,
       items: session.items.map((i) => ({
-        productId: i.productId,
-        name: nameMap.get(i.productId)?.name ?? i.productId,
-        unit: nameMap.get(i.productId)?.unit?.symbol ?? "",
-        countedQty:
-          i.countedQty == null ? null : decimalToNumber(i.countedQty),
-        reason: i.discrepancyReason,
+        ...mapItemMeta(i),
+        expectedQty: decimalToNumber(i.expectedQty),
       })),
     };
   }
 
   // Pending / completed / cancelled: Manager sees metadata only.
-  if (role !== Role.OWNER) {
+  if (!isOwner) {
     return {
       ...base,
       blind: true as const,
       items: [] as Array<{
         productId: string;
         name: string;
+        category: string | null;
+        accountingType: string | null;
         unit: string;
         countedQty: number | null;
         reason: string | null;
@@ -463,14 +486,9 @@ export async function getInventorySessionDetail(
       ...base,
       blind: false as const,
       items: session.items.map((i) => ({
-        productId: i.productId,
-        name: nameMap.get(i.productId)?.name ?? i.productId,
-        unit: nameMap.get(i.productId)?.unit?.symbol ?? "",
+        ...mapItemMeta(i),
         expectedQty: decimalToNumber(i.expectedQty),
-        countedQty:
-          i.countedQty == null ? null : decimalToNumber(i.countedQty),
         difference: decimalToNumber(i.difference),
-        reason: i.discrepancyReason,
       })),
     };
   }
@@ -480,14 +498,9 @@ export async function getInventorySessionDetail(
     ...base,
     blind: false as const,
     items: session.items.map((i) => ({
-      productId: i.productId,
-      name: nameMap.get(i.productId)?.name ?? i.productId,
-      unit: nameMap.get(i.productId)?.unit?.symbol ?? "",
+      ...mapItemMeta(i),
       expectedQty: decimalToNumber(i.expectedQty),
-      countedQty:
-        i.countedQty == null ? null : decimalToNumber(i.countedQty),
       difference: decimalToNumber(i.difference),
-      reason: i.discrepancyReason,
     })),
   };
 }

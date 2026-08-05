@@ -55,7 +55,7 @@ export default function LoginPageClient() {
     <div className="flex min-h-screen items-center justify-center bg-page px-4 py-10">
       <Card className="w-full max-w-md p-8">
         <div className="mb-4 flex justify-end">
-          <PreferenceControls />
+          <PreferenceControls showTheme={false} />
         </div>
         <div className="mb-6 flex flex-col items-center text-center">
           <Image

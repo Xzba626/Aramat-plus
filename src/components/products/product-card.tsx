@@ -29,6 +29,11 @@ type Props = {
   statusLabel?: string | null;
   statusTone?: string | null;
   stockStatus?: "OK" | "LOW" | "OUT";
+  /**
+   * POS only: OWNER sees exact qty (sum of batches); SELLER keeps status labels.
+   * Does not change stock math — display layer only.
+   */
+  showExactStock?: boolean;
   href?: string;
   disabled?: boolean;
   onClick?: () => void;
@@ -38,6 +43,26 @@ type Props = {
   /** When true, render as button (POS tap-to-add). */
   asButton?: boolean;
 };
+
+function formatPosQty(n: number, accountingType?: string | null) {
+  if (accountingType === "WEIGHT") {
+    const rounded = Math.round(n * 1000) / 1000;
+    return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+  }
+  const whole = Math.round(n * 1000) / 1000;
+  return Number.isInteger(whole) ? String(whole) : String(whole);
+}
+
+function posUnitLabel(
+  product: ProductCardProduct,
+  t: (key: string) => string
+) {
+  const symbol = product.unit?.symbol?.trim();
+  if (symbol) return symbol;
+  return product.accountingType === "WEIGHT"
+    ? t("warehouse.unitMl")
+    : t("warehouse.unitPcs");
+}
 
 function saleModeLabel(
   accountingType: string | null | undefined,
@@ -59,6 +84,7 @@ export function ProductCard({
   statusLabel,
   statusTone,
   stockStatus,
+  showExactStock,
   href,
   disabled,
   onClick,
@@ -78,6 +104,14 @@ export function ProductCard({
     : null;
   const unit = product.unit?.symbol ?? "";
   const saleMode = saleModeLabel(product.accountingType, t);
+  const posUnit = posUnitLabel(product, t);
+  const exactStockLabel =
+    showExactStock && quantity != null
+      ? t("pos.stockRemaining", {
+          qty: formatPosQty(quantity, product.accountingType),
+          unit: posUnit,
+        })
+      : null;
 
   const meta = (
     <>
@@ -130,7 +164,20 @@ export function ProductCard({
           <span className="text-sm font-bold text-ink">
             {formatMoney(Number(product.salePrice ?? 0))}
           </span>
-          {stockStatus ? (
+          {exactStockLabel ? (
+            <span
+              className={cn(
+                "max-w-[55%] text-right text-[11px] font-semibold leading-tight",
+                quantity != null && quantity <= 0
+                  ? "text-danger"
+                  : stockStatus === "LOW"
+                    ? "text-warning"
+                    : "text-ink"
+              )}
+            >
+              {exactStockLabel}
+            </span>
+          ) : stockStatus ? (
             <span
               className={cn(
                 "text-[11px] font-semibold",
