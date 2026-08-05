@@ -13,7 +13,7 @@ function formatLoginDetails(params: {
 }) {
   // Time is shown from Notification.createdAt via formatDateTime (local).
   const lines = [
-    params.info.deviceType || params.info.device,
+    params.info.device || params.info.deviceType,
     params.info.browser,
     params.info.os,
     `IP: ${formatIpForStorage(params.ip)}`,

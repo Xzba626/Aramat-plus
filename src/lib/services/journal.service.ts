@@ -49,8 +49,12 @@ export type JournalLogDto = {
   ipKind: "ok" | "local" | "unavailable";
   userAgent: string | null;
   browser: string | null;
+  browserName: string | null;
+  browserVersion: string | null;
   device: string | null;
   os: string | null;
+  osName: string | null;
+  osVersion: string | null;
   deviceType: string | null;
   deviceModel: string | null;
   country: string | null;
@@ -328,7 +332,19 @@ export async function queryJournal(input: JournalQueryInput): Promise<{
     const browser = cleanUaLabel(
       metaString(meta, "browser") ?? uaInfo?.browser ?? null
     );
+    const browserName = cleanUaLabel(
+      metaString(meta, "browserName") ?? uaInfo?.browserName ?? null
+    );
+    const browserVersion = cleanUaLabel(
+      metaString(meta, "browserVersion") ?? uaInfo?.browserVersion ?? null
+    );
     const os = cleanUaLabel(metaString(meta, "os") ?? uaInfo?.os ?? null);
+    const osName = cleanUaLabel(
+      metaString(meta, "osName") ?? uaInfo?.osName ?? null
+    );
+    const osVersion = cleanUaLabel(
+      metaString(meta, "osVersion") ?? uaInfo?.osVersion ?? null
+    );
     const deviceType = cleanUaLabel(
       metaString(meta, "deviceType") ?? uaInfo?.deviceType ?? null
     );
@@ -337,11 +353,12 @@ export async function queryJournal(input: JournalQueryInput): Promise<{
     );
     const device = cleanUaLabel(
       metaString(meta, "device") ??
+        uaInfo?.device ??
         (deviceType
           ? deviceModel
-            ? `${deviceType} · ${deviceModel}`
+            ? deviceModel
             : deviceType
-          : uaInfo?.device) ??
+          : null) ??
         null
     );
     const country = cleanUaLabel(metaString(meta, "country"));
@@ -367,8 +384,12 @@ export async function queryJournal(input: JournalQueryInput): Promise<{
       ipKind: ipInfo.kind,
       userAgent: log.userAgent,
       browser,
+      browserName,
+      browserVersion,
       device,
       os,
+      osName,
+      osVersion,
       deviceType,
       deviceModel,
       country,

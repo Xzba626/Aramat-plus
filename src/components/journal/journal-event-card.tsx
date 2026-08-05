@@ -32,8 +32,12 @@ export type JournalLogRow = {
   ipKind?: "ok" | "local" | "unavailable";
   userAgent?: string | null;
   browser?: string | null;
+  browserName?: string | null;
+  browserVersion?: string | null;
   device?: string | null;
   os?: string | null;
+  osName?: string | null;
+  osVersion?: string | null;
   deviceType?: string | null;
   deviceModel?: string | null;
   country?: string | null;
@@ -82,12 +86,22 @@ function Field({
   );
 }
 
-function orUnavailable(
+function orFallback(
   value: string | null | undefined,
-  unavailable: string
+  fallback: string
 ): string {
   const v = value?.trim();
-  return v ? v : unavailable;
+  return v ? v : fallback;
+}
+
+function deviceTypeLabel(
+  type: string | null | undefined,
+  t: (key: string) => string
+): string | null {
+  if (!type?.trim()) return null;
+  const key = `journalPage.deviceType${type}` as const;
+  const labeled = t(key);
+  return labeled !== key ? labeled : type;
 }
 
 export function JournalEventCard({ log }: { log: JournalLogRow }) {
@@ -101,29 +115,31 @@ export function JournalEventCard({ log }: { log: JournalLogRow }) {
   const comment = labelActionComment(log.comment, t) ?? log.comment;
   const severity = log.severity ?? "info";
   const sev = SEVERITY_STYLE[severity];
-  const na = t("journalPage.unavailable");
+  const undetermined = t("journalPage.undetermined");
 
   const details = (log.details ?? []).filter(
-    (d) => d.key !== "browser" && d.key !== "device"
+    (d) =>
+      d.key !== "browser" &&
+      d.key !== "device" &&
+      d.key !== "fingerprint" &&
+      d.key !== "geoSource" &&
+      d.key !== "userAgent"
   );
 
   const ipLabel =
     log.ipKind === "local"
       ? t("journalPage.ipLocal")
       : log.ipKind === "unavailable" || !log.ipDisplay
-        ? na
+        ? t("journalPage.ipUnknown")
         : log.ipDisplay;
 
-  const deviceLabel = orUnavailable(
-    log.deviceType || log.device,
-    na
+  const deviceLine = orFallback(log.device || log.deviceModel, undetermined);
+  const typeLine = orFallback(
+    deviceTypeLabel(log.deviceType, t),
+    undetermined
   );
-  const modelExtra =
-    log.deviceModel &&
-    log.deviceType &&
-    !String(log.deviceType).includes(log.deviceModel)
-      ? ` · ${log.deviceModel}`
-      : "";
+  const browserLine = orFallback(log.browser, undetermined);
+  const osLine = orFallback(log.os, undetermined);
 
   return (
     <Card className="space-y-3 p-4">
@@ -174,40 +190,25 @@ export function JournalEventCard({ log }: { log: JournalLogRow }) {
             value={
               isAuthFail
                 ? labelActivityActor(log, t)
-                : orUnavailable(log.userName, na)
+                : orFallback(log.userName, undetermined)
             }
           />
           <Field
             label={t("journalPage.colRole")}
-            value={log.role ? labelRole(log.role, t) : na}
+            value={log.role ? labelRole(log.role, t) : undetermined}
           />
-          <Field
-            label={t("journalPage.device")}
-            value={`${deviceLabel}${modelExtra}`}
-          />
-          <Field
-            label={t("journalPage.metaBrowser")}
-            value={orUnavailable(log.browser, na)}
-          />
-          <Field
-            label={t("journalPage.os")}
-            value={orUnavailable(log.os, na)}
-          />
+          <Field label={t("journalPage.device")} value={deviceLine} />
+          <Field label={t("journalPage.deviceTypeLabel")} value={typeLine} />
+          <Field label={t("journalPage.metaBrowser")} value={browserLine} />
+          <Field label={t("journalPage.os")} value={osLine} />
           <Field label={t("journalPage.ip")} value={ipLabel} />
           <Field
             label={t("journalPage.country")}
-            value={orUnavailable(
-              log.country,
-              t("journalPage.countryUnknown")
-            )}
+            value={orFallback(log.country, t("journalPage.countryUnknown"))}
           />
           <Field
             label={t("journalPage.city")}
-            value={orUnavailable(log.city, t("journalPage.cityUnknown"))}
-          />
-          <Field
-            label={t("journalPage.colDate")}
-            value={formatDateTime(log.createdAt)}
+            value={orFallback(log.city, t("journalPage.cityUnknown"))}
           />
         </dl>
       ) : (

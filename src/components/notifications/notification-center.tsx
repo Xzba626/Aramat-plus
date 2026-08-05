@@ -230,7 +230,11 @@ function NotifCard({
   const title = resolveNotifTitle(item.title, item.titleKey, t);
   const message = sanitizeNotifMessageForDisplay(
     item.message || "",
-    t("notificationsPage.ipLocal")
+    typeof window !== "undefined" &&
+      (window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1")
+      ? t("notificationsPage.ipLocal")
+      : t("journalPage.ipUnknown")
   );
 
   const inner = (
@@ -516,7 +520,7 @@ export function NotificationCenter({ variant = "owner" }: Props) {
             className={cn(
               "rounded-xl px-3.5 py-2 text-sm font-semibold",
               view === id
-                ? "bg-ink text-white"
+                ? "bg-brand text-white"
                 : "bg-card text-muted ring-1 ring-border"
             )}
           >

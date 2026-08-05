@@ -18,6 +18,8 @@ import {
   exportTranslate,
   resolveExportLocale,
 } from "@/lib/export/csv";
+import { formatDateTimeLocale } from "@/lib/i18n/format";
+import type { Locale } from "@/lib/i18n/types";
 
 function csvEscape(value: string): string {
   if (/[;"\n\r]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
@@ -72,7 +74,7 @@ export async function GET(req: Request) {
     for (const row of items) {
       lines.push(
         [
-          row.createdAt,
+          formatDateTimeLocale(row.createdAt, locale as Locale),
           row.userName ?? "",
           row.role ? labelRole(row.role, t) : "",
           labelAction(row.action, t),
@@ -82,8 +84,10 @@ export async function GET(req: Request) {
           labelEntity(row.entityType, t),
           row.entityId ?? "",
           row.ipDisplay ??
-            (row.ipKind === "local" ? t("journalPage.ipLocal") : ""),
-          [row.deviceType || row.device, row.browser, row.os]
+            (row.ipKind === "local"
+              ? t("journalPage.ipLocal")
+              : t("journalPage.ipUnknown")),
+          [row.device, row.deviceType, row.browser, row.os]
             .filter(Boolean)
             .join(" · ") || "",
           row.comment ?? "",
