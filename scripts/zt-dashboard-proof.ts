@@ -89,6 +89,7 @@ async function main() {
         locationId: warehouse.id,
         quantity: 200,
         costPerUnit: 5,
+      salePrice: 100,
         notes: "zt-dash",
       });
       await addBatch(tx, {
@@ -97,6 +98,7 @@ async function main() {
         locationId: warehouse.id,
         quantity: 50,
         costPerUnit: 3,
+      salePrice: 100,
         notes: "zt-dash-bottle",
       });
     },

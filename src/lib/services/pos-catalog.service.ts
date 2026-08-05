@@ -37,51 +37,75 @@ export async function getPosCatalog(params: {
   });
   const q = (params.q ?? "").trim().toLowerCase();
 
-  let items = balances
-    .filter((b) => b.product.kind !== ProductKind.PACKAGING)
-    .map((b) => {
-      const physical = decimalToNumber(b.quantity);
-      const held = reserved.get(b.productId) ?? 0;
-      const qty = Math.max(0, physical - held);
-      const stockStatus = resolveStockStatus({
-        quantity: qty,
-        accountingType: b.product.accountingType,
-        locationType: LocationType.STORE,
-        thresholds,
-      });
+  const merchandise = balances.filter(
+    (b) => b.product.kind !== ProductKind.PACKAGING
+  );
+  const productIds = merchandise.map((b) => b.productId);
+  const openBatches = await prisma.batch.findMany({
+    where: {
+      productId: { in: productIds },
+      locationType: LocationType.STORE,
+      locationId: store.id,
+      quantity: { gt: 0 },
+      salePrice: { not: null },
+    },
+    orderBy: { receivedAt: "asc" },
+    select: { productId: true, salePrice: true },
+  });
+  const fifoFrontByProduct = new Map<string, number>();
+  for (const row of openBatches) {
+    if (fifoFrontByProduct.has(row.productId)) continue;
+    if (row.salePrice != null) {
+      fifoFrontByProduct.set(row.productId, Number(row.salePrice));
+    }
+  }
 
-      return {
-        productId: b.productId,
-        quantity: qty,
-        physicalQty: physical,
-        reservedQty: held,
-        stockStatus,
-        salePrice: decimalToNumber(b.product.salePrice),
-        product: {
-          id: b.product.id,
-          name: b.product.name,
-          sku: b.product.sku,
-          barcode: b.product.barcode,
-          kind: b.product.kind,
-          accountingType: b.product.accountingType,
-          /** Product photo (owner upload). Brand logo is fallback only. */
-          imageUrl: resolveProductImageUrl(b.product),
-          brand: b.product.brand
-            ? {
-                id: b.product.brand.id,
-                name: b.product.brand.name,
-                imageUrl: b.product.brand.imageUrl,
-              }
-            : null,
-          category: b.product.category
-            ? { id: b.product.category.id, name: b.product.category.name }
-            : null,
-          unit: b.product.unit
-            ? { symbol: b.product.unit.symbol, name: b.product.unit.name }
-            : null,
-        },
-      };
+  let items = merchandise.map((b) => {
+    const physical = decimalToNumber(b.quantity);
+    const held = reserved.get(b.productId) ?? 0;
+    const qty = Math.max(0, physical - held);
+    const stockStatus = resolveStockStatus({
+      quantity: qty,
+      accountingType: b.product.accountingType,
+      locationType: LocationType.STORE,
+      thresholds,
     });
+
+    return {
+      productId: b.productId,
+      quantity: qty,
+      physicalQty: physical,
+      reservedQty: held,
+      stockStatus,
+      /** POS display estimate only — final price from createSale FIFO. */
+      salePrice:
+        fifoFrontByProduct.get(b.productId) ??
+        decimalToNumber(b.product.salePrice),
+      product: {
+        id: b.product.id,
+        name: b.product.name,
+        sku: b.product.sku,
+        barcode: b.product.barcode,
+        kind: b.product.kind,
+        accountingType: b.product.accountingType,
+        /** Product photo (owner upload). Brand logo is fallback only. */
+        imageUrl: resolveProductImageUrl(b.product),
+        brand: b.product.brand
+          ? {
+              id: b.product.brand.id,
+              name: b.product.brand.name,
+              imageUrl: b.product.brand.imageUrl,
+            }
+          : null,
+        category: b.product.category
+          ? { id: b.product.category.id, name: b.product.category.name }
+          : null,
+        unit: b.product.unit
+          ? { symbol: b.product.unit.symbol, name: b.product.unit.name }
+          : null,
+      },
+    };
+  });
 
   // Defense in depth: never expose packaging consumables as sellable SKUs
   items = items.filter((i) => i.product.kind !== ProductKind.PACKAGING);

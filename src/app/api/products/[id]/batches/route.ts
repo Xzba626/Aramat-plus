@@ -72,6 +72,12 @@ export async function POST(req: Request, ctx: Ctx) {
           : body.costPerUnit;
     }
 
+    const batchSalePrice = isPackaging
+      ? 0
+      : body.salePrice != null
+        ? body.salePrice
+        : Number(product.salePrice);
+
     const batch = await prisma.$transaction(async (tx) => {
       const created = await addBatch(tx, {
         productId: id,
@@ -79,11 +85,39 @@ export async function POST(req: Request, ctx: Ctx) {
         locationId: warehouse.id,
         quantity: body.quantity,
         costPerUnit,
+        salePrice: batchSalePrice,
         receivedAt: body.receivedAt,
         notes: body.notes ?? undefined,
         supplierId: body.supplierId ?? null,
         createdById: user!.id,
       });
+
+      // Catalog price only — never mutate existing Batch.salePrice
+      if (
+        !isPackaging &&
+        body.updateCatalogPrice &&
+        body.salePrice != null &&
+        !product.salePrice.equals(new Prisma.Decimal(body.salePrice))
+      ) {
+        await tx.product.update({
+          where: { id },
+          data: { salePrice: new Prisma.Decimal(body.salePrice) },
+        });
+        await logActivity({
+          tx,
+          userId: user!.id,
+          companyId: user!.companyId,
+          action: "PRICE_CHANGE",
+          entityType: "Product",
+          entityId: id,
+          comment: product.name,
+          metadata: {
+            reason: "batch_receive_catalog",
+            before: { salePrice: product.salePrice.toString() },
+            after: { salePrice: String(body.salePrice) },
+          },
+        });
+      }
 
       // Last purchase price becomes current planned cost (OWNER receive only)
       if (isPackaging && user!.role === Role.OWNER) {
@@ -113,6 +147,7 @@ export async function POST(req: Request, ctx: Ctx) {
           productId: id,
           quantity: body.quantity,
           costPerUnit,
+          salePrice: batchSalePrice,
           supplierId: body.supplierId ?? null,
           supplierName,
           planCostUpdated: isPackaging && user!.role === Role.OWNER,

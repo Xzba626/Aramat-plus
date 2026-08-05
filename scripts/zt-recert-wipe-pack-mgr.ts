@@ -163,6 +163,7 @@ async function main() {
       locationId: warehouse!.id,
       quantity: 10,
       costPerUnit: 9.5,
+      salePrice: 0,
     });
     // Mimic OWNER receive plan-cost update (batches route logic)
     await tx.product.update({

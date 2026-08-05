@@ -525,6 +525,8 @@ model Batch {
   /// Qty at receipt — never decreases; used for purchase history / KPIs.
   initialQuantity Decimal      @db.Decimal(14, 3)
   costPerUnit     Decimal      @db.Decimal(12, 4)
+  /// FIFO-layer sale price (immutable after create).
+  salePrice       Decimal      @db.Decimal(12, 2)
   receivedAt      DateTime     @default(now())
   notes           String?
   transferItemId  String?

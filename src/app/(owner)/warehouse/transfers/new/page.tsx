@@ -10,7 +10,7 @@ import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
 import { ProductCard } from "@/components/products/product-card";
 import { ProductThumb } from "@/components/products/product-thumb";
-import { resolveProductImageUrl } from "@/lib/product-image";
+import { formatProductName } from "@/lib/i18n/product-label";
 
 type StockItem = {
   productId: string;
@@ -226,7 +226,15 @@ export default function NewTransferPage() {
                   </button>
                   <ProductThumb src={c.imageUrl} name={c.name} size="sm" />
                   <div className="min-w-0 flex-1 pr-8">
-                    <div className="mb-1 font-semibold">{c.name}</div>
+                    <div className="mb-1 font-semibold">
+                      {formatProductName(
+                        {
+                          name: c.name,
+                          accountingType: c.accountingType,
+                        },
+                        t
+                      )}
+                    </div>
                     <div className="flex flex-wrap items-center gap-2.5">
                       <QtyInput
                         value={c.quantity}

@@ -94,6 +94,7 @@ async function main() {
         locationId: store.id,
         quantity: 5,
         costPerUnit: 40,
+      salePrice: 100,
         notes: "zt-cross",
       });
     },

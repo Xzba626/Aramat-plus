@@ -274,6 +274,7 @@ export async function decideSaleReturn(params: {
           locationId,
           quantity: item.quantity,
           costPerUnit: item.costPerUnit,
+          salePrice: item.salePrice,
           notes: `sale_return:${existing.saleId}`,
           origin: BatchOrigin.RETURN,
           createdById: params.reviewerId,

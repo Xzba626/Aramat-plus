@@ -73,6 +73,7 @@ async function main() {
       locationId: warehouse.id,
       quantity: 50,
       costPerUnit: 2,
+      salePrice: 0,
       origin: BatchOrigin.PURCHASE,
       notes: "4a-smoke",
     });

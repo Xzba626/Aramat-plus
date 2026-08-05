@@ -93,6 +93,7 @@ async function main() {
         locationId: warehouse.id,
         quantity: 1000,
         costPerUnit: 2,
+      salePrice: 100,
         notes: "seller-isolation-wh",
       });
     });

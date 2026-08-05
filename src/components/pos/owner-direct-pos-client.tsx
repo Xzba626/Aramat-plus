@@ -112,7 +112,9 @@ export function OwnerDirectPosClient({
       brand: b.product.brand?.name ?? "—",
       category: b.product.category?.name ?? "—",
       unit: b.product.unit?.symbol ?? "",
-      salePrice: decimalToNumber(b.product.salePrice as never),
+      salePrice:
+        (b as { salePriceEstimate?: number }).salePriceEstimate ??
+        decimalToNumber(b.product.salePrice as never),
       quantity: decimalToNumber(b.quantity as never),
       accountingType: b.product.accountingType === "WEIGHT" ? "WEIGHT" : "PIECE",
       imageUrl: resolveProductImageUrl(b.product),

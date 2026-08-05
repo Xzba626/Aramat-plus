@@ -122,6 +122,13 @@ export function ProductCard({
         )}
       >
         {product.name}
+        {product.accountingType === "WEIGHT"
+          ? ` · ${t("warehouse.unitMl")}`
+          : product.accountingType === "PIECE"
+            ? ` · ${t("warehouse.unitPcs")}`
+            : product.unit?.symbol
+              ? ` · ${product.unit.symbol}`
+              : ""}
       </div>
       {brandName ? (
         <div className="mt-0.5 text-xs text-muted">{brandName}</div>

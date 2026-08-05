@@ -70,6 +70,7 @@ async function main() {
       locationId: warehouse.id,
       quantity: 30,
       costPerUnit: 20,
+      salePrice: 100,
       createdById: owner.id,
     });
   });

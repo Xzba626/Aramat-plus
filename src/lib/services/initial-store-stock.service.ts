@@ -262,6 +262,7 @@ export async function createInitialStoreStock(params: {
         locationId: warehouse.id,
         quantity: params.quantity,
         costPerUnit: np.costPerUnit,
+        salePrice: np.salePrice,
         notes: BATCH_NOTE_MARKERS.INITIAL_STOCK,
         origin: BatchOrigin.INITIAL,
         createdById: params.actorId,

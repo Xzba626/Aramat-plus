@@ -60,6 +60,7 @@ async function main() {
       quantity: 5,
       initialQuantity: 5,
       costPerUnit: product.defaultCostPerUnit ?? 10,
+      salePrice: product.salePrice ?? 100,
       receivedAt: new Date(),
       notes: "photo-lifecycle-evidence",
     },

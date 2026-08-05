@@ -57,6 +57,18 @@ export async function GET(req: Request) {
             locationType: LocationType.WAREHOUSE,
             thresholds,
           }),
+          /** POS estimate: FIFO-front batch sale price. */
+          salePriceEstimate: (() => {
+            const batches = (
+              item as { batches?: Array<{ salePrice?: unknown; quantity?: unknown }> }
+            ).batches;
+            const open = (batches ?? []).find(
+              (b) => decimalToNumber(b.quantity as never) > 0 && b.salePrice != null
+            );
+            return open
+              ? decimalToNumber(open.salePrice as never)
+              : decimalToNumber(item.product.salePrice as never);
+          })(),
         };
       }),
     });

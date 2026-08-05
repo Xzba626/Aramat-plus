@@ -85,6 +85,7 @@ async function main() {
       locationId: warehouse.id,
       quantity: 5,
       costPerUnit: 3,
+      salePrice: 100,
       createdById: owner.id,
     });
   });

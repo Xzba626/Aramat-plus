@@ -216,7 +216,6 @@ export async function createSale(params: {
 
         const qty = new Prisma.Decimal(line.quantity);
         const isGift = Boolean(line.isGift);
-        const unitPrice = isGift ? new Prisma.Decimal(0) : product.salePrice;
         const isWeight = product.accountingType === AccountingType.WEIGHT;
 
         let containerSource: ContainerSourceInput | null = null;
@@ -238,14 +237,6 @@ export async function createSale(params: {
           ) {
             throw new Error("BOTTLE_REQUIRED");
           }
-        }
-
-        if (!isGift) {
-          cartForDiscount.push({
-            productId: line.productId,
-            quantity: decimalToNumber(qty),
-            salePrice: decimalToNumber(unitPrice),
-          });
         }
 
         const consumed = await deductBatchesFifo(tx, {
@@ -285,8 +276,13 @@ export async function createSale(params: {
         }
 
         let sliceIdx = 0;
+        let lineRevenue = new Prisma.Decimal(0);
         for (const slice of consumed) {
+          const unitPrice = isGift
+            ? new Prisma.Decimal(0)
+            : slice.salePrice;
           if (!isGift) {
+            lineRevenue = lineRevenue.add(unitPrice.mul(slice.quantity));
             subtotal = subtotal.add(unitPrice.mul(slice.quantity));
           }
           const isFirstSlice = sliceIdx === 0;
@@ -313,6 +309,17 @@ export async function createSale(params: {
               : null,
           });
           sliceIdx++;
+        }
+
+        if (!isGift) {
+          // Composition fingerprint: one line per product (qty); price is FIFO-weighted estimate for display only
+          const qtyNum = decimalToNumber(qty);
+          cartForDiscount.push({
+            productId: line.productId,
+            quantity: qtyNum,
+            salePrice:
+              qtyNum > 0 ? decimalToNumber(lineRevenue) / qtyNum : 0,
+          });
         }
 
         if (bottleExpenseAmount > 0 && packagingProductId) {

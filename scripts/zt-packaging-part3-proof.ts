@@ -111,6 +111,7 @@ async function main() {
         locationId: warehouse.id,
         quantity: 1000,
         costPerUnit: 3,
+      salePrice: 100,
         notes: "zt-p3-receive-1000",
       });
     },
@@ -158,6 +159,7 @@ async function main() {
         locationId: store.id,
         quantity: 500,
         costPerUnit: 5,
+      salePrice: 100,
         notes: "zt-p3-perfume",
       });
     },

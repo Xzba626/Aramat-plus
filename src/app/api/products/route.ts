@@ -121,6 +121,7 @@ export async function POST(req: Request) {
           locationId: warehouse.id,
           quantity: initialQty,
           costPerUnit,
+          salePrice: body.salePrice,
           notes: BATCH_NOTE_MARKERS.INITIAL_STOCK,
           createdById: user!.id,
         });

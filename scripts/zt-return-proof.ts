@@ -76,6 +76,7 @@ async function main() {
         locationId: warehouse.id,
         quantity: 20,
         costPerUnit: 40,
+      salePrice: 100,
         notes: "zt-return",
       });
     },

@@ -64,6 +64,7 @@ async function main() {
         locationId: store.id,
         quantity: 15,
         costPerUnit: 3,
+      salePrice: 100,
         notes: "zt-seller-blind-bottle",
       });
     },
@@ -106,6 +107,7 @@ async function main() {
         locationId: store.id,
         quantity: 500,
         costPerUnit: 8,
+      salePrice: 100,
         notes: "zt-seller-blind-perfume",
       });
     },

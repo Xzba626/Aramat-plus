@@ -60,6 +60,7 @@ export async function createStoreReturnIn(params: {
           locationId: warehouse.id,
           quantity: slice.quantity,
           costPerUnit: slice.costPerUnit,
+          salePrice: slice.salePrice,
           notes: `warehouse_return:${store.id}${params.reason ? `:${params.reason}` : ""}`,
           origin: BatchOrigin.RETURN,
           createdById: params.createdById,

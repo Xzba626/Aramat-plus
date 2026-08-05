@@ -585,7 +585,7 @@ export default function RevisionPage() {
                             {t("revisionPage.productLabel")}
                           </p>
                           <p className="text-sm font-semibold text-ink">
-                            {it.name}
+                            {it.name} · {unit}
                           </p>
                           {it.category ? (
                             <p className="mt-0.5 text-xs text-muted">

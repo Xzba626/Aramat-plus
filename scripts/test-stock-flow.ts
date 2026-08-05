@@ -75,6 +75,7 @@ async function main() {
         locationId: warehouse.id,
         quantity: 100,
         costPerUnit: 40,
+      salePrice: 100,
         notes: "flow-test-batch",
       });
     },

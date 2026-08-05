@@ -91,6 +91,7 @@ export async function executeWarehouseToStoreTransferInTx(
         locationId: params.store.id,
         quantity: slice.quantity,
         costPerUnit: slice.costPerUnit,
+        salePrice: slice.salePrice,
         notes: isInitial
           ? `${BATCH_NOTE_MARKERS.INITIAL_STORE_STOCK}:${transfer.id}`
           : `transfer:${transfer.id}`,
@@ -365,6 +366,7 @@ export async function createStoreTransfer(params: {
             locationId: toStore.id,
             quantity: slice.quantity,
             costPerUnit: slice.costPerUnit,
+            salePrice: slice.salePrice,
             notes: `store_transfer:${transfer.id}`,
             transferItemId: item.id,
             origin: BatchOrigin.TRANSFER,

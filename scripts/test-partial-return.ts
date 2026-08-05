@@ -71,6 +71,7 @@ async function main() {
       locationId: store.id,
       quantity: 500,
       costPerUnit: 4,
+      salePrice: 100,
       notes: "partial-ret-test",
     });
   });

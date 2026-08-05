@@ -77,6 +77,7 @@ async function main() {
         locationId: warehouse.id,
         quantity: 100,
         costPerUnit: 80,
+      salePrice: 100,
         notes: "smoke-receive",
       });
     },

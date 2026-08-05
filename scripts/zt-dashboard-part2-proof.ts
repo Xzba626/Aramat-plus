@@ -112,6 +112,7 @@ async function main() {
           locationId: store.id,
           quantity: 100,
           costPerUnit: 10,
+      salePrice: 100,
           notes: "zt-p2-perfume",
         });
         await addBatch(tx, {
@@ -120,6 +121,7 @@ async function main() {
           locationId: store.id,
           quantity: 30,
           costPerUnit: 4,
+      salePrice: 100,
           notes: "zt-p2-bottle",
         });
       }

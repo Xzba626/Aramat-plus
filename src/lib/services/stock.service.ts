@@ -58,7 +58,12 @@ export async function deductBatchesFifo(
     quantity: Prisma.Decimal | number;
   }
 ): Promise<
-  Array<{ batchId: string; quantity: Prisma.Decimal; costPerUnit: Prisma.Decimal }>
+  Array<{
+    batchId: string;
+    quantity: Prisma.Decimal;
+    costPerUnit: Prisma.Decimal;
+    salePrice: Prisma.Decimal;
+  }>
 > {
   const need = new Prisma.Decimal(params.quantity.toString());
   if (need.lte(0)) throw new Error("QTY_MUST_BE_POSITIVE");
@@ -72,7 +77,7 @@ export async function deductBatchesFifo(
       quantity: { gt: 0 },
     },
     orderBy: { receivedAt: "asc" },
-    select: { id: true, quantity: true, costPerUnit: true },
+    select: { id: true, quantity: true, costPerUnit: true, salePrice: true },
   });
 
   let remaining = need;
@@ -80,16 +85,21 @@ export async function deductBatchesFifo(
     batchId: string;
     quantity: Prisma.Decimal;
     costPerUnit: Prisma.Decimal;
+    salePrice: Prisma.Decimal;
     nextQty: Prisma.Decimal;
   }> = [];
 
   for (const batch of batches) {
     if (remaining.lte(0)) break;
     const take = Prisma.Decimal.min(batch.quantity, remaining);
+    if (batch.salePrice == null) {
+      throw new Error("BATCH_SALE_PRICE_MISSING");
+    }
     consumed.push({
       batchId: batch.id,
       quantity: take,
       costPerUnit: batch.costPerUnit,
+      salePrice: batch.salePrice,
       nextQty: batch.quantity.sub(take),
     });
     remaining = remaining.sub(take);
@@ -130,10 +140,11 @@ export async function deductBatchesFifo(
     }
   }
 
-  return consumed.map(({ batchId, quantity, costPerUnit }) => ({
+  return consumed.map(({ batchId, quantity, costPerUnit, salePrice }) => ({
     batchId,
     quantity,
     costPerUnit,
+    salePrice,
   }));
 }
 
@@ -145,6 +156,8 @@ export async function addBatch(
     locationId: string;
     quantity: Prisma.Decimal | number;
     costPerUnit: Prisma.Decimal | number;
+    /** Required for new batches — FIFO-layer sale price (immutable after create). */
+    salePrice: Prisma.Decimal | number;
     receivedAt?: Date;
     notes?: string;
     transferItemId?: string;
@@ -155,7 +168,9 @@ export async function addBatch(
 ) {
   const quantity = new Prisma.Decimal(params.quantity.toString());
   const costPerUnit = new Prisma.Decimal(params.costPerUnit.toString());
+  const salePrice = new Prisma.Decimal(params.salePrice.toString());
   if (quantity.lte(0)) throw new Error("BATCH_QTY_MUST_BE_POSITIVE");
+  if (salePrice.lt(0)) throw new Error("VALIDATION_ERROR");
 
   const batch = await tx.batch.create({
     data: {
@@ -165,6 +180,7 @@ export async function addBatch(
       quantity,
       initialQuantity: quantity,
       costPerUnit,
+      salePrice,
       receivedAt: params.receivedAt ?? new Date(),
       notes: params.notes,
       transferItemId: params.transferItemId,
@@ -182,6 +198,27 @@ export async function addBatch(
   });
 
   return batch;
+}
+
+/** Oldest open batch sale price at location (POS card estimate only). */
+export async function getFifoFrontSalePrice(params: {
+  productId: string;
+  locationType: LocationType;
+  locationId: string;
+}): Promise<number | null> {
+  const batch = await prisma.batch.findFirst({
+    where: {
+      productId: params.productId,
+      locationType: params.locationType,
+      locationId: params.locationId,
+      quantity: { gt: 0 },
+      salePrice: { not: null },
+    },
+    orderBy: { receivedAt: "asc" },
+    select: { salePrice: true },
+  });
+  if (!batch?.salePrice) return null;
+  return Number(batch.salePrice);
 }
 
 export async function getWarehouseStock(

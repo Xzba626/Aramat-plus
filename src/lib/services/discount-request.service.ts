@@ -7,6 +7,7 @@ import {
 } from "@/lib/services/notification.service";
 import { decimalToNumber } from "@/lib/utils";
 import {
+  cartCompositionMatchesSnapshot,
   cartMatchesSnapshot,
   type CartFingerprintLine,
 } from "@/lib/pos/cart-fingerprint";
@@ -316,15 +317,11 @@ export async function consumeApprovedDiscount(
   });
   if (already) throw new Error("DISCOUNT_ALREADY_USED");
 
-  if (!cartMatchesSnapshot(params.cartItems, req.cartSnapshot)) {
+  if (!cartCompositionMatchesSnapshot(params.cartItems, req.cartSnapshot)) {
     throw new Error("CART_CHANGED");
   }
 
-  const original = decimalToNumber(req.originalAmount);
-  if (Math.abs(original - params.cartSubtotal) > 0.05) {
-    throw new Error("CART_CHANGED");
-  }
-
+  // Approved discount amount is fixed; apply against FIFO-based subtotal (may differ from estimate).
   const discountAmount = decimalToNumber(req.amount);
   if (discountAmount > params.cartSubtotal + 1e-9) {
     throw new Error("DISCOUNT_EXCEEDS_TOTAL");
@@ -332,7 +329,7 @@ export async function consumeApprovedDiscount(
 
   return {
     discountAmount,
-    originalAmount: original,
+    originalAmount: decimalToNumber(req.originalAmount),
     approvedById: req.reviewerId,
     approvedAt: req.reviewedAt,
     requestId: req.id,

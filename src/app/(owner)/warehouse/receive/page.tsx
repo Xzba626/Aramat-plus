@@ -8,8 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
+import { formatProductPickLines } from "@/lib/i18n/product-label";
 
-type Product = { id: string; name: string; salePrice?: number };
+type Product = {
+  id: string;
+  name: string;
+  salePrice?: number;
+  accountingType?: string;
+  category?: { name: string } | null;
+  unit?: { symbol: string } | null;
+};
 
 export default function ReceivePurchasePage() {
   const router = useRouter();
@@ -23,6 +31,8 @@ export default function ReceivePurchasePage() {
   const [loading, setLoading] = useState(false);
   const [qty, setQty] = useState("");
   const [cost, setCost] = useState("");
+  const [salePrice, setSalePrice] = useState("");
+  const [selectedId, setSelectedId] = useState("");
 
   useEffect(() => {
     fetch("/api/products?status=active")
@@ -46,6 +56,15 @@ export default function ReceivePurchasePage() {
         setLoading(false);
         return;
       }
+      const prod = products.find((p) => p.id === productId);
+      const batchSalePrice = Number(
+        fd.get("salePrice") || salePrice || prod?.salePrice || 0
+      );
+      const catalogPrice = Number(prod?.salePrice ?? 0);
+      const updateCatalog =
+        Number.isFinite(batchSalePrice) &&
+        batchSalePrice > 0 &&
+        batchSalePrice !== catalogPrice;
 
       const res = await fetch(`/api/products/${productId}/batches`, {
         method: "POST",
@@ -53,6 +72,8 @@ export default function ReceivePurchasePage() {
         body: JSON.stringify({
           quantity: Number(fd.get("quantity")),
           costPerUnit: Number(fd.get("costPerUnit")),
+          salePrice: batchSalePrice,
+          updateCatalogPrice: updateCatalog,
           notes: String(fd.get("notes") || "") || null,
           receivedAt: fd.get("receivedAt")
             ? new Date(String(fd.get("receivedAt"))).toISOString()
@@ -133,15 +154,39 @@ export default function ReceivePurchasePage() {
           ) : (
             <div>
               <FieldLabel>{t("purchases.product")}</FieldLabel>
-              <select name="productId" required className="w-full" defaultValue="">
+              <select
+                name="productId"
+                required
+                className="w-full"
+                value={selectedId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setSelectedId(id);
+                  const prod = products.find((p) => p.id === id);
+                  setSalePrice(
+                    prod?.salePrice != null ? String(prod.salePrice) : ""
+                  );
+                }}
+              >
                 <option value="" disabled>
                   {t("purchases.selectProduct")}
                 </option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
+                {products.map((p) => {
+                  const pick = formatProductPickLines(
+                    {
+                      name: p.name,
+                      accountingType: p.accountingType,
+                      category: p.category?.name,
+                      unitSymbol: p.unit?.symbol,
+                    },
+                    t
+                  );
+                  return (
+                    <option key={p.id} value={p.id}>
+                      {pick.title} — {pick.subtitle}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}
@@ -174,6 +219,19 @@ export default function ReceivePurchasePage() {
                     className="w-full"
                     value={cost}
                     onChange={(e) => setCost(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>{t("warehouse.productSalePrice")}</FieldLabel>
+                  <input
+                    name="salePrice"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    className="w-full"
+                    value={salePrice}
+                    onChange={(e) => setSalePrice(e.target.value)}
                   />
                 </div>
               </div>

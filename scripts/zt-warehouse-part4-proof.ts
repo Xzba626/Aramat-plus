@@ -115,6 +115,7 @@ async function main() {
         locationId: warehouse.id,
         quantity: 50,
         costPerUnit: 8,
+      salePrice: 100,
         notes: "zt-p4-no-supplier",
         // no supplierId
       });

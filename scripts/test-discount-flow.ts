@@ -68,6 +68,7 @@ async function main() {
       locationId: store.id,
       quantity: 5,
       costPerUnit: 40,
+      salePrice: 100,
       notes: "discount-flow",
     });
   });
@@ -162,6 +163,7 @@ async function main() {
       locationId: store.id,
       quantity: 3,
       costPerUnit: 40,
+      salePrice: 100,
       notes: "discount-change",
     });
     await addBatch(tx, {
@@ -170,6 +172,7 @@ async function main() {
       locationId: store.id,
       quantity: 3,
       costPerUnit: 20,
+      salePrice: 100,
       notes: "discount-change-2",
     });
   });

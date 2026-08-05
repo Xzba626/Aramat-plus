@@ -78,6 +78,7 @@ async function main() {
       locationId: warehouse.id,
       quantity: 500,
       costPerUnit: 8,
+      salePrice: 100,
       origin: BatchOrigin.PURCHASE,
       notes: "bottle-smoke-perfume",
     });
@@ -87,6 +88,7 @@ async function main() {
       locationId: warehouse.id,
       quantity: 20,
       costPerUnit: bottleCost,
+      salePrice: 100,
       origin: BatchOrigin.PURCHASE,
       notes: "bottle-smoke-bottles",
     });

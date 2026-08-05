@@ -156,12 +156,17 @@ export default function ProductDetailPage() {
     setMsg("");
     const fd = new FormData(e.currentTarget);
     const costPerUnit = Number(fd.get("costPerUnit"));
+    const salePriceForBatch = keepPrice
+      ? Number(product?.salePrice ?? 0)
+      : Number(newSalePrice || product?.salePrice || 0);
     const res = await fetch(`/api/products/${id}/batches`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         quantity: Number(fd.get("quantity")),
         costPerUnit,
+        salePrice: salePriceForBatch,
+        updateCatalogPrice: !keepPrice && isOwner,
         notes: String(fd.get("notes") || "") || null,
       }),
     });
@@ -169,17 +174,6 @@ export default function ProductDetailPage() {
     if (!res.ok) {
       setError(apiErrorMessage(data.error, t));
       return;
-    }
-
-    if (!keepPrice && newSalePrice && isOwner) {
-      await fetch(`/api/products/${id}/price`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          salePrice: Number(newSalePrice),
-          reason: "batch_receive_price_update",
-        }),
-      });
     }
 
     setMsg(t("warehouse.productBatchSubmit"));

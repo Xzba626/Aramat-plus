@@ -305,9 +305,14 @@ export function InitialStoreStockModal({
                       className="w-full rounded-xl border border-border px-3 py-2 text-left hover:border-brand/40"
                       onClick={() => pickExisting(p)}
                     >
-                      <div className="text-sm font-semibold text-ink">{p.name}</div>
+                      <div className="text-sm font-semibold text-ink">
+                        {p.name} ·{" "}
+                        {p.accountingType === "WEIGHT"
+                          ? t("warehouse.unitMl")
+                          : t("warehouse.unitPcs")}
+                      </div>
                       <div className="text-xs text-muted">
-                        {p.brand?.name ?? "—"} · {accountingLabel(p.accountingType)} ·{" "}
+                        {p.brand?.name ?? "—"} ·{" "}
                         {t("storeDetail.initialStockWhQty")}: {p.warehouseQty}{" "}
                         {unitOf(p)}
                       </div>

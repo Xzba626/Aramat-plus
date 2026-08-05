@@ -126,6 +126,7 @@ async function main() {
       locationId: store.id,
       quantity: 10,
       costPerUnit: 40,
+      salePrice: 100,
       notes: "profit-test",
     });
   });

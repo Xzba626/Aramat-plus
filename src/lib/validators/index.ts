@@ -78,10 +78,14 @@ export const productSchema = z.object({
 export const batchSchema = z.object({
   quantity: z.coerce.number().positive(),
   costPerUnit: z.coerce.number().positive(),
+  /** Sale price for THIS new batch only (immutable). Defaults to Product.salePrice catalog. */
+  salePrice: z.coerce.number().min(0).optional(),
   receivedAt: z.coerce.date().optional(),
   notes: z.string().max(500).optional().nullable(),
   // Kept for API/DB compat — UI no longer sends suppliers (Part 4).
   supplierId: z.string().cuid().optional().nullable(),
+  /** When true (or salePrice sent), update Product.salePrice catalog only — never old batches. */
+  updateCatalogPrice: z.boolean().optional(),
 });
 
 export const priceSchema = z.object({

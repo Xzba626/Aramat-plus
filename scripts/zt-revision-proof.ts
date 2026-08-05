@@ -86,6 +86,7 @@ async function main() {
         locationId: warehouse.id,
         quantity: 30,
         costPerUnit: 20,
+        salePrice: 50,
         notes: "zt-rev",
       });
     },
@@ -118,20 +119,18 @@ async function main() {
   assert.equal(fresh.countedQty, null, "countedQty must start null");
   assert.equal(Number(fresh.difference), 0);
 
-  // While IN_PROGRESS: Manager blind; Owner sees system stock (docs + UX).
+  // While IN_PROGRESS: blind for EVERYONE (including OWNER) — no system qty.
   const ownerInProgress = await getInventorySessionDetail(
     company.id,
     session.id,
     Role.OWNER
   );
-  assert.equal(ownerInProgress.blind, false, "Owner sees expected during count");
+  assert.equal(ownerInProgress.blind, true, "Owner blind during IN_PROGRESS");
   const ownerIpItem = ownerInProgress.items.find(
     (i) => i.productId === product.id
   );
   assert.ok(ownerIpItem);
-  assert.equal("expectedQty" in ownerIpItem, true);
-  assert.equal(ownerIpItem.expectedQty, expected);
-  assert.equal("difference" in ownerIpItem, false);
+  assert.equal("expectedQty" in ownerIpItem, false);
   assert.equal(ownerIpItem.countedQty, null);
 
   const mgrInProgress = await getInventorySessionDetail(
@@ -173,20 +172,21 @@ async function main() {
     })),
   });
 
-  // Owner still sees expected while counting; manager remains blind
+  // Owner remains blind while IN_PROGRESS; manager remains blind
   const ownerStillBlind = await getInventorySessionDetail(
     company.id,
     session.id,
     Role.OWNER
   );
-  assert.equal(ownerStillBlind.blind, false);
+  assert.equal(ownerStillBlind.blind, true);
   assert.equal(
     ownerStillBlind.items.find((i) => i.productId === product.id)?.countedQty,
     fact
   );
   assert.equal(
-    ownerStillBlind.items.find((i) => i.productId === product.id)?.expectedQty,
-    expected
+    "expectedQty" in
+      (ownerStillBlind.items.find((i) => i.productId === product.id) ?? {}),
+    false
   );
 
   await submitInventoryForApproval({
@@ -292,7 +292,7 @@ async function main() {
   assert.equal(Number(item.difference), fact - expected);
 
   console.log(
-    "\nPASS: ZT Revision — empty fact → manager blind / owner expected → submit pending → owner diffs → approve FIFO / manager metadata-only"
+    "\nPASS: ZT Revision — empty fact → IN_PROGRESS blind for all → submit pending → owner diffs → approve FIFO / manager metadata-only"
   );
   console.log(`  expected=${expected} fact=${fact} diff=${fact - expected} finalStock=${qty}`);
 

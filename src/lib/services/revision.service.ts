@@ -268,7 +268,7 @@ export async function approveInventorySession(params: {
               locationId: session.storeId,
             },
             orderBy: { receivedAt: "desc" },
-            select: { costPerUnit: true },
+            select: { costPerUnit: true, salePrice: true },
           });
           const product = await tx.product.findUnique({
             where: { id: item.productId },
@@ -279,6 +279,10 @@ export async function approveInventorySession(params: {
             product?.defaultCostPerUnit ??
             product?.salePrice ??
             new Prisma.Decimal(0);
+          const salePrice =
+            lastBatch?.salePrice ??
+            product?.salePrice ??
+            new Prisma.Decimal(0);
 
           await addBatch(tx, {
             productId: item.productId,
@@ -286,6 +290,7 @@ export async function approveInventorySession(params: {
             locationId: session.storeId,
             quantity: diff,
             costPerUnit,
+            salePrice,
             notes: `revision:${session.id}`,
             origin: BatchOrigin.ADJUSTMENT,
             createdById: params.approvedById,
@@ -442,24 +447,12 @@ export async function getInventorySessionDetail(
     };
   };
 
-  // Manager: blind count — fact only, never expected / difference.
-  if (isInProgress && !isOwner) {
+  // Blind count for EVERYONE while IN_PROGRESS — no system qty / difference.
+  if (isInProgress) {
     return {
       ...base,
       blind: true as const,
       items: session.items.map(mapItemMeta),
-    };
-  }
-
-  // Owner while counting: may see system stock (docs: expectation only for Owner).
-  if (isInProgress && isOwner) {
-    return {
-      ...base,
-      blind: false as const,
-      items: session.items.map((i) => ({
-        ...mapItemMeta(i),
-        expectedQty: decimalToNumber(i.expectedQty),
-      })),
     };
   }
 

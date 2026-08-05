@@ -81,6 +81,7 @@ async function main() {
         locationId: store.id,
         quantity: 20,
         costPerUnit: 40,
+      salePrice: 100,
         notes: "zt-p5-stock",
       });
     },

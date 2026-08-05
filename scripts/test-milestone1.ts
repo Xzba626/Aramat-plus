@@ -56,6 +56,7 @@ async function main() {
       locationId: warehouse.id,
       quantity: 100,
       costPerUnit: 10,
+      salePrice: 100,
       notes: "batch-A",
     });
     await addBatch(tx, {
@@ -64,6 +65,7 @@ async function main() {
       locationId: warehouse.id,
       quantity: 50,
       costPerUnit: 20,
+      salePrice: 100,
       notes: "batch-B",
     });
   });
@@ -106,6 +108,7 @@ async function main() {
       locationId: warehouse.id,
       quantity: 80,
       costPerUnit: 15,
+      salePrice: 100,
     });
   });
 

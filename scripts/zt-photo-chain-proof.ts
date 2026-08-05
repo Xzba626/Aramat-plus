@@ -97,6 +97,7 @@ async function main() {
       quantity: 10,
       initialQuantity: 10,
       costPerUnit: 10,
+      salePrice: 100,
       origin: BatchOrigin.PURCHASE,
     },
   });
@@ -116,6 +117,7 @@ async function main() {
       quantity: 5,
       initialQuantity: 5,
       costPerUnit: 10,
+      salePrice: 100,
       origin: BatchOrigin.TRANSFER,
     },
   });

@@ -84,6 +84,7 @@ async function main() {
         locationId: store.id,
         quantity: 20,
         costPerUnit: 3,
+      salePrice: 100,
         notes: "zt-not-product-bottle",
       });
     },
@@ -144,6 +145,7 @@ async function main() {
         locationId: store.id,
         quantity: 50,
         costPerUnit: 5,
+      salePrice: 100,
         notes: "zt-not-product-perfume",
       });
     },

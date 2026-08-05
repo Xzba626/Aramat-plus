@@ -15,6 +15,16 @@ export function cartFingerprint(items: CartFingerprintLine[]): string {
     .join("|");
 }
 
+/** Qty composition only — used when applying discount after FIFO (prices may differ from estimate). */
+export function cartCompositionFingerprint(
+  items: Array<{ productId: string; quantity: number }>
+): string {
+  return [...items]
+    .map((i) => `${i.productId}:${Number(i.quantity)}`)
+    .sort()
+    .join("|");
+}
+
 export function cartMatchesSnapshot(
   items: CartFingerprintLine[],
   snapshot: unknown
@@ -23,6 +33,17 @@ export function cartMatchesSnapshot(
   return (
     cartFingerprint(items) ===
     cartFingerprint(snapshot as CartFingerprintLine[])
+  );
+}
+
+export function cartCompositionMatchesSnapshot(
+  items: Array<{ productId: string; quantity: number }>,
+  snapshot: unknown
+): boolean {
+  if (!Array.isArray(snapshot)) return false;
+  return (
+    cartCompositionFingerprint(items) ===
+    cartCompositionFingerprint(snapshot as CartFingerprintLine[])
   );
 }
 
