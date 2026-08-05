@@ -9,6 +9,7 @@ import {
   resolveNotifCategory,
   resolveNotifSeverity,
 } from "@/lib/notifications/notification-meta";
+import { isProofArtifactNotificationMessage } from "@/lib/proof-artifacts";
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
@@ -124,7 +125,9 @@ export async function GET(req: Request) {
 
     const hasMore = dbRows.length > limit;
     const page = hasMore ? dbRows.slice(0, limit) : dbRows;
-    let items = page.map(mapDbRow);
+    let items = page
+      .filter((n) => !isProofArtifactNotificationMessage(n.message))
+      .map(mapDbRow);
 
     // Feed only: merge live dashboard attention chips on first page
     if (

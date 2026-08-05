@@ -1,52 +1,46 @@
 {
   "mode": "APPLY",
-  "at": "2026-08-03T11:14:17.540Z",
+  "at": "2026-08-05T08:39:02.015Z",
   "note": "ZT* / WaveG* rows are leftovers from local Cursor proof scripts that wrote into the same DB the owner uses (no separate test DB).",
-  "products": [
-    {
-      "id": "cmsd3muxj0009ky0492nt8uhc",
-      "name": "100 мл",
-      "sku": null,
-      "kind": "PACKAGING",
-      "isActive": true,
-      "companyId": "cmsak3myr0000umaks2m7dvl3",
-      "createdAt": "2026-08-03T10:41:21.176Z"
-    },
-    {
-      "id": "cmscyxrgb0001umrwrmectju3",
-      "name": "ZT Rev 1785745791801",
-      "sku": null,
-      "kind": "STANDARD",
-      "isActive": true,
-      "companyId": "cmsak3myr0000umaks2m7dvl3",
-      "createdAt": "2026-08-03T08:29:51.803Z"
-    },
-    {
-      "id": "cmscwnc300003um0gjqx4y325",
-      "name": "ZT Rev 1785741946090",
-      "sku": null,
-      "kind": "STANDARD",
-      "isActive": true,
-      "companyId": "cmsak3myr0000umaks2m7dvl3",
-      "createdAt": "2026-08-03T07:25:46.092Z"
-    }
-  ],
+  "products": [],
   "brands": [],
   "categories": [],
   "stores": [],
+  "proofNotifications": [
+    {
+      "id": "cmsfs9r62000oumz43afgsbvz",
+      "message": "Центральный склад: «ZT Rev 1785915972603» — 20 шт",
+      "entityId": "cmsfs9bsw0003umz4v2c1y8lk",
+      "createdAt": "2026-08-05T07:46:32.522Z"
+    },
+    {
+      "id": "cmsfs9r62000pumz4evwvkh0r",
+      "message": "Центральный склад: «ZT Rev 1785915972603» — 20 шт",
+      "entityId": "cmsfs9bsw0003umz4v2c1y8lk",
+      "createdAt": "2026-08-05T07:46:32.522Z"
+    }
+  ],
   "packagingActiveSample": [
     {
-      "id": "cmsbk5vi3000nla04r01a1ush",
+      "id": "cmsfmen65000mjs04je55rkba",
       "name": "Флакон 5 мл · стекло"
     },
     {
-      "id": "cmsbk5w5k000tla044p77ped9",
+      "id": "cmsfmenqx000sjs04fdceo2n4",
       "name": "Флакон 10 мл · стекло"
     },
     {
-      "id": "cmsd3muxj0009ky0492nt8uhc",
-      "name": "100 мл"
+      "id": "cmsfmeo93000yjs04xst0l7g1",
+      "name": "Флакон 30 мл · стекло"
+    },
+    {
+      "id": "cmsfmeor80014js04tux0kzu2",
+      "name": "Флакон 50 мл · стекло"
+    },
+    {
+      "id": "cmsfmep9f001ajs04hdxs5tec",
+      "name": "Флакон 100 мл · стекло"
     }
   ],
-  "packagingActiveCount": 3
+  "packagingActiveCount": 5
 }

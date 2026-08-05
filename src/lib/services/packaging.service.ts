@@ -13,22 +13,70 @@ import { logActivity } from "@/lib/services/activity-log.service";
 import { resolveUnitId } from "@/lib/services/product-nomenclature.service";
 import { deductBatchesFifo } from "@/lib/services/stock.service";
 import { notifyCompanyRoles } from "@/lib/services/notification.service";
+import { isProofArtifactName } from "@/lib/proof-artifacts";
 
 export const BOTTLE_LOW_STOCK_THRESHOLD = 5; // legacy default; runtime uses getLowStockThresholds().bottlePiece
 const BOTTLE_EXPENSE_TYPE_NAME = "Флаконы";
 
 const DEFAULT_VOLUMES = [5, 10, 30, 50, 100] as const;
 
-export type PackagingSkuInput = {
-  name?: string;
+export class PackagingDuplicateError extends Error {
+  existingId: string;
+  constructor(existingId: string) {
+    super("PACKAGING_DUPLICATE");
+    this.name = "PackagingDuplicateError";
+    this.existingId = existingId;
+  }
+}
+
+function costsEqual(
+  a: number | null | undefined,
+  b: Prisma.Decimal | number | null | undefined
+) {
+  const left = a == null ? null : Math.round(Number(a) * 10000) / 10000;
+  const right =
+    b == null || b === undefined
+      ? null
+      : Math.round(Number(b.toString()) * 10000) / 10000;
+  return left === right;
+}
+
+/**
+ * Exact business duplicate only — volume alone is never unique.
+ * Same volume + different name/color/cost → allowed.
+ */
+async function findExactPackagingDuplicate(params: {
+  companyId: string;
+  name: string;
   volumeMl: number;
-  material?: string | null;
-  color?: string | null;
-  skuCode?: string | null;
+  material: string;
+  color: string;
   defaultCost?: number | null;
-  isDefaultForVolume?: boolean;
-  isActive?: boolean;
-};
+  excludeId?: string;
+}) {
+  const candidates = await prisma.packagingSku.findMany({
+    where: {
+      companyId: params.companyId,
+      name: params.name,
+      material: params.material,
+      color: params.color,
+      ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
+    },
+    select: {
+      id: true,
+      volumeMl: true,
+      defaultCost: true,
+      isActive: true,
+    },
+  });
+  return (
+    candidates.find(
+      (c) =>
+        Math.abs(decimalToNumber(c.volumeMl) - params.volumeMl) < 0.0005 &&
+        costsEqual(params.defaultCost, c.defaultCost)
+    ) ?? null
+  );
+}
 
 function normalizeMaterial(v?: string | null) {
   const m = (v?.trim() || "glass").toLowerCase();
@@ -43,6 +91,17 @@ function defaultName(volumeMl: number, material: string) {
     material === "glass" ? "стекло" : material === "plastic" ? "пластик" : material;
   return `Флакон ${volumeMl} мл · ${mat}`;
 }
+
+export type PackagingSkuInput = {
+  name?: string;
+  volumeMl: number;
+  material?: string | null;
+  color?: string | null;
+  skuCode?: string | null;
+  defaultCost?: number | null;
+  isDefaultForVolume?: boolean;
+  isActive?: boolean;
+};
 
 /** Ensure stock Product (PIECE, PACKAGING) exists for a PackagingSku. */
 export async function ensurePackagingProduct(packagingSkuId: string) {
@@ -190,6 +249,16 @@ export async function createPackagingSku(params: {
   const name =
     params.data.name?.trim() || defaultName(volumeMl, material);
 
+  const dup = await findExactPackagingDuplicate({
+    companyId: params.companyId,
+    name,
+    volumeMl,
+    material,
+    color,
+    defaultCost: params.data.defaultCost ?? null,
+  });
+  if (dup) throw new PackagingDuplicateError(dup.id);
+
   const sku = await prisma.packagingSku.create({
     data: {
       companyId: params.companyId,
@@ -242,6 +311,40 @@ export async function updatePackagingSku(params: {
   if (params.data.isDefaultForVolume != null)
     data.isDefaultForVolume = params.data.isDefaultForVolume;
   if (params.data.isActive != null) data.isActive = params.data.isActive;
+
+  const nextName =
+    params.data.name != null
+      ? params.data.name.trim()
+      : existing.name;
+  const nextVolume =
+    params.data.volumeMl != null
+      ? params.data.volumeMl
+      : decimalToNumber(existing.volumeMl);
+  const nextMaterial =
+    params.data.material != null
+      ? normalizeMaterial(params.data.material)
+      : existing.material;
+  const nextColor =
+    params.data.color != null
+      ? normalizeColor(params.data.color)
+      : existing.color;
+  const nextCost =
+    params.data.defaultCost !== undefined
+      ? params.data.defaultCost
+      : existing.defaultCost == null
+        ? null
+        : decimalToNumber(existing.defaultCost);
+
+  const dup = await findExactPackagingDuplicate({
+    companyId: params.companyId,
+    name: nextName,
+    volumeMl: nextVolume,
+    material: nextMaterial,
+    color: nextColor,
+    defaultCost: nextCost,
+    excludeId: existing.id,
+  });
+  if (dup) throw new PackagingDuplicateError(dup.id);
 
   const sku = await prisma.packagingSku.update({
     where: { id: params.id },
@@ -550,6 +653,7 @@ export async function maybeNotifyLowBottleStock(params: {
   );
   const thresholds = await getLowStockThresholds(params.companyId);
   if (params.qtyAfter > thresholds.bottlePiece) return;
+  if (isProofArtifactName(params.skuName)) return;
   await notifyCompanyRoles({
     companyId: params.companyId,
     type: NotificationType.LOW_STOCK,

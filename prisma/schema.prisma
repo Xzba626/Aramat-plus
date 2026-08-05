@@ -186,9 +186,9 @@ model PackagingSku {
   company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   products Product[]
 
-  @@unique([companyId, volumeMl, material, color])
   @@index([companyId, volumeMl])
   @@index([companyId, isActive])
+  @@index([companyId, name])
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────

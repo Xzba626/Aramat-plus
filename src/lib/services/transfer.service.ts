@@ -3,138 +3,176 @@ import { prisma } from "@/lib/prisma";
 import { addBatch, deductBatchesFifo } from "@/lib/services/stock.service";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { checkLowBottleStockAfterTransfer } from "@/lib/services/packaging.service";
+import { BATCH_NOTE_MARKERS } from "@/lib/i18n/labels";
 
 export type TransferLineInput = {
   productId: string;
   quantity: number;
 };
 
-export async function createTransfer(params: {
+export type TransferPurpose = "NORMAL" | "INITIAL_STORE_STOCK";
+
+type Tx = Prisma.TransactionClient;
+
+type WhStoreActors = {
   companyId: string;
-  fromWarehouseId: string;
-  toStoreId: string;
+  warehouse: { id: string; name: string };
+  store: { id: string; name: string };
   createdById: string;
   items: TransferLineInput[];
-  notes?: string;
-}) {
+  /** Free-text notes for NORMAL transfers only. */
+  notes?: string | null;
+  purpose?: TransferPurpose;
+};
+
+/**
+ * Core WH→Store FIFO move. Caller owns the transaction.
+ * INITIAL_STORE_STOCK uses restoration markers (not “sent today”).
+ */
+export async function executeWarehouseToStoreTransferInTx(
+  tx: Tx,
+  params: WhStoreActors
+) {
   if (!params.items.length) throw new Error("EMPTY_CART");
 
-  const warehouse = await prisma.warehouse.findFirst({
-    where: { id: params.fromWarehouseId, companyId: params.companyId },
-  });
-  if (!warehouse) throw new Error("WAREHOUSE_MISSING");
+  const purpose = params.purpose ?? "NORMAL";
+  const isInitial = purpose === "INITIAL_STORE_STOCK";
+  const transferNotes = isInitial
+    ? BATCH_NOTE_MARKERS.INITIAL_STORE_STOCK
+    : params.notes?.trim() || null;
 
-  const store = await prisma.store.findFirst({
-    where: {
-      id: params.toStoreId,
-      companyId: params.companyId,
-      isActive: true,
-      kind: "BRANCH",
+  const transfer = await tx.transfer.create({
+    data: {
+      fromWarehouseId: params.warehouse.id,
+      toStoreId: params.store.id,
+      createdById: params.createdById,
+      status: "COMPLETED",
+      notes: transferNotes,
     },
   });
-  if (!store) throw new Error("TRANSFER_BRANCH_ONLY");
 
-  const txResult = await prisma.$transaction(
-    async (tx) => {
-      const transfer = await tx.transfer.create({
-        data: {
-          fromWarehouseId: warehouse.id,
-          toStoreId: store.id,
-          createdById: params.createdById,
-          status: "COMPLETED",
-          notes: params.notes,
-        },
-      });
+  for (const line of params.items) {
+    const qty = new Prisma.Decimal(line.quantity);
+    if (qty.lte(0)) throw new Error("QTY_MUST_BE_POSITIVE");
 
-      for (const line of params.items) {
-        const qty = new Prisma.Decimal(line.quantity);
-        if (qty.lte(0)) throw new Error("QTY_MUST_BE_POSITIVE");
-
-        const product = await tx.product.findFirst({
-          where: {
-            id: line.productId,
-            companyId: params.companyId,
-            isActive: true,
-          },
-        });
-        if (!product) throw new Error("PRODUCT_NOT_FOUND");
-
-        const consumed = await deductBatchesFifo(tx, {
-          productId: line.productId,
-          locationType: LocationType.WAREHOUSE,
-          locationId: warehouse.id,
-          quantity: qty,
-        });
-
-        for (const slice of consumed) {
-          const item = await tx.transferItem.create({
-            data: {
-              transferId: transfer.id,
-              productId: line.productId,
-              quantity: slice.quantity,
-              sourceBatchId: slice.batchId,
-              costPerUnit: slice.costPerUnit,
-            },
-          });
-
-          await addBatch(tx, {
-            productId: line.productId,
-            locationType: LocationType.STORE,
-            locationId: store.id,
-            quantity: slice.quantity,
-            costPerUnit: slice.costPerUnit,
-            notes: `transfer:${transfer.id}`,
-            transferItemId: item.id,
-            origin: BatchOrigin.TRANSFER,
-            createdById: params.createdById,
-          });
-        }
-      }
-
-      await logActivity({
-        tx,
-        userId: params.createdById,
+    const product = await tx.product.findFirst({
+      where: {
+        id: line.productId,
         companyId: params.companyId,
-        action: "TRANSFER_CREATE",
-        entityType: "Transfer",
-        entityId: transfer.id,
-        comment: `${warehouse.name} → ${store.name}`,
-        metadata: {
-          itemCount: params.items.length,
-          items: params.items,
-          fromWarehouseId: warehouse.id,
-          toStoreId: store.id,
+        isActive: true,
+      },
+    });
+    if (!product) throw new Error("PRODUCT_NOT_FOUND");
+    if (isInitial && product.kind === "PACKAGING") {
+      throw new Error("PACKAGING_NOT_ALLOWED");
+    }
+
+    const consumed = await deductBatchesFifo(tx, {
+      productId: line.productId,
+      locationType: LocationType.WAREHOUSE,
+      locationId: params.warehouse.id,
+      quantity: qty,
+    });
+
+    for (const slice of consumed) {
+      const item = await tx.transferItem.create({
+        data: {
+          transferId: transfer.id,
+          productId: line.productId,
+          quantity: slice.quantity,
+          sourceBatchId: slice.batchId,
+          costPerUnit: slice.costPerUnit,
         },
       });
 
-      const packagingProductIds = params.items
-        .map((i) => i.productId)
-        .filter(Boolean);
-
-      const result = await tx.transfer.findUniqueOrThrow({
-        where: { id: transfer.id },
-        include: {
-          items: { include: { product: true } },
-          toStore: true,
-          fromWarehouse: true,
-          fromStore: true,
-          createdBy: { select: { id: true, name: true } },
-        },
+      await addBatch(tx, {
+        productId: line.productId,
+        locationType: LocationType.STORE,
+        locationId: params.store.id,
+        quantity: slice.quantity,
+        costPerUnit: slice.costPerUnit,
+        notes: isInitial
+          ? `${BATCH_NOTE_MARKERS.INITIAL_STORE_STOCK}:${transfer.id}`
+          : `transfer:${transfer.id}`,
+        transferItemId: item.id,
+        origin: isInitial ? BatchOrigin.INITIAL : BatchOrigin.TRANSFER,
+        createdById: params.createdById,
       });
+    }
+  }
 
-      return { result, packagingProductIds, storeName: store.name, storeId: store.id };
-    },
-    { maxWait: 15_000, timeout: 60_000 }
-  );
-
-  void checkLowBottleStockAfterTransfer({
+  await logActivity({
+    tx,
+    userId: params.createdById,
     companyId: params.companyId,
-    storeId: txResult.storeId,
-    storeName: txResult.storeName,
-    productIds: txResult.packagingProductIds,
-  }).catch((err) =>
-    console.error("[createTransfer] bottle low-stock notify failed", err)
-  );
+    action: isInitial ? "INITIAL_STORE_STOCK" : "TRANSFER_CREATE",
+    entityType: "Transfer",
+    entityId: transfer.id,
+    comment: isInitial
+      ? `${params.warehouse.name} → ${params.store.name}`
+      : `${params.warehouse.name} → ${params.store.name}`,
+    metadata: {
+      purpose,
+      itemCount: params.items.length,
+      items: params.items,
+      fromWarehouseId: params.warehouse.id,
+      toStoreId: params.store.id,
+      restoration: isInitial,
+    },
+  });
+
+  const result = await tx.transfer.findUniqueOrThrow({
+    where: { id: transfer.id },
+    include: {
+      items: { include: { product: true } },
+      toStore: true,
+      fromWarehouse: true,
+      fromStore: true,
+      createdBy: { select: { id: true, name: true } },
+    },
+  });
+
+  const packagingProductIds = isInitial
+    ? []
+    : (
+        await tx.product.findMany({
+          where: {
+            id: { in: params.items.map((i) => i.productId) },
+            kind: "PACKAGING",
+          },
+          select: { id: true },
+        })
+      ).map((p) => p.id);
+
+  return {
+    result,
+    packagingProductIds,
+    storeName: params.store.name,
+    storeId: params.store.id,
+    isInitial,
+  };
+}
+
+async function notifyAfterWhTransfer(params: {
+  companyId: string;
+  fromWarehouseId: string;
+  storeId: string;
+  storeName: string;
+  items: TransferLineInput[];
+  packagingProductIds: string[];
+  /** Initial stock must not look like a live transfer alert. Low-stock still OK. */
+  skipTransferSideEffects?: boolean;
+}) {
+  if (!params.skipTransferSideEffects) {
+    void checkLowBottleStockAfterTransfer({
+      companyId: params.companyId,
+      storeId: params.storeId,
+      storeName: params.storeName,
+      productIds: params.packagingProductIds,
+    }).catch((err) =>
+      console.error("[createTransfer] bottle low-stock notify failed", err)
+    );
+  }
 
   void (async () => {
     const {
@@ -168,10 +206,78 @@ export async function createTransfer(params: {
         qtyAfter,
         thresholds,
       });
+      // Store may now be below threshold after receiving a small initial qty — check store too
+      const storeQty = await getQtyAtLocation({
+        productId: line.productId,
+        locationType: LocationType.STORE,
+        locationId: params.storeId,
+      });
+      await maybeNotifyLowMerchandiseStock({
+        companyId: params.companyId,
+        locationType: LocationType.STORE,
+        locationName: params.storeName,
+        productId: product.id,
+        productName: product.name,
+        accountingType: product.accountingType,
+        qtyAfter: storeQty,
+        thresholds,
+        storeId: params.storeId,
+      });
     }
   })().catch((err) =>
     console.error("[createTransfer] merchandise low-stock notify failed", err)
   );
+}
+
+export async function createTransfer(params: {
+  companyId: string;
+  fromWarehouseId: string;
+  toStoreId: string;
+  createdById: string;
+  items: TransferLineInput[];
+  notes?: string;
+  purpose?: TransferPurpose;
+}) {
+  if (!params.items.length) throw new Error("EMPTY_CART");
+
+  const warehouse = await prisma.warehouse.findFirst({
+    where: { id: params.fromWarehouseId, companyId: params.companyId },
+  });
+  if (!warehouse) throw new Error("WAREHOUSE_MISSING");
+
+  const store = await prisma.store.findFirst({
+    where: {
+      id: params.toStoreId,
+      companyId: params.companyId,
+      isActive: true,
+      kind: "BRANCH",
+    },
+  });
+  if (!store) throw new Error("TRANSFER_BRANCH_ONLY");
+
+  const txResult = await prisma.$transaction(
+    async (tx) =>
+      executeWarehouseToStoreTransferInTx(tx, {
+        companyId: params.companyId,
+        warehouse: { id: warehouse.id, name: warehouse.name },
+        store: { id: store.id, name: store.name },
+        createdById: params.createdById,
+        items: params.items,
+        notes: params.notes,
+        purpose: params.purpose ?? "NORMAL",
+      }),
+    { maxWait: 15_000, timeout: 60_000 }
+  );
+
+  void notifyAfterWhTransfer({
+    companyId: params.companyId,
+    fromWarehouseId: warehouse.id,
+    storeId: txResult.storeId,
+    storeName: txResult.storeName,
+    items: params.items,
+    packagingProductIds: txResult.packagingProductIds,
+    skipTransferSideEffects: txResult.isInitial,
+  });
 
   return txResult.result;
 }

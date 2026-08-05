@@ -76,6 +76,19 @@ async function main() {
     select: { id: true, name: true, address: true, companyId: true },
   });
 
+  const proofNotifs = await prisma.notification.findMany({
+    where: {
+      OR: [
+        { message: { contains: "ZT Rev" } },
+        { message: { contains: "«ZT " } },
+        { message: { contains: "WaveG" } },
+        { message: { contains: "[ARCHIVED TEST]" } },
+      ],
+    },
+    select: { id: true, message: true, entityId: true, createdAt: true },
+    take: 200,
+  });
+
   const packaging = await prisma.product.findMany({
     where: { kind: "PACKAGING", isActive: true },
     select: { id: true, name: true },
@@ -91,6 +104,7 @@ async function main() {
     brands,
     categories,
     stores,
+    proofNotifications: proofNotifs,
     packagingActiveSample: packaging,
     packagingActiveCount: await prisma.product.count({
       where: { kind: "PACKAGING", isActive: true },
@@ -112,8 +126,19 @@ async function main() {
   }
 
   const ids = report.products.map((p) => p.id);
-  if (ids.length === 0) {
+  const notifIds = report.proofNotifications.map((n) => n.id);
+
+  if (ids.length === 0 && notifIds.length === 0) {
     console.log("Nothing to delete.");
+    return;
+  }
+
+  if (notifIds.length) {
+    await prisma.notification.deleteMany({ where: { id: { in: notifIds } } });
+  }
+
+  if (ids.length === 0) {
+    console.log(JSON.stringify({ deletedNotifications: notifIds.length }, null, 2));
     return;
   }
 
@@ -123,6 +148,9 @@ async function main() {
   await prisma.batch.deleteMany({ where: { productId: { in: ids } } });
   await prisma.reservationItem.deleteMany({ where: { productId: { in: ids } } });
   await prisma.inventoryItem.deleteMany({ where: { productId: { in: ids } } }).catch(() => undefined);
+  await prisma.notification.deleteMany({
+    where: { entityId: { in: ids } },
+  });
 
   let deleted = 0;
   let deactivated = 0;
@@ -150,7 +178,18 @@ async function main() {
       await prisma.category.delete({ where: { id: c.id } }).catch(() => undefined);
   }
 
-  console.log(JSON.stringify({ deleted, deactivated, productIds: ids }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        deleted,
+        deactivated,
+        deletedNotifications: notifIds.length,
+        productIds: ids,
+      },
+      null,
+      2
+    )
+  );
 }
 
 main()

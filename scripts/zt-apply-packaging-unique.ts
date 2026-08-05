@@ -1,21 +1,9 @@
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
-
-async function main() {
-  await prisma.$executeRawUnsafe(
-    `DROP INDEX IF EXISTS "PackagingSku_companyId_volumeMl_material_color_cap_key"`
-  );
-  await prisma.$executeRawUnsafe(`UPDATE "PackagingSku" SET "cap" = ''`);
-  await prisma.$executeRawUnsafe(
-    `CREATE UNIQUE INDEX IF NOT EXISTS "PackagingSku_companyId_volumeMl_material_color_key" ON "PackagingSku"("companyId", "volumeMl", "material", "color")`
-  );
-  console.log("OK: PackagingSku unique without cap");
-}
-
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());
+/**
+ * @deprecated Volume+material+color uniqueness was removed (20260805140000).
+ * Exact duplicates are enforced in packaging.service (name+volume+material+color+cost).
+ * This script is kept only as historical reference — do not re-apply.
+ */
+console.error(
+  "Obsolete: do not recreate PackagingSku_companyId_volumeMl_material_color_key. See migration 20260805140000_packaging_volume_not_unique."
+);
+process.exit(1);

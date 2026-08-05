@@ -17,6 +17,7 @@ export const ACTION_KEYS: Record<string, string> = {
   SALE_CREATE: "actions.saleCreate",
   BATCH_CREATE: "actions.batchCreate",
   TRANSFER_CREATE: "actions.transferCreate",
+  INITIAL_STORE_STOCK: "actions.initialStoreStock",
   STORE_TRANSFER_CREATE: "actions.storeTransferCreate",
   WAREHOUSE_RETURN_IN: "actions.warehouseReturn",
   PRODUCT_CREATE: "actions.productCreate",
@@ -139,6 +140,7 @@ export const RETURN_REASON_KEYS: Record<string, string> = {
 /** Stable batch.notes markers written by the system (never English prose). */
 export const BATCH_NOTE_MARKERS = {
   INITIAL_STOCK: "INITIAL_STOCK",
+  INITIAL_STORE_STOCK: "INITIAL_STORE_STOCK",
   PACKAGING_RECEIVE: "PACKAGING_RECEIVE",
   PACKAGING_TRANSFER: "PACKAGING_TRANSFER",
 } as const;
@@ -146,6 +148,7 @@ export const BATCH_NOTE_MARKERS = {
 const BATCH_NOTE_KEYS: Record<string, string> = {
   INITIAL_STOCK: "warehouse.notesInitialStock",
   "Initial stock": "warehouse.notesInitialStock",
+  INITIAL_STORE_STOCK: "warehouse.notesInitialStoreStock",
   PACKAGING_RECEIVE: "warehouse.notesPackagingReceive",
   "packaging receive": "warehouse.notesPackagingReceive",
   PACKAGING_TRANSFER: "warehouse.notesTransfer",
@@ -311,6 +314,9 @@ export function labelBatchNotes(
   if (direct) return t(direct);
 
   if (/^transfer:/i.test(raw)) return t("warehouse.notesTransfer");
+  if (/^INITIAL_STORE_STOCK(?::|$)/i.test(raw)) {
+    return t("warehouse.notesInitialStoreStock");
+  }
   if (/^store_transfer:/i.test(raw)) return t("warehouse.notesStoreTransfer");
   if (/^warehouse_return:/i.test(raw)) return t("warehouse.notesWarehouseReturn");
   if (/^sale_return:/i.test(raw)) return t("warehouse.notesSaleReturn");

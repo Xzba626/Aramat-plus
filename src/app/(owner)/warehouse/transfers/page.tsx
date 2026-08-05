@@ -6,13 +6,14 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, SectionTitle } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { apiErrorMessage } from "@/lib/i18n/labels";
+import { apiErrorMessage, labelBatchNotes } from "@/lib/i18n/labels";
 
 type TransferRow = {
   id: string;
   createdAt: string;
+  notes?: string | null;
   toStore: { name: string };
-  fromWarehouse: { name: string };
+  fromWarehouse: { name: string } | null;
   createdBy: { name: string };
   items: { quantity: string; product: { name: string } }[];
 };
@@ -50,9 +51,12 @@ export default function WarehouseTransfersPage() {
       {items.map((row) => (
         <Card key={row.id} className="mb-3">
           <div className="font-semibold text-ink">
-            {row.fromWarehouse.name} → {row.toStore.name}
+            {row.fromWarehouse?.name ?? "—"} → {row.toStore.name}
           </div>
           <div className="mt-1 text-xs text-muted">
+            {row.notes
+              ? `${labelBatchNotes(row.notes, t)} · `
+              : ""}
             {formatDateTime(row.createdAt)} · {row.createdBy.name}
           </div>
           <ul className="mt-2 space-y-1 text-sm text-muted">

@@ -9,6 +9,7 @@ import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
 import { LoadingBlock } from "@/components/ui/empty-state";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage, BATCH_NOTE_MARKERS } from "@/lib/i18n/labels";
+import { cn } from "@/lib/utils";
 
 type Sku = {
   id: string;
@@ -47,6 +48,7 @@ export default function PackagingPage() {
   const [showReceive, setShowReceive] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
+  const [highlightSkuId, setHighlightSkuId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
 
@@ -97,6 +99,12 @@ export default function PackagingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInactive]);
 
+  useEffect(() => {
+    if (!highlightSkuId) return;
+    const el = document.getElementById(`packaging-sku-${highlightSkuId}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [highlightSkuId, items]);
+
   async function onCreate(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
@@ -117,6 +125,17 @@ export default function PackagingPage() {
     });
     const data = await res.json();
     if (!res.ok) {
+      if (data.error === "PACKAGING_DUPLICATE" && data.existingId) {
+        const open = window.confirm(t("packaging.duplicateConfirm"));
+        if (open) {
+          setShowForm(false);
+          setHighlightSkuId(String(data.existingId));
+          setMsg(t("packaging.duplicateOpened"));
+        } else {
+          setError(t("packaging.duplicateExists"));
+        }
+        return;
+      }
       setError(apiErrorMessage(data.error, t));
       return;
     }
@@ -429,6 +448,9 @@ export default function PackagingPage() {
                 className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
                 placeholder={t("packaging.namePlaceholder")}
               />
+              <p className="mt-1 text-[11px] text-muted">
+                {t("packaging.volumeNotUniqueHint")}
+              </p>
             </div>
             <div>
               <FieldLabel>{t("packaging.volumeMl")}</FieldLabel>
@@ -496,7 +518,11 @@ export default function PackagingPage() {
           {items.map((s) => (
             <Card
               key={s.id}
-              className="flex flex-wrap items-center justify-between gap-3 p-4"
+              id={`packaging-sku-${s.id}`}
+              className={cn(
+                "flex flex-wrap items-center justify-between gap-3 p-4",
+                highlightSkuId === s.id && "ring-2 ring-brand"
+              )}
             >
               <div className="min-w-0">
                 <p className="font-semibold text-ink">{s.name}</p>

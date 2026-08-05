@@ -5,6 +5,7 @@ import {
   LOW_STOCK_THRESHOLDS_SETTING_KEY,
 } from "@/lib/seed-defaults";
 import { notifyCompanyRoles } from "@/lib/services/notification.service";
+import { isProofArtifactName } from "@/lib/proof-artifacts";
 
 export type LowStockThresholds = {
   warehousePiece: number;
@@ -156,6 +157,9 @@ export async function maybeNotifyLowMerchandiseStock(params: {
     thresholds,
   });
   if (status === "OK") return;
+
+  // Proof-script leftovers must never reach the owner notification center.
+  if (isProofArtifactName(params.productName)) return;
 
   const unit =
     params.accountingType === "WEIGHT" ? "мл" : "шт";

@@ -296,13 +296,30 @@ async function main() {
   );
   console.log(`  expected=${expected} fact=${fact} diff=${fact - expected} finalStock=${qty}`);
 
-  // Cleanup proof artifacts so they never pollute owner analytics
+  // Cleanup proof artifacts so they never pollute owner analytics / notifications
+  await prisma.notification.deleteMany({
+    where: {
+      OR: [
+        { entityId: product.id },
+        { message: { contains: product.name } },
+        { message: { contains: "ZT Rev" } },
+      ],
+    },
+  });
   await prisma.inventoryItem.deleteMany({ where: { productId: product.id } });
   await prisma.inventorySession.delete({ where: { id: session.id } }).catch(() => undefined);
   await prisma.stockBalance.deleteMany({ where: { productId: product.id } });
   await prisma.batch.deleteMany({ where: { productId: product.id } });
   await prisma.transferItem.deleteMany({ where: { productId: product.id } });
   await prisma.saleItem.deleteMany({ where: { productId: product.id } });
+  await prisma.activityLog.deleteMany({
+    where: {
+      OR: [
+        { entityId: product.id },
+        { comment: { contains: product.name } },
+      ],
+    },
+  });
   await prisma.product.delete({ where: { id: product.id } }).catch(async () => {
     await prisma.product.update({
       where: { id: product.id },

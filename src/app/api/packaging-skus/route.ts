@@ -9,7 +9,9 @@ import {
   packagingSkuUpdateSchema,
 } from "@/lib/validators";
 import { jsonOk, handleApiError, jsonError } from "@/lib/api";
+import { NextResponse } from "next/server";
 import {
+  PackagingDuplicateError,
   createPackagingSku,
   ensureDefaultPackagingSkus,
   listPackagingSkus,
@@ -63,6 +65,12 @@ export async function POST(req: Request) {
     });
     return jsonOk({ ...sku, productId: product.id }, 201);
   } catch (err) {
+    if (err instanceof PackagingDuplicateError) {
+      return NextResponse.json(
+        { error: "PACKAGING_DUPLICATE", existingId: err.existingId },
+        { status: 409 }
+      );
+    }
     return handleApiError(err);
   }
 }
@@ -95,6 +103,12 @@ export async function PATCH(req: Request) {
     });
     return jsonOk(sku);
   } catch (err) {
+    if (err instanceof PackagingDuplicateError) {
+      return NextResponse.json(
+        { error: "PACKAGING_DUPLICATE", existingId: err.existingId },
+        { status: 409 }
+      );
+    }
     if (err instanceof Error && err.message === "NOT_FOUND") {
       return jsonError("NOT_FOUND", 404);
     }

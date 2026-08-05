@@ -16,6 +16,7 @@ import {
   ensureKnownPaymentMethods,
 } from "@/lib/analytics/payment-breakdown";
 import { aggregateContainerSourceStats } from "@/lib/analytics/container-source-stats";
+import { isProofArtifactName } from "@/lib/proof-artifacts";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -275,6 +276,7 @@ export async function getDashboardPayload(
 
   const lowStockFiltered = lowStock
     .filter((b) => {
+      if (isProofArtifactName(b.product.name)) return false;
       const qty = decimalToNumber(b.quantity);
       const status = resolveStockStatus({
         quantity: qty,

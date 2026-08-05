@@ -25,6 +25,7 @@ import {
   PaymentMethodBreakdown,
 } from "@/components/dashboard/payment-container-breakdown";
 import { ProductThumb } from "@/components/products/product-thumb";
+import { InitialStoreStockModal } from "@/components/stores/initial-store-stock-modal";
 
 type StoreDetail = {
   id: string;
@@ -229,7 +230,15 @@ export default function StoreDetailClient() {
       {tab === "overview" ? (
         <OverviewTab store={store} isOwnerDirect={!!isOwnerDirect} t={t} formatMoney={formatMoney} formatDate={formatDate} formatDateTime={formatDateTime} />
       ) : null}
-      {tab === "stock" ? <StockTab storeId={id} t={t} formatMoney={formatMoney} /> : null}
+      {tab === "stock" ? (
+        <StockTab
+          storeId={id}
+          isOwner={!!isOwner}
+          isOwnerDirect={!!isOwnerDirect}
+          t={t}
+          formatMoney={formatMoney}
+        />
+      ) : null}
       {tab === "staff" && !isOwnerDirect ? (
         <StaffTab storeId={id} onChanged={load} setError={setError} setMsg={setMsg} t={t} formatMoney={formatMoney} formatDateTime={formatDateTime} />
       ) : null}
@@ -382,10 +391,14 @@ function Stat({
 
 function StockTab({
   storeId,
+  isOwner,
+  isOwnerDirect,
   t,
   formatMoney,
 }: {
   storeId: string;
+  isOwner: boolean;
+  isOwnerDirect: boolean;
   t: (key: string, params?: Record<string, string | number>) => string;
   formatMoney: (value: number | string, opts?: { short?: boolean }) => string;
 }) {
@@ -393,6 +406,8 @@ function StockTab({
   const [status, setStatus] = useState("ALL");
   const [sort, setSort] = useState("name");
   const [page, setPage] = useState(1);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [initialOpen, setInitialOpen] = useState(false);
   const [data, setData] = useState<{
     items: StockItem[];
     total: number;
@@ -401,7 +416,7 @@ function StockTab({
   } | null>(null);
 
   useEffect(() => {
-    const t = setTimeout(async () => {
+    const tmr = setTimeout(async () => {
       const sp = new URLSearchParams({
         q,
         status,
@@ -413,12 +428,12 @@ function StockTab({
       const json = await res.json();
       if (res.ok) setData(json);
     }, 200);
-    return () => clearTimeout(t);
-  }, [storeId, q, status, sort, page]);
+    return () => clearTimeout(tmr);
+  }, [storeId, q, status, sort, page, reloadKey]);
 
   return (
     <div>
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <input
           className="min-w-[200px] flex-1"
           placeholder={t("common.search")}
@@ -451,6 +466,15 @@ function StockTab({
           <option value="price">{t("storeDetail.sortByPrice")}</option>
           <option value="status">{t("storeDetail.sortByStatus")}</option>
         </select>
+        {isOwner && !isOwnerDirect ? (
+          <Button
+            type="button"
+            fullWidth={false}
+            onClick={() => setInitialOpen(true)}
+          >
+            {t("storeDetail.initialStockAdd")}
+          </Button>
+        ) : null}
       </div>
 
       <Card className="overflow-hidden p-0">
@@ -535,6 +559,15 @@ function StockTab({
             </Button>
           </div>
         </div>
+      ) : null}
+
+      {isOwner && !isOwnerDirect ? (
+        <InitialStoreStockModal
+          storeId={storeId}
+          open={initialOpen}
+          onClose={() => setInitialOpen(false)}
+          onDone={() => setReloadKey((k) => k + 1)}
+        />
       ) : null}
     </div>
   );

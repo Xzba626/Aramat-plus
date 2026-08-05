@@ -140,6 +140,35 @@ export const transferSchema = z.object({
     .min(1),
 });
 
+/** Owner: restore pre-system store stock via WH→Store FIFO. */
+export const initialStoreStockSchema = z
+  .object({
+    quantity: z.coerce.number().positive(),
+    productId: z.string().min(1).optional(),
+    forceCreate: z.boolean().optional(),
+    newProduct: z
+      .object({
+        name: z.string().min(1).max(200),
+        brandId: z.string().min(1).optional().nullable(),
+        categoryId: z.string().min(1).optional().nullable(),
+        productTypeId: z.string().min(1).optional().nullable(),
+        accountingType: z.nativeEnum(AccountingType),
+        salePrice: z.coerce.number().positive(),
+        costPerUnit: z.coerce.number().positive(),
+      })
+      .optional(),
+  })
+  .superRefine((v, ctx) => {
+    const hasExisting = Boolean(v.productId);
+    const hasNew = Boolean(v.newProduct);
+    if (hasExisting === hasNew) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "PRODUCT_REQUIRED",
+      });
+    }
+  });
+
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: z.string().min(4).max(100),
