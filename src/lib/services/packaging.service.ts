@@ -506,18 +506,23 @@ export async function createBottleSaleExpenseInTx(
     createdById: string;
     storeId: string;
     amount: number;
+    /** Kept for call-site compatibility / audit linkage; not written into description. */
     saleId: string;
     label: string;
   }
 ) {
   if (!(params.amount > 0)) return null;
+  void params.saleId;
   const now = new Date();
   return tx.expense.create({
     data: {
       expenseTypeId: params.expenseTypeId,
       amount: new Prisma.Decimal(params.amount),
       storeId: params.storeId,
-      description: `sale:${params.saleId} · ${params.label}`,
+      // Human marker for export — never embed raw sale:cuid in description.
+      description: params.label?.trim()
+        ? `AUTO_BOTTLE|${params.label.trim()}`
+        : "AUTO_BOTTLE",
       createdById: params.createdById,
       incurredAt: now,
       periodicity: ExpensePeriodicity.ONCE,

@@ -1,25 +1,25 @@
 ---
 name: Phase 3 Experience Audit
-overview: "Phase 3 утверждён с уточнениями. Внедрение волнами A→F. Старт — после вашего явного «начинай / execute»."
+overview: Phase 3 утверждён с уточнениями. Внедрение волнами A→F. Старт — после вашего явного «начинай / execute».
 todos:
   - id: wave-a-nav
     content: "Wave A: loading.tsx + company cache; prefer RSC/Next cache before any React Query"
-    status: pending
+    status: completed
   - id: wave-b-theme-lang
     content: "Wave B: theme cookie+LS; locale on User profile (ru/tj) + UI for all roles"
-    status: pending
+    status: completed
   - id: wave-c-security
     content: "Wave C: security notify on new device/browser/IP change + password events"
-    status: pending
+    status: completed
   - id: wave-d-storage
     content: "Wave D: Storage abstraction + Vercel Blob adapter only; wire delete"
-    status: pending
+    status: completed
   - id: wave-e-i18n
     content: "Wave E: i18n audit across all src/**/*.ts(x); fix server notifs + hardcodes"
-    status: pending
+    status: completed
   - id: wave-f-pwa
     content: "Wave F: PWA readiness — manifest, SW, offline, install-to-phone"
-    status: pending
+    status: completed
 isProject: false
 ---
 

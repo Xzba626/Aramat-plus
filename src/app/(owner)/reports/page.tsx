@@ -9,9 +9,23 @@ import {
 } from "@/components/ui/module-workspace";
 import { useI18n } from "@/components/i18n/i18n-provider";
 
-type ExportPeriod = "today" | "week" | "month" | "custom";
+type ExportPeriod = "today" | "week" | "month" | "year" | "custom";
 
 type StoreOpt = { id: string; name: string };
+
+type BlockFilters = {
+  storeId: string;
+  period: ExportPeriod;
+  from: string;
+  to: string;
+};
+
+const DEFAULT_FILTERS: BlockFilters = {
+  storeId: "",
+  period: "month",
+  from: "",
+  to: "",
+};
 
 function downloadExport(params: {
   type: string;
@@ -22,7 +36,9 @@ function downloadExport(params: {
   lang?: string;
 }) {
   const qs = new URLSearchParams({ type: params.type });
-  if (params.period && params.period !== "custom") qs.set("period", params.period);
+  if (params.period && params.period !== "custom") {
+    qs.set("period", params.period);
+  }
   if (params.period === "custom" && params.from) qs.set("from", params.from);
   if (params.period === "custom" && params.to) qs.set("to", params.to);
   if (params.storeId) qs.set("storeId", params.storeId);
@@ -30,14 +46,99 @@ function downloadExport(params: {
   window.location.href = `/api/export?${qs.toString()}`;
 }
 
+function ReportScopeControls({
+  stores,
+  value,
+  onChange,
+  showPeriod,
+}: {
+  stores: StoreOpt[];
+  value: BlockFilters;
+  onChange: (next: BlockFilters) => void;
+  /** Catalog products export has no date range */
+  showPeriod?: boolean;
+}) {
+  const { t } = useI18n();
+  const withPeriod = showPeriod !== false;
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div>
+        <FieldLabel>{t("reportsPage.storeFilter")}</FieldLabel>
+        <select
+          className="w-full"
+          value={value.storeId}
+          onChange={(e) => onChange({ ...value, storeId: e.target.value })}
+        >
+          <option value="">{t("reportsPage.allStores")}</option>
+          {stores.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      {withPeriod ? (
+        <>
+          <div>
+            <FieldLabel>{t("reportsPage.periodLabel")}</FieldLabel>
+            <select
+              className="w-full"
+              value={value.period}
+              onChange={(e) =>
+                onChange({
+                  ...value,
+                  period: e.target.value as ExportPeriod,
+                })
+              }
+            >
+              <option value="today">{t("reportsPage.periodToday")}</option>
+              <option value="week">{t("reportsPage.periodWeek")}</option>
+              <option value="month">{t("reportsPage.periodMonth")}</option>
+              <option value="year">{t("reportsPage.periodYear")}</option>
+              <option value="custom">{t("reportsPage.periodCustom")}</option>
+            </select>
+          </div>
+          {value.period === "custom" ? (
+            <>
+              <div>
+                <FieldLabel>{t("reportsPage.from")}</FieldLabel>
+                <input
+                  type="date"
+                  className="w-full"
+                  value={value.from}
+                  onChange={(e) =>
+                    onChange({ ...value, from: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <FieldLabel>{t("reportsPage.to")}</FieldLabel>
+                <input
+                  type="date"
+                  className="w-full"
+                  value={value.to}
+                  onChange={(e) => onChange({ ...value, to: e.target.value })}
+                />
+              </div>
+            </>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 export default function ReportsPage() {
   const { t, locale } = useI18n();
   const [busy, setBusy] = useState<string | null>(null);
   const [stores, setStores] = useState<StoreOpt[]>([]);
-  const [storeId, setStoreId] = useState("");
-  const [period, setPeriod] = useState<ExportPeriod>("week");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [salesFilters, setSalesFilters] = useState<BlockFilters>(DEFAULT_FILTERS);
+  const [expensesFilters, setExpensesFilters] =
+    useState<BlockFilters>(DEFAULT_FILTERS);
+  const [analyticsFilters, setAnalyticsFilters] =
+    useState<BlockFilters>(DEFAULT_FILTERS);
+  const [productsStoreId, setProductsStoreId] = useState("");
 
   useEffect(() => {
     fetch("/api/stores")
@@ -64,87 +165,38 @@ export default function ReportsPage() {
     window.setTimeout(() => setBusy(null), 1200);
   }, []);
 
-  const common = {
-    storeId: storeId || undefined,
-    period,
-    from: period === "custom" ? from : undefined,
-    to: period === "custom" ? to : undefined,
-    lang: locale,
-  };
+  function scopeFrom(filters: BlockFilters) {
+    return {
+      storeId: filters.storeId || undefined,
+      period: filters.period,
+      from: filters.period === "custom" ? filters.from : undefined,
+      to: filters.period === "custom" ? filters.to : undefined,
+      lang: locale,
+    };
+  }
 
   return (
     <ModuleWorkspace
       title={t("reportsPage.title")}
       subtitle={t("reportsPage.subtitle")}
     >
-      <ModuleSection title={t("reportsPage.filtersTitle")}>
-        <Card className="space-y-4 p-5">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <FieldLabel>{t("reportsPage.storeFilter")}</FieldLabel>
-              <select
-                className="w-full"
-                value={storeId}
-                onChange={(e) => setStoreId(e.target.value)}
-              >
-                <option value="">{t("reportsPage.allStores")}</option>
-                {stores.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <FieldLabel>{t("reportsPage.periodLabel")}</FieldLabel>
-              <select
-                className="w-full"
-                value={period}
-                onChange={(e) => setPeriod(e.target.value as ExportPeriod)}
-              >
-                <option value="today">{t("reportsPage.periodToday")}</option>
-                <option value="week">{t("reportsPage.periodWeek")}</option>
-                <option value="month">{t("reportsPage.periodMonth")}</option>
-                <option value="custom">{t("reportsPage.periodCustom")}</option>
-              </select>
-            </div>
-            {period === "custom" ? (
-              <>
-                <div>
-                  <FieldLabel>{t("reportsPage.from")}</FieldLabel>
-                  <input
-                    type="date"
-                    className="w-full"
-                    value={from}
-                    onChange={(e) => setFrom(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <FieldLabel>{t("reportsPage.to")}</FieldLabel>
-                  <input
-                    type="date"
-                    className="w-full"
-                    value={to}
-                    onChange={(e) => setTo(e.target.value)}
-                  />
-                </div>
-              </>
-            ) : null}
-          </div>
-          <p className="text-sm text-muted">{t("reportsPage.formatHint")}</p>
-        </Card>
-      </ModuleSection>
-
       <ModuleSection title={t("reportsPage.salesExport")}>
         <Card className="space-y-4 p-5">
           <p className="text-sm text-muted">{t("reportsPage.salesHint")}</p>
+          <ReportScopeControls
+            stores={stores}
+            value={salesFilters}
+            onChange={setSalesFilters}
+          />
           <Button
             type="button"
             variant="secondary"
             fullWidth={false}
             disabled={busy === "sales"}
             onClick={() =>
-              run("sales", () => downloadExport({ type: "sales", ...common }))
+              run("sales", () =>
+                downloadExport({ type: "sales", ...scopeFrom(salesFilters) })
+              )
             }
           >
             {t("reportsPage.exportSalesCsv")}
@@ -152,39 +204,73 @@ export default function ReportsPage() {
         </Card>
       </ModuleSection>
 
-      <ModuleSection title={t("reportsPage.catalogExport")}>
+      <ModuleSection title={t("reportsPage.productsExport")}>
         <Card className="space-y-4 p-5">
-          <p className="text-sm text-muted">{t("reportsPage.catalogHint")}</p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              fullWidth={false}
-              disabled={busy === "products"}
-              onClick={() => run("products", () => downloadExport({ type: "products" }))}
-            >
-              {t("reportsPage.exportProducts")}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              fullWidth={false}
-              disabled={busy === "expenses"}
-              onClick={() =>
-                run("expenses", () =>
-                  downloadExport({ type: "expenses", ...common })
-                )
-              }
-            >
-              {t("reportsPage.exportExpenses")}
-            </Button>
-          </div>
+          <p className="text-sm text-muted">{t("reportsPage.productsHint")}</p>
+          <ReportScopeControls
+            stores={stores}
+            value={{
+              ...DEFAULT_FILTERS,
+              storeId: productsStoreId,
+            }}
+            onChange={(next) => setProductsStoreId(next.storeId)}
+            showPeriod={false}
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            fullWidth={false}
+            disabled={busy === "products"}
+            onClick={() =>
+              run("products", () =>
+                downloadExport({
+                  type: "products",
+                  storeId: productsStoreId || undefined,
+                  lang: locale,
+                })
+              )
+            }
+          >
+            {t("reportsPage.exportProducts")}
+          </Button>
+        </Card>
+      </ModuleSection>
+
+      <ModuleSection title={t("reportsPage.expensesExport")}>
+        <Card className="space-y-4 p-5">
+          <p className="text-sm text-muted">{t("reportsPage.expensesHint")}</p>
+          <ReportScopeControls
+            stores={stores}
+            value={expensesFilters}
+            onChange={setExpensesFilters}
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            fullWidth={false}
+            disabled={busy === "expenses"}
+            onClick={() =>
+              run("expenses", () =>
+                downloadExport({
+                  type: "expenses",
+                  ...scopeFrom(expensesFilters),
+                })
+              )
+            }
+          >
+            {t("reportsPage.exportExpenses")}
+          </Button>
         </Card>
       </ModuleSection>
 
       <ModuleSection title={t("reportsPage.analyticsExport")}>
         <Card className="space-y-4 p-5">
           <p className="text-sm text-muted">{t("reportsPage.analyticsHint")}</p>
+          <ReportScopeControls
+            stores={stores}
+            value={analyticsFilters}
+            onChange={setAnalyticsFilters}
+          />
           <Button
             type="button"
             variant="secondary"
@@ -192,13 +278,15 @@ export default function ReportsPage() {
             disabled={busy === "analytics"}
             onClick={() =>
               run("analytics", () =>
-                downloadExport({ type: "analytics", ...common })
+                downloadExport({
+                  type: "analytics",
+                  ...scopeFrom(analyticsFilters),
+                })
               )
             }
           >
             {t("reportsPage.exportAnalyticsCsv")}
           </Button>
-          <p className="text-xs text-muted">{t("reportsPage.dailyDeferred")}</p>
         </Card>
       </ModuleSection>
     </ModuleWorkspace>

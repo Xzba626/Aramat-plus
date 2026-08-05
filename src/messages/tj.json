@@ -238,7 +238,8 @@
     "funnelExpensesStore": "Хароҷоти ҳамин мағоза имрӯз: шиша, иҷора, музд ва ғ. Аз фоидаи умумӣ кашида мешавад.",
     "funnelNet": "Формула: Фоидаи умумӣ − Хароҷоти мағозаҳо = Фоидаи соф. Он чи барои соҳиб пас аз фурӯш ва хароҷот боқӣ мемонад.",
     "funnelNetStore": "Фоидаи умумӣ минуси хароҷоти ҳамин мағоза имрӯз. Нишондиҳандаи асосӣ барои мағоза.",
-    "funnelChart": "Фоидаи соф аз рӯи рӯзҳо. Сутунҳои сабз — плюс, сурх — минус. Болои сутун — маблағ."
+    "funnelChart": "Фоидаи соф аз рӯи рӯзҳо. Сутунҳои сабз — плюс, сурх — минус. Болои сутун — маблағ.",
+    "ownerDirectStore": "Фурӯши мустақим аз анбор: мол ба мағоза фиристода намешавад. Боқимонда ва фурӯш аз анбори марказӣ ҳисоб мешавад."
   },
   "dashboard": {
     "commandCenter": "Aramat Plus · Маркази фармон",
@@ -267,7 +268,7 @@
     "statusSalesUpAbs": "Фурӯш имрӯз +{{amount}} зиёдтар аз дирӯз. Рӯзи хуб!",
     "statusLowStock": "{{n}} мол тамом мешавад. Анборро санҷед.",
     "statusNoSalesToday": "Имрӯз мағоза(ҳо) бе фурӯш ҳаст — ин огоҳӣ аз боқимонда нест, танҳо рӯзи ором.",
-    "deltaNew": "қимати нав",
+    "deltaNew": "нав",
     "netProfitProrateHint": "Дар фоидаи соф ҳиссаи хароҷоти моҳона (иҷора/музд) ҳисоб шудааст, на маблағи пурраи сабт.",
     "statusAttention": "Диққат лозим: {{n}} дархост мунтазири қарори шумост.",
     "today": "Имрӯз",
@@ -754,29 +755,30 @@
   },
   "reportsPage": {
     "title": "Ҳисоботҳо",
-    "subtitle": "Барориш барои давра · фильтр аз рӯи мағоза · Excel (.xlsx)",
+    "subtitle": "Барориш аз рӯи мағоза ва давра",
     "filtersTitle": "Давра ва мағоза",
     "storeFilter": "Мағоза",
     "allStores": "Ҳамаи мағозаҳо",
     "periodLabel": "Давра",
-    "periodCustom": "Диапазони ихтиёрӣ",
+    "periodCustom": "Давраи худ",
     "from": "Аз",
     "to": "То",
-    "formatHint": "Файли Excel (.xlsx) — ҷадвали аслӣ дар компютер ва телефон. Забони сутунҳо — мисли интерфейс (RU/TJ).",
     "salesExport": "Фурӯш",
     "salesHint": "Рӯйхати фурӯш барои давраи интихобшуда.",
-    "catalogExport": "Маълумотномаҳо",
-    "catalogHint": "Феҳристи пурраи мол ё журнали хароҷот.",
+    "productsExport": "Молҳо",
+    "productsHint": "Каталоги молҳои шабака.",
+    "expensesExport": "Хароҷот",
+    "expensesHint": "Журнали хароҷот барои давраи интихобшуда.",
     "analyticsExport": "Хулосаи P&L",
-    "analyticsHint": "Даромад, арзиш, фоидаи умумӣ ва соф барои давра.",
-    "dailyDeferred": "Даромад/хароҷот/фоидаи рӯзона, дона vs рехта ва ҳаҷм бо мл — дар итерацияи баъдии ҳисобот.",
+    "analyticsHint": "Даромад, арзиши аслӣ, фоидаи умумӣ ва соф барои давра.",
     "periodToday": "Имрӯз",
     "periodWeek": "Ҳафта",
     "periodMonth": "Моҳ",
-    "exportProducts": "Молҳо (Excel)",
-    "exportExpenses": "Хароҷот (Excel)",
-    "exportSalesCsv": "Фурӯш (Excel)",
-    "exportAnalyticsCsv": "Хулосаи P&L (Excel)"
+    "periodYear": "Сол",
+    "exportProducts": "Боргирии Excel",
+    "exportExpenses": "Боргирии Excel",
+    "exportSalesCsv": "Боргирии Excel",
+    "exportAnalyticsCsv": "Боргирии Excel"
   },
   "exportCsv": {
     "yes": "Ҳа",
@@ -821,7 +823,9 @@
     "metricExpenses": "Хароҷоти мағозаҳо",
     "metricNet": "Фоидаи соф",
     "metricPeriod": "Давра",
-    "metricStore": "Мағоза"
+    "metricStore": "Мағоза",
+    "expenseBottleSale": "Ҳангоми фурӯш автоматикии ҳисоб кардани шиша",
+    "expenseBottleSaleNamed": "Шиша дар фурӯш истифода шуд · {{name}}"
   },
   "storesPage": {
     "title": "Мағозаҳо",
@@ -832,10 +836,15 @@
     "profitToday": "Фоидаи имрӯз",
     "pendingDecisions": "Мунтазири қарор",
     "ownerDirectHint": "Фурӯши мустақим аз анбор (мол ба мағоза фиристода нашудааст)",
+    "ownerDirectSource": "Манбаъ: анбори марказӣ",
     "kindsOnHand": "Намудҳо дар анбор: {{sku}} · адад: {{units}}",
     "today": "Имрӯз",
     "month": "Моҳ",
     "salesShort": "{{n}} фурӯш",
+    "salesTodayValue": "{{n}} фурӯш · {{amount}}",
+    "monthValue": "Даромад {{revenue}} · фоида {{profit}}",
+    "ownerStaff": "Соҳиб",
+    "revisionNotApplicable": "Гузаронида намешавад",
     "staff": "Кормандон",
     "kinds": "Намудҳои мол",
     "units": "Адад",
@@ -1687,5 +1696,13 @@
     "systemDesc": "Маълумотномаҳо ва тозакунии CRM.",
     "systemPageSubtitle": "Амалиёти хидматӣ танҳо барои соҳиб",
     "systemOps": "Амалиётҳо"
+  },
+  "offline": {
+    "body": "Пайваст нест. Пас аз бозгашт ба барнома маълумоти охирин нишон дода мешавад. Пас аз барқарор шудани алоқа маълумот худкор нав мешавад.",
+    "retry": "Такрор кардан"
+  },
+  "analytics": {
+    "fallbackWeight": "Рехтанӣ",
+    "fallbackPiece": "Донагӣ"
   }
 }

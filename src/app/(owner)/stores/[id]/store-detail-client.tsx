@@ -18,6 +18,7 @@ import {
   labelRole,
   labelSaleStatus,
 } from "@/lib/i18n/labels";
+import { formatExpenseDescriptionForExport } from "@/lib/export/csv";
 import { FinanceFunnel } from "@/components/dashboard/finance-funnel";
 import { ProductThumb } from "@/components/products/product-thumb";
 
@@ -1303,7 +1304,7 @@ function StoreExpensesPanel({
                     {formatMoney(r.amount)}
                   </td>
                   <td className="px-4 py-3 text-muted">
-                    {r.description || "—"}
+                    {formatExpenseDescriptionForExport(r.description, t) || "—"}
                   </td>
                   <td className="px-4 py-3 text-muted">{r.actor}</td>
                 </tr>

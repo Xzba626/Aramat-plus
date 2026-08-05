@@ -5,7 +5,6 @@ import { productSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { BatchOrigin, LocationType, Prisma } from "@prisma/client";
-import { decimalToNumber } from "@/lib/utils";
 import { addBatch } from "@/lib/services/stock.service";
 import {
   nextProductSku,
@@ -13,6 +12,7 @@ import {
   resolveUnitId,
 } from "@/lib/services/product-nomenclature.service";
 import { sanitizeIncomingImageUrl } from "@/lib/product-image-url";
+import { listProductCatalog } from "@/lib/services/products-catalog.service";
 
 export async function GET(req: Request) {
   try {
@@ -21,96 +21,13 @@ export async function GET(req: Request) {
     if (denied) return denied;
 
     const { searchParams } = new URL(req.url);
-    const q = searchParams.get("q")?.trim();
-    const categoryId = searchParams.get("categoryId");
-    const brandId = searchParams.get("brandId");
-    const status = searchParams.get("status"); // active | archived | low | empty | all
-    const kind = searchParams.get("kind"); // STANDARD | PACKAGING | all
-    const warehouse = await prisma.warehouse.findFirst({
-      where: { companyId: user!.companyId, isActive: true },
+    const rows = await listProductCatalog(user!.companyId, {
+      q: searchParams.get("q"),
+      categoryId: searchParams.get("categoryId"),
+      brandId: searchParams.get("brandId"),
+      status: searchParams.get("status"),
+      kind: searchParams.get("kind"),
     });
-
-    const items = await prisma.product.findMany({
-      where: {
-        companyId: user!.companyId,
-        ...(kind === "PACKAGING"
-          ? { kind: "PACKAGING" }
-          : kind === "all"
-            ? {}
-            : { kind: "STANDARD" }),
-        ...(status === "archived"
-          ? { isActive: false }
-          : status === "all"
-            ? {}
-            : { isActive: true }),
-        ...(q
-          ? {
-              OR: [
-                { name: { contains: q, mode: "insensitive" } },
-                { sku: { contains: q, mode: "insensitive" } },
-                { barcode: { contains: q, mode: "insensitive" } },
-              ],
-            }
-          : {}),
-        ...(categoryId ? { categoryId } : {}),
-        ...(brandId ? { brandId } : {}),
-      },
-      include: {
-        brand: true,
-        category: true,
-        unit: true,
-        productType: true,
-        packagingSku: true,
-        stockBalances: warehouse
-          ? {
-              where: {
-                locationType: LocationType.WAREHOUSE,
-                locationId: warehouse.id,
-              },
-            }
-          : true,
-      },
-      orderBy: { name: "asc" },
-    });
-
-    const {
-      getLowStockThresholds,
-      resolveStockStatus,
-    } = await import("@/lib/services/low-stock-thresholds.service");
-    const thresholds = await getLowStockThresholds(user!.companyId);
-
-    let rows = items.map((p) => {
-      const qty = p.stockBalances.reduce(
-        (s, b) => s + decimalToNumber(b.quantity),
-        0
-      );
-      const stockStatus = resolveStockStatus({
-        quantity: qty,
-        accountingType: p.accountingType,
-        locationType: "WAREHOUSE",
-        thresholds,
-      });
-      const statusKey = !p.isActive
-        ? ("archived" as const)
-        : stockStatus === "OUT"
-          ? ("empty" as const)
-          : stockStatus === "LOW"
-            ? ("low" as const)
-            : ("active" as const);
-      return {
-        ...p,
-        warehouseQty: qty,
-        statusKey,
-      };
-    });
-
-    if (status === "low") {
-      rows = rows.filter((p) => p.isActive && p.statusKey === "low");
-    }
-    if (status === "empty") {
-      rows = rows.filter((p) => p.isActive && p.warehouseQty <= 0);
-    }
-
     return jsonOk(rows);
   } catch (err) {
     return handleApiError(err);

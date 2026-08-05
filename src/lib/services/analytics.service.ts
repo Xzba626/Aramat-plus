@@ -79,10 +79,15 @@ function periodFrom(period: AnalyticsPeriod, now = new Date()) {
 export async function getAnalyticsBreakdown(
   companyId: string,
   period: AnalyticsPeriod = "month",
-  opts?: { storeId?: string | null }
+  opts?: {
+    storeId?: string | null;
+    /** Optional absolute range (custom export). Overrides period presets. */
+    range?: { from: Date; to: Date };
+  }
 ) {
   const now = new Date();
-  const from = periodFrom(period, now);
+  const from = opts?.range?.from ?? periodFrom(period, now);
+  const to = opts?.range?.to ?? now;
   const storeIdFilter =
     opts?.storeId === null
       ? "__none__"
@@ -97,7 +102,7 @@ export async function getAnalyticsBreakdown(
     prisma.sale.findMany({
       where: {
         status: { in: ["COMPLETED", "PARTIAL_RETURN"] },
-        createdAt: { gte: from, lte: now },
+        createdAt: { gte: from, lte: to },
         store: saleStoreWhere,
       },
       include: {
@@ -127,13 +132,13 @@ export async function getAnalyticsBreakdown(
   const performanceThresholds = scaleSalesPerformanceThresholds({
     monthly: monthlyThresholds,
     from,
-    to: now,
+    to,
   });
 
   const expenses = await sumAllocatedExpenses({
     companyId,
     from,
-    to: startOfDay(now),
+    to: startOfDay(to),
     storeId: storeIdFilter,
   });
 
@@ -281,7 +286,9 @@ export async function getAnalyticsBreakdown(
       const typ = typeMap.get(typeKey) ?? {
         name:
           item.product.productType?.name ??
-          (item.product.accountingType === "WEIGHT" ? "Разливной" : "Штучный"),
+          (item.product.accountingType === "WEIGHT"
+            ? "analytics.fallbackWeight"
+            : "analytics.fallbackPiece"),
         sold: 0,
         revenue: 0,
         profit: 0,
@@ -358,13 +365,13 @@ export async function getAnalyticsBreakdown(
   const expenseItems = await listAllocatedExpenseItems({
     companyId,
     from,
-    to: now,
+    to,
   });
 
   return {
     period,
     periodFrom: from.toISOString(),
-    periodTo: now.toISOString(),
+    periodTo: to.toISOString(),
     performanceThresholds: {
       monthlyPieces: monthlyThresholds.monthlyPieces,
       monthlyMl: monthlyThresholds.monthlyMl,

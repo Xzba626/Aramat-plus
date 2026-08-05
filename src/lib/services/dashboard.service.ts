@@ -42,7 +42,7 @@ function pctChange(current: number, previous: number) {
     }
     return {
       pct: 0,
-      label: "новое",
+      label: "dashboard.deltaNew",
       abs,
       absLabel,
       current,

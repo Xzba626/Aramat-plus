@@ -164,6 +164,17 @@ export async function hardDeleteProductCascade(productId: string) {
     throw new Error("PRODUCT_HAS_HISTORY");
   }
 
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { imageUrl: true },
+  });
+  if (product?.imageUrl) {
+    const { deleteProductImageFiles } = await import(
+      "@/lib/services/product-image.service"
+    );
+    await deleteProductImageFiles(product.imageUrl).catch(() => undefined);
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.reservationItem.deleteMany({ where: { productId } });
     await tx.inventoryItem.deleteMany({ where: { productId } });

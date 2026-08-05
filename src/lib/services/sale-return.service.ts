@@ -166,7 +166,7 @@ export async function createSaleReturn(params: {
     .join(", ");
   const reasonText =
     params.reason?.trim() ||
-    (reasonCode ? String(reasonCode) : "без причины");
+    (reasonCode ? String(reasonCode) : "—");
   await notifyCompanyRoles({
     companyId: params.companyId,
     type: "RETURN_REQUEST",

@@ -7,6 +7,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { FieldLabel, Card } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { PreferenceControls } from "@/components/preferences/preference-controls";
 import { BrandMark } from "@/components/company/brand-mark";
 import { useCompanyBrand } from "@/components/company/company-brand-provider";
 
@@ -45,6 +46,9 @@ export default function LoginPageClient() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-page px-4 py-10">
       <Card className="w-full max-w-md p-8">
+        <div className="mb-4 flex justify-end">
+          <PreferenceControls />
+        </div>
         <div className="mb-6 flex flex-col items-center text-center">
           <Image
             src="/logo-aramat-plus.png"

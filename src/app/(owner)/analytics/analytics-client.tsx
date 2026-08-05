@@ -550,7 +550,9 @@ export default function AnalyticsClient({
               key={c.name}
               className="mb-2 flex justify-between p-3 text-sm"
             >
-              <span>{c.name}</span>
+              <span>
+                {c.name.startsWith("analytics.") ? t(c.name) : c.name}
+              </span>
               <span className="text-muted">
                 {formatMoney(c.revenue, { short: true })} ·{" "}
                 {formatMoney(c.profit, { short: true })}

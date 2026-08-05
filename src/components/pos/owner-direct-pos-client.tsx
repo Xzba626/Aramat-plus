@@ -91,6 +91,7 @@ export function OwnerDirectPosClient({
   const [bottleId, setBottleId] = useState("");
   const [bottles, setBottles] = useState<BottleOption[]>([]);
   const [bottlesLoading, setBottlesLoading] = useState(false);
+  const [bottlesFetched, setBottlesFetched] = useState(false);
 
   const loadCatalog = useCallback(async () => {
     setLoading(true);
@@ -170,9 +171,15 @@ export function OwnerDirectPosClient({
     });
   }, [q, category, catalog]);
 
-  const total = cart.reduce((s, l) => s + l.salePrice * l.quantity, 0);
+  const total = cart.reduce(
+    (s, l) => s + (l.quantity > 0 ? l.salePrice * l.quantity : 0),
+    0
+  );
   const missingBottle = cart.some(
-    (l) => l.accountingType === "WEIGHT" && !l.packagingProductId
+    (l) =>
+      l.quantity > 0 &&
+      l.accountingType === "WEIGHT" &&
+      !l.packagingProductId
   );
 
   async function openWeightModal(p: CatalogItem) {
@@ -186,6 +193,7 @@ export function OwnerDirectPosClient({
     );
     const data = await res.json();
     setBottlesLoading(false);
+    setBottlesFetched(true);
     if (res.ok && Array.isArray(data)) {
       setBottles(data);
       if (data.length === 1) setBottleId(data[0].packagingProductId);
@@ -266,21 +274,64 @@ export function OwnerDirectPosClient({
     addPiece(p);
   }
 
-  function setQty(productId: string, quantity: number, index: number) {
+  /** Update qty — never removes the line (use removeFromCart). */
+  function setQty(index: number, quantity: number) {
     setCart((prev) =>
-      prev
-        .map((l, i) =>
-          i === index
-            ? { ...l, quantity: Math.max(0, Math.min(l.max, quantity)) }
-            : l
-        )
-        .filter((l) => l.quantity > 0)
+      prev.map((l, i) =>
+        i === index
+          ? { ...l, quantity: Math.max(0, Math.min(l.max, quantity)) }
+          : l
+      )
     );
   }
 
+  function removeFromCart(index: number) {
+    setCart((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function setLinePackaging(
+    index: number,
+    packaging: {
+      packagingProductId: string;
+      packagingSkuId: string | null;
+      packagingName: string;
+    }
+  ) {
+    setCart((prev) =>
+      prev.map((l, i) => (i === index ? { ...l, ...packaging } : l))
+    );
+  }
+
+  /** Keep bottle options available for in-cart edits (WEIGHT lines). */
+  useEffect(() => {
+    const hasWeight = cart.some((l) => l.accountingType === "WEIGHT");
+    if (!hasWeight || bottlesFetched || bottlesLoading) return;
+    let cancelled = false;
+    setBottlesLoading(true);
+    fetch(`/api/pos/packaging-bottles?storeId=${encodeURIComponent(storeId)}`)
+      .then(async (res) => {
+        const data = await res.json();
+        if (cancelled) return;
+        if (res.ok && Array.isArray(data)) setBottles(data);
+        setBottlesFetched(true);
+      })
+      .catch(() => {
+        if (!cancelled) setBottlesFetched(true);
+      })
+      .finally(() => {
+        if (!cancelled) setBottlesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [cart, bottlesFetched, bottlesLoading, storeId]);
+
   async function checkout() {
-    if (cart.length === 0 || checkoutBusy) return;
-    if (missingBottle) {
+    const items = cart.filter((l) => l.quantity > 0);
+    if (items.length === 0 || checkoutBusy) return;
+    if (
+      items.some((l) => l.accountingType === "WEIGHT" && !l.packagingProductId)
+    ) {
       setError(t("pos.bottleRequired"));
       return;
     }
@@ -294,7 +345,7 @@ export function OwnerDirectPosClient({
         body: JSON.stringify({
           storeId,
           paymentMethod: payment,
-          items: cart.map((l) => ({
+          items: items.map((l) => ({
             productId: l.productId,
             quantity: l.quantity,
             ...(l.accountingType === "WEIGHT" && l.packagingProductId
@@ -319,7 +370,7 @@ export function OwnerDirectPosClient({
           id: data.id,
           time: formatDateTime(new Date().toISOString()),
           total: saleTotal,
-          items: cart
+          items: items
             .map(
               (l) =>
                 `${l.name} × ${l.quantity}${
@@ -342,7 +393,8 @@ export function OwnerDirectPosClient({
   }
 
   async function reserveCart() {
-    if (cart.length === 0 || checkoutBusy) return;
+    const items = cart.filter((l) => l.quantity > 0);
+    if (items.length === 0 || checkoutBusy) return;
     setCheckoutBusy(true);
     setError("");
     setMsg("");
@@ -353,7 +405,7 @@ export function OwnerDirectPosClient({
         body: JSON.stringify({
           storeId,
           ttlMinutes: 30,
-          items: cart.map((l) => ({
+          items: items.map((l) => ({
             productId: l.productId,
             quantity: l.quantity,
           })),
@@ -474,20 +526,25 @@ export function OwnerDirectPosClient({
               </p>
             ) : (
               <div className="space-y-3">
-                {cart.map((l, idx) => (
+                {cart.map((l, idx) => {
+                  const isPiece = l.accountingType !== "WEIGHT";
+                  return (
                   <div
                     key={`${l.productId}-${idx}`}
-                    className="flex items-center justify-between gap-2 border-b border-border pb-3 last:border-0"
+                    className="relative space-y-2 border-b border-border pb-3 last:border-0"
                   >
-                    <div>
+                    <button
+                      type="button"
+                      className="absolute right-0 top-0 z-10 flex h-8 w-8 items-center justify-center rounded-full text-base leading-none text-muted hover:bg-danger/10 hover:text-danger"
+                      onClick={() => removeFromCart(idx)}
+                      aria-label={t("pos.remove")}
+                      title={t("pos.remove")}
+                    >
+                      ✕
+                    </button>
+                    <div className="pr-8">
                       <div className="text-sm font-semibold text-ink">
                         {l.name}
-                        {l.packagingName ? (
-                          <span className="font-normal text-muted">
-                            {" "}
-                            · {l.packagingName}
-                          </span>
-                        ) : null}
                       </div>
                       <div className="text-xs text-muted">
                         {formatMoney(l.salePrice)} / {l.unit}
@@ -497,16 +554,70 @@ export function OwnerDirectPosClient({
                       <QtyInput
                         value={l.quantity}
                         max={l.max}
-                        min={0}
-                        integer={l.accountingType !== "WEIGHT"}
-                        onChange={(n) => setQty(l.productId, n, idx)}
+                        min={isPiece ? 1 : 0.001}
+                        integer={isPiece}
+                        onChange={(n) => setQty(idx, n)}
                         buttonClassName="h-8 w-8 rounded-lg border-border bg-card"
                         inputClassName="w-16 border-border bg-card py-1"
                         aria-label={t("pos.qtyMl")}
                       />
                     </div>
+                    {l.accountingType === "WEIGHT" ? (
+                      <div>
+                        <FieldLabel>{t("pos.selectBottle")}</FieldLabel>
+                        {l.packagingName ? (
+                          <div className="mt-1 text-xs leading-relaxed text-muted">
+                            {l.packagingName}
+                          </div>
+                        ) : (
+                          <p className="mt-1 text-xs text-danger">
+                            {t("pos.bottleRequired")}
+                          </p>
+                        )}
+                        {bottlesLoading ? (
+                          <p className="mt-1.5 text-xs text-muted">
+                            {t("common.loading")}
+                          </p>
+                        ) : bottles.length === 0 ? (
+                          <p className="mt-1.5 text-xs text-danger">
+                            {t("pos.noBottlesInStore")}
+                          </p>
+                        ) : (
+                          <select
+                            className="mt-1.5 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                            value={l.packagingProductId ?? ""}
+                            onChange={(e) => {
+                              const opt = bottles.find(
+                                (b) => b.packagingProductId === e.target.value
+                              );
+                              if (opt) {
+                                setLinePackaging(idx, {
+                                  packagingProductId: opt.packagingProductId,
+                                  packagingSkuId: opt.packagingSkuId,
+                                  packagingName: opt.name,
+                                });
+                              }
+                            }}
+                          >
+                            <option value="">{t("pos.bottlePlaceholder")}</option>
+                            {bottles.map((b) => (
+                              <option
+                                key={b.packagingProductId}
+                                value={b.packagingProductId}
+                              >
+                                {b.name}
+                                {b.volumeMl != null
+                                  ? ` · ${b.volumeMl} ${t("units.ml")}`
+                                  : ""}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
-                ))}
+                  );
+                })}
                 <div className="flex gap-2">
                   {(["CASH", "CARD", "TRANSFER"] as const).map((m) => (
                     <button
@@ -537,7 +648,11 @@ export function OwnerDirectPosClient({
                 <Button
                   type="button"
                   onClick={checkout}
-                  disabled={checkoutBusy || missingBottle}
+                  disabled={
+                    checkoutBusy ||
+                    missingBottle ||
+                    cart.every((l) => l.quantity <= 0)
+                  }
                 >
                   {checkoutBusy ? t("common.loading") : t("pos.checkout")}
                 </Button>

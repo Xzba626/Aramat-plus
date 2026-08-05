@@ -77,6 +77,50 @@ export function formatExportSaleStatus(status: string, t: TranslateFn): string {
   return labelSaleStatus(status, t);
 }
 
+/**
+ * Human-readable expense description for Excel.
+ * Strips legacy `sale:<cuid>` technical prefixes from bottle opex rows.
+ */
+export function formatExpenseDescriptionForExport(
+  description: string | null | undefined,
+  t: TranslateFn
+): string {
+  const raw = (description ?? "").trim();
+  if (!raw) return "";
+
+  // New marker: AUTO_BOTTLE or AUTO_BOTTLE|<productName>
+  if (raw === "AUTO_BOTTLE") {
+    return t("exportCsv.expenseBottleSale");
+  }
+  const autoNamed = raw.match(/^AUTO_BOTTLE\|(.+)$/);
+  if (autoNamed) {
+    return t("exportCsv.expenseBottleSaleNamed", { name: autoNamed[1].trim() });
+  }
+
+  // Legacy: "sale:cmse8h3g… · Perfume Name" or "sale:cmse8h3g…"
+  const legacy = raw.match(/^sale:[a-z0-9]+(?:\s*[·•|]\s*(.+))?$/i);
+  if (legacy) {
+    const name = legacy[1]?.trim();
+    return name
+      ? t("exportCsv.expenseBottleSaleNamed", { name })
+      : t("exportCsv.expenseBottleSale");
+  }
+
+  // Any leftover sale:<id> substring — strip the tech token
+  if (/sale:[a-z0-9]{8,}/i.test(raw)) {
+    const cleaned = raw
+      .replace(/sale:[a-z0-9]+/gi, "")
+      .replace(/^[·•|\-\s]+|[·•|\-\s]+$/g, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    return cleaned
+      ? t("exportCsv.expenseBottleSaleNamed", { name: cleaned })
+      : t("exportCsv.expenseBottleSale");
+  }
+
+  return raw;
+}
+
 export function buildCsvBody(lines: string[]): string {
   // BOM + CRLF so Excel opens UTF-8 columns correctly on Windows
   return "\uFEFF" + lines.join("\r\n");

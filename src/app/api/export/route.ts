@@ -18,6 +18,7 @@ import {
   formatExportPeriodicity,
   formatExportSaleStatus,
   formatExportYesNo,
+  formatExpenseDescriptionForExport,
   resolveExportLocale,
 } from "@/lib/export/csv";
 import { buildXlsxBuffer, xlsxResponse } from "@/lib/export/xlsx";
@@ -240,7 +241,7 @@ export async function GET(req: Request) {
           periodicity: formatExportPeriodicity(e.periodicity, t),
           starts: formatExportDateTime(e.startsAt, locale),
           ends: formatExportDateTime(e.endsAt, locale),
-          description: e.description ?? "",
+          description: formatExpenseDescriptionForExport(e.description, t),
           id: e.id,
         })),
         locale,
@@ -256,8 +257,13 @@ export async function GET(req: Request) {
         periodLabel === "year"
           ? periodLabel
           : "month";
+      const customRange =
+        periodLabel === "custom"
+          ? { from, to }
+          : undefined;
       const data = await getAnalyticsBreakdown(companyId, period, {
         storeId: storeId === "__none__" ? null : storeId,
+        range: customRange,
       });
       const stores = storeId
         ? data.stores.filter((s) => s.id === storeId)

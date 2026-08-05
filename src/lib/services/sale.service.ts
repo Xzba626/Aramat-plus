@@ -432,7 +432,7 @@ export async function createSale(params: {
     const thresholds = await getLowStockThresholds(params.companyId);
     const locationName =
       locationType === LocationType.WAREHOUSE
-        ? store.name || "Склад"
+        ? store.name || "—"
         : store.name;
     const soldIds = [...new Set(params.items.map((i) => i.productId))];
     for (const productId of soldIds) {

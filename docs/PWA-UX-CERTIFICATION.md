@@ -41,6 +41,21 @@
 
 ---
 
+## Phase 3 Wave F — Install checklist (owner + seller)
+
+| Check | Owner | Seller | Notes |
+|-------|-------|--------|-------|
+| Manifest loads (`/manifest.webmanifest`) | ☐ | ☐ | `display: standalone`, icons 192/512 |
+| Service worker registers | ☐ | ☐ | Network-only for `/api/*`; offline → `/offline` |
+| Offline page i18n RU/TJ | ☐ | ☐ | Language from cookie before login |
+| Install prompt / Add to Home Screen | ☐ | ☐ | Android Chrome; iOS Safari Share → Home |
+| After install: opens without browser chrome | ☐ | ☐ | Both roles |
+| Login with locale/theme toggles | ☐ | ☐ | Cookie-only pre-auth |
+
+**Field cert (device):** Y19/Y20 remain PENDING until tested on physical Android (HTTPS). Code path is ready.
+
+---
+
 ## Relation to product RC
 
 Product business certification: [`docs/FINAL-PRODUCT-CERTIFICATION.md`](FINAL-PRODUCT-CERTIFICATION.md) — **PILOT ONLY**.  
