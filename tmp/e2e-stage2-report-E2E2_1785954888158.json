@@ -1,0 +1,188 @@
+{
+  "stage": "E2E_STAGE2_SIMULATION",
+  "tag": "E2E2_1785954888158",
+  "scale": "small",
+  "finishedAt": "2026-08-05T18:38:29.166Z",
+  "coverage": {
+    "pass": 24,
+    "fail": 2,
+    "partial": 0,
+    "notTested": 0,
+    "total": 26
+  },
+  "oracle": {
+    "revenue": 7910,
+    "cogs": 3120,
+    "saleCount": 7,
+    "payments": {
+      "CASH": 2800,
+      "CARD": 2500,
+      "TRANSFER": 2500
+    }
+  },
+  "checks": [
+    {
+      "id": "preflight.company",
+      "status": "PASS",
+      "detail": "company=cmsd8rzp40000ump0scbp0on2"
+    },
+    {
+      "id": "org.create",
+      "status": "PASS",
+      "detail": "stores=3 managers=2 sellers=6",
+      "ms": 5546
+    },
+    {
+      "id": "catalog.receive",
+      "status": "PASS",
+      "detail": "piece=12 weight=6 each 2 FIFO layers"
+    },
+    {
+      "id": "reconcile.wh_after_receive",
+      "status": "PASS",
+      "detail": "mismatches=0"
+    },
+    {
+      "id": "transfer.salePrice_slice",
+      "status": "PASS",
+      "detail": "E2E2_1785954888158 Shop 1"
+    },
+    {
+      "id": "transfer.salePrice_slice",
+      "status": "PASS",
+      "detail": "E2E2_1785954888158 Shop 2"
+    },
+    {
+      "id": "transfer.salePrice_slice",
+      "status": "PASS",
+      "detail": "E2E2_1785954888158 Shop 3"
+    },
+    {
+      "id": "sale.fifo_price",
+      "status": "PASS",
+      "detail": "E2E2_1785954888158 Shop 1 rev=2500"
+    },
+    {
+      "id": "sale.ignore_client_price",
+      "status": "PASS",
+      "detail": "E2E2_1785954888158 Shop 1"
+    },
+    {
+      "id": "sale.fifo_price",
+      "status": "PASS",
+      "detail": "E2E2_1785954888158 Shop 2 rev=2500"
+    },
+    {
+      "id": "sale.ignore_client_price",
+      "status": "PASS",
+      "detail": "E2E2_1785954888158 Shop 2"
+    },
+    {
+      "id": "sale.fifo_price",
+      "status": "PASS",
+      "detail": "E2E2_1785954888158 Shop 3 rev=2500"
+    },
+    {
+      "id": "sale.ignore_client_price",
+      "status": "PASS",
+      "detail": "E2E2_1785954888158 Shop 3"
+    },
+    {
+      "id": "edge.oversell",
+      "status": "PASS",
+      "detail": "rejected cleanly"
+    },
+    {
+      "id": "baseline.H1_sale_during_inventory",
+      "status": "FAIL",
+      "detail": "sale allowed"
+    },
+    {
+      "id": "revision.blind_owner",
+      "status": "PASS",
+      "detail": "blind for owner"
+    },
+    {
+      "id": "immutability.batch_salePrice",
+      "status": "PASS",
+      "detail": "batches unchanged"
+    },
+    {
+      "id": "reconcile.oracle_vs_db_stock",
+      "status": "PASS",
+      "detail": "mismatches=0"
+    },
+    {
+      "id": "analytics.today_vs_oracle",
+      "status": "PASS",
+      "detail": "analyticsRev=28200 oracleRev=7910",
+      "ms": 5359
+    },
+    {
+      "id": "dashboard.load",
+      "status": "PASS",
+      "detail": "todayRevenue=28200",
+      "ms": 7526
+    },
+    {
+      "id": "concurrent.last_unit_race",
+      "status": "FAIL",
+      "detail": "stock=25"
+    },
+    {
+      "id": "validation.qty_zero",
+      "status": "PASS",
+      "detail": "rejected"
+    },
+    {
+      "id": "validation.qty_negative",
+      "status": "PASS",
+      "detail": "rejected"
+    },
+    {
+      "id": "validation.bad_product",
+      "status": "PASS",
+      "detail": "rejected"
+    },
+    {
+      "id": "validation.seller_wrong_store",
+      "status": "PASS",
+      "detail": "rejected"
+    },
+    {
+      "id": "cleanup",
+      "status": "PASS",
+      "detail": "tagged data removed"
+    }
+  ],
+  "defects": [
+    {
+      "id": "BASE-H1",
+      "severity": "HIGH",
+      "module": "Revision/Sale",
+      "scenario": "Sale allowed while store status=INVENTORY",
+      "expected": "createSale rejected",
+      "actual": "sale succeeded",
+      "reproduction": "start revision → POS sale same store",
+      "evidence": "store.status=INVENTORY session=cmsgfiwz500alum1wv4nx2fma",
+      "rootCauseHypothesis": "sale.service ignores store.status",
+      "baselineRef": "H1"
+    },
+    {
+      "id": "NEW-RACE-OVERSELL",
+      "severity": "CRITICAL",
+      "module": "Sale/Concurrency",
+      "scenario": "two cashiers buy last 5 units concurrently",
+      "expected": "1 success, 1 fail, stock=0",
+      "actual": "fulfilled=2 rejected=0 stock=25",
+      "reproduction": "Promise.all two createSale qty=5 on stock=5",
+      "evidence": "E2E2_1785954888158",
+      "rootCauseHypothesis": "missing row lock / non-serializable"
+    }
+  ],
+  "notes": [
+    "HTTP/UI RBAC and browser flows are separate follow-up in same Stage-2 run.",
+    "No bug fixes applied.",
+    "Baseline defects re-verified where scenario exists (H1)."
+  ]
+}

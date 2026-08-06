@@ -1,0 +1,72 @@
+﻿[
+    {
+        "script":  "zt-batch-sale-price-assert.ts",
+        "exit":  0,
+        "tail":  "Batch with salePrice: 17 |  | PASS batch-sale-price assert (schema phase)"
+    },
+    {
+        "script":  "zt-batch-sale-price-proof.ts",
+        "exit":  1,
+        "tail":  "  errorCode: undefined, |   retryable: undefined | }"
+    },
+    {
+        "script":  "zt-initial-store-stock-proof.ts",
+        "exit":  1,
+        "tail":  "  }, |   clientVersion: \u00276.19.3\u0027 | }"
+    },
+    {
+        "script":  "zt-revision-proof.ts",
+        "exit":  1,
+        "tail":  "  errorCode: undefined, |   retryable: undefined | }"
+    },
+    {
+        "script":  "zt-return-proof.ts",
+        "exit":  1,
+        "tail":  "  errorCode: undefined, |   retryable: undefined | }"
+    },
+    {
+        "script":  "zt-cross-module-proof.ts",
+        "exit":  0,
+        "tail":  "NOTE: wipeMaster not set тАФ optional until Owner configures |  | PASS: ZT Cross-module тАФ expenseтЖТnet, discountтЖТsale"
+    },
+    {
+        "script":  "zt-rc8-data-integrity.ts",
+        "exit":  1,
+        "tail":  "  errorCode: undefined, |   retryable: undefined | }"
+    },
+    {
+        "script":  "zt-rc9-transaction-atomicity.ts",
+        "exit":  1,
+        "tail":  "  errorCode: undefined, |   retryable: undefined | }"
+    },
+    {
+        "script":  "zt-rc11-db-health.ts",
+        "exit":  1,
+        "tail":  "    } |   ] | }"
+    },
+    {
+        "script":  "test-rbac.ts",
+        "exit":  0,
+        "tail":  "тЬУ API policy spot-checks (6 routes documented) |  | RBAC PASSED"
+    },
+    {
+        "script":  "zt-packaging-analytics-proof.ts",
+        "exit":  1,
+        "tail":  "  errorCode: undefined, |   retryable: undefined | }"
+    },
+    {
+        "script":  "zt-bottles-proof.ts",
+        "exit":  1,
+        "tail":  "  errorCode: undefined, |   retryable: undefined | }"
+    },
+    {
+        "script":  "zt-sales-part5-proof.ts",
+        "exit":  1,
+        "tail":  "  errorCode: undefined, |   retryable: undefined | }"
+    },
+    {
+        "script":  "zt-dashboard-proof.ts",
+        "exit":  1,
+        "tail":  "  errorCode: undefined, |   retryable: undefined | }"
+    }
+]

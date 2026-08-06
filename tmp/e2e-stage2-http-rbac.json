@@ -1,0 +1,243 @@
+{
+  "base": "http://127.0.0.1:3000",
+  "summary": {
+    "pass": 21,
+    "fail": 1,
+    "notTested": 0
+  },
+  "rows": [
+    {
+      "role": "OWNER",
+      "method": "GET",
+      "path": "/dashboard",
+      "expected": [
+        200,
+        307,
+        308
+      ],
+      "actual": 200,
+      "status": "PASS"
+    },
+    {
+      "role": "OWNER",
+      "method": "GET",
+      "path": "/api/dashboard",
+      "expected": 200,
+      "actual": 200,
+      "status": "PASS"
+    },
+    {
+      "role": "OWNER",
+      "method": "GET",
+      "path": "/api/analytics?period=today",
+      "expected": 200,
+      "actual": 200,
+      "status": "PASS"
+    },
+    {
+      "role": "OWNER",
+      "method": "GET",
+      "path": "/api/export?type=analytics&period=today",
+      "expected": [
+        200,
+        201
+      ],
+      "actual": 200,
+      "status": "PASS"
+    },
+    {
+      "role": "OWNER",
+      "method": "GET",
+      "path": "/api/warehouse/stock",
+      "expected": 200,
+      "actual": 200,
+      "status": "PASS"
+    },
+    {
+      "role": "OWNER",
+      "method": "GET",
+      "path": "/pos",
+      "expected": [
+        307,
+        308,
+        403
+      ],
+      "actual": 307,
+      "status": "PASS"
+    },
+    {
+      "role": "OWNER",
+      "method": "GET",
+      "path": "/api/pos/catalog",
+      "expected": [
+        401,
+        403
+      ],
+      "actual": 403,
+      "status": "PASS"
+    },
+    {
+      "role": "MANAGER",
+      "method": "GET",
+      "path": "/dashboard",
+      "expected": [
+        200,
+        307,
+        308
+      ],
+      "actual": 200,
+      "status": "PASS"
+    },
+    {
+      "role": "MANAGER",
+      "method": "GET",
+      "path": "/api/dashboard",
+      "expected": 200,
+      "actual": 200,
+      "status": "PASS"
+    },
+    {
+      "role": "MANAGER",
+      "method": "GET",
+      "path": "/api/analytics?period=today",
+      "expected": 200,
+      "actual": 200,
+      "status": "PASS"
+    },
+    {
+      "role": "MANAGER",
+      "method": "GET",
+      "path": "/api/export?type=analytics&period=today",
+      "expected": [
+        200,
+        201,
+        403
+      ],
+      "actual": 200,
+      "status": "PASS"
+    },
+    {
+      "role": "MANAGER",
+      "method": "GET",
+      "path": "/api/warehouse/stock",
+      "expected": [
+        200,
+        403
+      ],
+      "actual": 200,
+      "status": "PASS"
+    },
+    {
+      "role": "MANAGER",
+      "method": "GET",
+      "path": "/settings/wipe",
+      "expected": [
+        307,
+        308,
+        403
+      ],
+      "actual": 307,
+      "status": "PASS"
+    },
+    {
+      "role": "MANAGER",
+      "method": "POST",
+      "path": "/api/settings/wipe",
+      "expected": [
+        401,
+        403,
+        405
+      ],
+      "actual": 403,
+      "status": "PASS"
+    },
+    {
+      "role": "MANAGER",
+      "method": "GET",
+      "path": "/api/pos/catalog",
+      "expected": [
+        401,
+        403
+      ],
+      "actual": 403,
+      "status": "PASS"
+    },
+    {
+      "role": "SELLER",
+      "method": "GET",
+      "path": "/pos",
+      "expected": [
+        200,
+        307,
+        308
+      ],
+      "actual": 200,
+      "status": "PASS"
+    },
+    {
+      "role": "SELLER",
+      "method": "GET",
+      "path": "/api/pos/catalog",
+      "expected": 200,
+      "actual": 400,
+      "status": "FAIL",
+      "detail": "expected 200"
+    },
+    {
+      "role": "SELLER",
+      "method": "GET",
+      "path": "/dashboard",
+      "expected": [
+        307,
+        308,
+        403
+      ],
+      "actual": 307,
+      "status": "PASS"
+    },
+    {
+      "role": "SELLER",
+      "method": "GET",
+      "path": "/api/dashboard",
+      "expected": [
+        401,
+        403
+      ],
+      "actual": 403,
+      "status": "PASS"
+    },
+    {
+      "role": "SELLER",
+      "method": "GET",
+      "path": "/api/warehouse/stock",
+      "expected": [
+        401,
+        403
+      ],
+      "actual": 403,
+      "status": "PASS"
+    },
+    {
+      "role": "SELLER",
+      "method": "GET",
+      "path": "/api/analytics?period=today",
+      "expected": [
+        401,
+        403
+      ],
+      "actual": 403,
+      "status": "PASS"
+    },
+    {
+      "role": "SELLER",
+      "method": "GET",
+      "path": "/api/export?type=analytics&period=today",
+      "expected": [
+        401,
+        403
+      ],
+      "actual": 403,
+      "status": "PASS"
+    }
+  ]
+}
