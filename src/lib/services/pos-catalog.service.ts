@@ -47,7 +47,6 @@ export async function getPosCatalog(params: {
       locationType: LocationType.STORE,
       locationId: store.id,
       quantity: { gt: 0 },
-      salePrice: { not: null },
     },
     orderBy: { receivedAt: "asc" },
     select: { productId: true, salePrice: true },

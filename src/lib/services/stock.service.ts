@@ -212,7 +212,6 @@ export async function getFifoFrontSalePrice(params: {
       locationType: params.locationType,
       locationId: params.locationId,
       quantity: { gt: 0 },
-      salePrice: { not: null },
     },
     orderBy: { receivedAt: "asc" },
     select: { salePrice: true },
