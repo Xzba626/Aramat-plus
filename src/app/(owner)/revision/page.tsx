@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
 import { useToast } from "@/components/ui/toast";
+import { isOwnerClass } from "@/lib/rbac";
 
 type Row = {
   id: string;
@@ -78,7 +79,7 @@ export default function RevisionPage() {
   const { t, formatDateTime } = useI18n();
   const { toast } = useToast();
   const { data: session } = useSession();
-  const isOwner = session?.user?.role === Role.OWNER;
+  const isOwner = isOwnerClass(session?.user?.role);
 
   const [rows, setRows] = useState<Row[]>([]);
   const [stores, setStores] = useState<StoreOpt[]>([]);

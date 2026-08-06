@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { Role } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
-import { requireOwner } from "@/lib/rbac";
+import { requireRole } from "@/lib/rbac";
 import { jsonOk, handleApiError } from "@/lib/api";
 import {
   clearWipeMasterPassword,
@@ -18,10 +19,14 @@ const clearSchema = z.object({
   ownerPassword: z.string().min(1),
 });
 
+function requireWipeOwner(user: Awaited<ReturnType<typeof getSessionUser>>) {
+  return requireRole(user, [Role.OWNER]);
+}
+
 export async function GET() {
   try {
     const user = await getSessionUser();
-    const denied = requireOwner(user);
+    const denied = requireWipeOwner(user);
     if (denied) return denied;
     const meta = await getWipeMasterMeta(user!.companyId);
     return jsonOk(meta);
@@ -33,7 +38,7 @@ export async function GET() {
 export async function PUT(req: Request) {
   try {
     const user = await getSessionUser();
-    const denied = requireOwner(user);
+    const denied = requireWipeOwner(user);
     if (denied) return denied;
     const body = setSchema.parse(await req.json());
     await setWipeMasterPassword({
@@ -53,7 +58,7 @@ export async function PUT(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const user = await getSessionUser();
-    const denied = requireOwner(user);
+    const denied = requireWipeOwner(user);
     if (denied) return denied;
     const body = clearSchema.parse(await req.json());
     await clearWipeMasterPassword({

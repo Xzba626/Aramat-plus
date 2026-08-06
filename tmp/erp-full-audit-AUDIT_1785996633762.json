@@ -1,0 +1,256 @@
+{
+  "tag": "AUDIT_1785996633762",
+  "finishedAt": "2026-08-06T06:12:23.869Z",
+  "summary": {
+    "pass": 22,
+    "fail": 5,
+    "partial": 1,
+    "notTested": 3,
+    "risk": 2
+  },
+  "rows": [
+    {
+      "id": "accounts.audit_temp",
+      "status": "PASS",
+      "detail": "audit.owner/manager/seller@test.com upserted (temp password in local script only)"
+    },
+    {
+      "id": "db.empty_sale_headers",
+      "status": "FAIL",
+      "detail": "count=2"
+    },
+    {
+      "id": "db.empty_transfer_headers",
+      "status": "FAIL",
+      "detail": "count=24"
+    },
+    {
+      "id": "db.negative_stock",
+      "status": "PASS",
+      "detail": "count=0"
+    },
+    {
+      "id": "db.batch_null_salePrice",
+      "status": "PASS",
+      "detail": "count=0"
+    },
+    {
+      "id": "db.sellers_without_store",
+      "status": "PASS",
+      "detail": "count=0"
+    },
+    {
+      "id": "fifo.transfer_preserves_layers",
+      "status": "PASS",
+      "detail": "store layers 120=100 150=100"
+    },
+    {
+      "id": "fifo.sale_150_split",
+      "status": "PASS",
+      "detail": "SaleItem 120×100 + 150×50; rev=19500 cogs=13000 (expect 19500/13000)",
+      "evidence": "cmsh4apzw000wumtklhyqoeum"
+    },
+    {
+      "id": "fifo.ignores_product_catalog_price",
+      "status": "PASS",
+      "detail": "catalog decoy 999 used=false"
+    },
+    {
+      "id": "fifo.stock_after_sale",
+      "status": "PASS",
+      "detail": "remain=50 expect 50"
+    },
+    {
+      "id": "reconcile.sale_header_vs_items",
+      "status": "PASS",
+      "detail": "Sale.total=19500 itemsSum=19500"
+    },
+    {
+      "id": "reconcile.dashboard_analytics_export_exact_tagged",
+      "status": "NOT_TESTED",
+      "detail": "Company-wide today mixes other live sales; isolated company not provisioned. Exact SaleItem math proven above (19500)."
+    },
+    {
+      "id": "race.10_sellers_qty10_on_50",
+      "status": "PASS",
+      "detail": "ok=5 fail=5 stock=0"
+    },
+    {
+      "id": "revision.H1_sale_during_inventory",
+      "status": "FAIL",
+      "detail": "sale allowed"
+    },
+    {
+      "id": "arch.expense_name_coupling",
+      "status": "RISK",
+      "detail": "Packaging analytics coupled to literal expense type name \"Флаконы\"",
+      "evidence": "src/lib/services/expense.service.ts"
+    },
+    {
+      "id": "arch.dashboard_mgr_sees_cogs_fields",
+      "status": "RISK",
+      "detail": "Dashboard API returns cogs/profit to MANAGER (scoped store) with no finance strip",
+      "evidence": "src/app/api/dashboard/route.ts + dashboard.service.ts"
+    },
+    {
+      "id": "expense.create_once",
+      "status": "PASS",
+      "detail": "id=cmsh4bf9j003humtkkq6yvygh type=Аренда"
+    },
+    {
+      "id": "http.login_audit_accounts",
+      "status": "PASS",
+      "detail": "all three roles logged in"
+    },
+    {
+      "id": "http.owner.dashboard",
+      "status": "PASS",
+      "detail": "GET /api/dashboard → 200 expected 200"
+    },
+    {
+      "id": "http.manager.dashboard_cogs_leak",
+      "status": "PASS",
+      "detail": "GET /api/dashboard → 200 expected 200"
+    },
+    {
+      "id": "http.manager.export_analytics_H4",
+      "status": "FAIL",
+      "detail": "GET /api/export?type=analytics&period=today → 200 expected 403"
+    },
+    {
+      "id": "http.seller.dashboard",
+      "status": "PASS",
+      "detail": "GET /api/dashboard → 403 expected 401|403"
+    },
+    {
+      "id": "http.seller.warehouse",
+      "status": "PASS",
+      "detail": "GET /api/warehouse/stock → 403 expected 401|403"
+    },
+    {
+      "id": "http.seller.pos_catalog",
+      "status": "PASS",
+      "detail": "GET /api/pos/catalog → 200 expected 200"
+    },
+    {
+      "id": "http.seller.export_analytics",
+      "status": "PASS",
+      "detail": "GET /api/export?type=analytics&period=today → 403 expected 401|403"
+    },
+    {
+      "id": "http.manager.wipe",
+      "status": "PASS",
+      "detail": "POST /api/settings/wipe → 403 expected 401|403|405"
+    },
+    {
+      "id": "http.manager.dashboard_exposes_finance_keys",
+      "status": "FAIL",
+      "detail": "cogs=18010 gross=9040 net=9040"
+    },
+    {
+      "id": "http.manager.idor_foreign_sales",
+      "status": "PASS",
+      "detail": "GET /api/stores/cmsg3lzr80001um10tcf3y73z/sales → 403"
+    },
+    {
+      "id": "scale.medium_20_stores_50k_sales",
+      "status": "NOT_TESTED",
+      "detail": "Not executed this pass (Neon wall time; prior SMALL ~18min for 210 sales)"
+    },
+    {
+      "id": "frontend.browser_all_screens",
+      "status": "NOT_TESTED",
+      "detail": "Browser MCP cannot reach host localhost; no Playwright gate"
+    },
+    {
+      "id": "scale.prior_acceptance_small",
+      "status": "PASS",
+      "detail": "Prior ACCEPT_1785994337308: 5 stores, 100 SKU, 210 sales, oracle stock 0 mismatches — see SYSTEM_ACCEPTANCE_REPORT.md"
+    },
+    {
+      "id": "http.seller.pos_catalog_stability",
+      "status": "PARTIAL",
+      "detail": "This run + prior acceptance HTTP: 200; Stage-2 (2026-08-05): 400 VALIDATION_ERROR — data/env sensitive"
+    },
+    {
+      "id": "cleanup.probe_data",
+      "status": "PASS",
+      "detail": "tagged products/sales removed; audit users kept"
+    }
+  ],
+  "defects": [
+    {
+      "id": "DATA-EMPTY-SALES",
+      "severity": "MEDIUM",
+      "module": "DataIntegrity",
+      "scenario": "Sale without items",
+      "expected": "0",
+      "actual": "2",
+      "reproduction": "prisma.sale.count items none",
+      "evidence": "AUDIT_1785996633762"
+    },
+    {
+      "id": "DATA-EMPTY-TRANSFERS",
+      "severity": "MEDIUM",
+      "module": "DataIntegrity",
+      "scenario": "Transfer without items",
+      "expected": "0",
+      "actual": "24",
+      "reproduction": "prisma.transfer.count items none",
+      "evidence": "AUDIT_1785996633762"
+    },
+    {
+      "id": "H1-SALE-DURING-INVENTORY",
+      "severity": "HIGH",
+      "module": "Revision/Sale",
+      "scenario": "Sale while INVENTORY",
+      "expected": "reject",
+      "actual": "sale succeeded",
+      "reproduction": "createInventorySession → createSale",
+      "evidence": "cmsh4b8sb002fumtkd89zo168",
+      "rootCauseHint": "sale.service checks active/archived, not store.status"
+    },
+    {
+      "id": "H4-MANAGER-EXPORT-COGS",
+      "severity": "HIGH",
+      "module": "Security/Export",
+      "scenario": "Manager analytics export",
+      "expected": "403",
+      "actual": "200",
+      "reproduction": "audit.manager@test.com GET /api/export?type=analytics",
+      "evidence": "http://127.0.0.1:3000",
+      "rootCauseHint": "export route type=analytics never calls canViewWarehouseFinance"
+    },
+    {
+      "id": "H4b-MANAGER-DASHBOARD-COGS",
+      "severity": "HIGH",
+      "module": "Security/Dashboard",
+      "scenario": "Manager dashboard JSON includes COGS/profit",
+      "expected": "no cost/profit fields for MANAGER",
+      "actual": "cogs=18010",
+      "reproduction": "audit.manager GET /api/dashboard",
+      "evidence": "AUDIT_1785996633762",
+      "rootCauseHint": "dashboard route does not strip finance for MANAGER"
+    }
+  ],
+  "risks": [
+    {
+      "id": "arch.expense_name_coupling",
+      "detail": "Packaging analytics coupled to literal expense type name \"Флаконы\"",
+      "evidence": "src/lib/services/expense.service.ts"
+    },
+    {
+      "id": "arch.dashboard_mgr_sees_cogs_fields",
+      "detail": "Dashboard API returns cogs/profit to MANAGER (scoped store) with no finance strip",
+      "evidence": "src/app/api/dashboard/route.ts + dashboard.service.ts"
+    }
+  ],
+  "accounts": {
+    "note": "Temporary audit accounts — password not written to report",
+    "emails": [
+      "audit.owner@test.com",
+      "audit.manager@test.com",
+      "audit.seller@test.com"
+    ]
+  }
+}

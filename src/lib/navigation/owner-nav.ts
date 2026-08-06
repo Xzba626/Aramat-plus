@@ -1,4 +1,5 @@
 import { Role } from "@prisma/client";
+import { OWNER_ROLES } from "@/lib/rbac";
 import {
   WAREHOUSE_INTERNAL_NAV,
   isWarehouseNavActive,
@@ -83,7 +84,7 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
       {
         href: "/warehouse/write-offs",
         labelKey: "nav.inventoryWriteOffs",
-        roles: [Role.OWNER],
+        roles: OWNER_ROLES,
       },
       { href: "/revision", labelKey: "nav.inventoryRevision" },
       { href: "/warehouse/history", labelKey: "nav.inventoryHistory" },
@@ -108,7 +109,7 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     labelKey: "nav.team",
     href: "/users",
     icon: "users",
-    roles: [Role.OWNER],
+    roles: OWNER_ROLES,
     children: [
       { href: "/users", labelKey: "nav.users" },
     ],
@@ -124,7 +125,7 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     labelKey: "nav.journal",
     href: "/journal",
     icon: "journal",
-    roles: [Role.OWNER],
+    roles: OWNER_ROLES,
   },
   {
     id: "settings",

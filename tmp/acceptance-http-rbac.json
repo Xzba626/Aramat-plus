@@ -1,0 +1,64 @@
+{
+  "finishedAt": "2026-08-06T05:53:10.574Z",
+  "base": "http://127.0.0.1:3000",
+  "rows": [
+    {
+      "id": "http.owner.dashboard_api",
+      "status": "PASS",
+      "detail": "GET /api/dashboard → 200 expected 200 body={\"generatedAt\":\"2026-08-06T05:52:21.015Z\",\"today\":{\"revenue\":330,\"cost\":205,\"cogs\":205,\"grossProfit\":125,\"profit\":124,\"count\":1,\"itemsSold\":8,\"avgCheck\":330,\"expenses\":1,\"netProfit"
+    },
+    {
+      "id": "http.owner.export_analytics",
+      "status": "PASS",
+      "detail": "GET /api/export?type=analytics&period=today → 200 expected 200 body=PK\u0003\u0004\n\u0000\u0000\u0000\b\u0000�.\u0006]���\tY\u0001\u0000\u0000�\u0004\u0000\u0000\u0013\u0000\u0000\u0000[Content_Types].xml��Mn�0\u0010��=E�-J\f]TUE¢��\u0016��\u0000�xB,\u001c���w\u0012(�* �`\u0013+�7�{��\u0019O��I�\u0018H;��Q6\u0014\t��)m\u0017������\"�\bV�q\u0016s�C\u0012��n<�y���-墎�?IIe�\rP�<Z�T.4\u0010�6,��r\t\u000b����,��hc"
+    },
+    {
+      "id": "http.manager.dashboard_api",
+      "status": "PASS",
+      "detail": "GET /api/dashboard → 200 expected 200 body={\"generatedAt\":\"2026-08-06T05:52:37.185Z\",\"today\":{\"revenue\":0,\"cost\":0,\"cogs\":0,\"grossProfit\":0,\"profit\":0,\"count\":0,\"itemsSold\":0,\"avgCheck\":0,\"expenses\":0,\"netProfit\":0,\"packagi"
+    },
+    {
+      "id": "http.manager.export_analytics_H4",
+      "status": "FAIL",
+      "detail": "GET /api/export?type=analytics&period=today → 200 expected 403 body=PK\u0003\u0004\n\u0000\u0000\u0000\b\u0000�.\u0006]���\tY\u0001\u0000\u0000�\u0004\u0000\u0000\u0013\u0000\u0000\u0000[Content_Types].xml��Mn�0\u0010��=E�-J\f]TUE¢��\u0016��\u0000�xB,\u001c���w\u0012(�* �`\u0013+�7�{��\u0019O��I�\u0018H;��Q6\u0014\t��)m\u0017������\"�\bV�q\u0016s�C\u0012��n<�y���-墎�?IIe�\rP�<Z�T.4\u0010�6,��r\t\u000b����,��hc"
+    },
+    {
+      "id": "http.seller.dashboard_api",
+      "status": "PASS",
+      "detail": "GET /api/dashboard → 403 expected 401|403 body={\"error\":\"FORBIDDEN\"}"
+    },
+    {
+      "id": "http.seller.warehouse_stock",
+      "status": "PASS",
+      "detail": "GET /api/warehouse/stock → 403 expected 401|403 body={\"error\":\"FORBIDDEN\"}"
+    },
+    {
+      "id": "http.seller.pos_catalog",
+      "status": "PASS",
+      "detail": "GET /api/pos/catalog → 200 expected 200 body={\"store\":{\"id\":\"cmsg3lzr80001um10tcf3y73z\",\"name\":\"ZT Price Store 1785935039288-1\"},\"locationType\":\"STORE\",\"items\":[{\"productId\":\"cmsgdoo5d0005umq0j0farlcd\",\"quantity\":3,\"physicalQ"
+    },
+    {
+      "id": "http.manager.wipe_post",
+      "status": "PASS",
+      "detail": "POST /api/settings/wipe → 403 expected 401|403|405 body={\"error\":\"FORBIDDEN\"}"
+    },
+    {
+      "id": "http.manager.idor_foreign_sales",
+      "status": "PASS",
+      "detail": "status=403"
+    }
+  ],
+  "defects": [
+    {
+      "id": "H4-MANAGER-EXPORT-COGS",
+      "severity": "HIGH",
+      "scenario": "Manager GET /api/export?type=analytics → 200 (expected 403)",
+      "evidence": "PK\u0003\u0004\n\u0000\u0000\u0000\b\u0000�.\u0006]���\tY\u0001\u0000\u0000�\u0004\u0000\u0000\u0013\u0000\u0000\u0000[Content_Types].xml��Mn�0\u0010��=E�-J\f]TUE¢��\u0016��\u0000�xB,\u001c"
+    }
+  ],
+  "summary": {
+    "pass": 8,
+    "fail": 1,
+    "notTested": 0
+  }
+}

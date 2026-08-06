@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Role } from "@prisma/client";
+import { isOwnerClass } from "@/lib/rbac";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
@@ -39,7 +40,7 @@ function materialLabel(
 export default function PackagingPage() {
   const { t, formatMoney } = useI18n();
   const { data: session } = useSession();
-  const isOwner = session?.user?.role === Role.OWNER;
+  const isOwner = isOwnerClass(session?.user?.role);
   const [items, setItems] = useState<Sku[]>([]);
   const [stores, setStores] = useState<BranchStore[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);

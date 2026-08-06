@@ -11,7 +11,14 @@ export type SessionUser = {
   storeId?: string | null;
 };
 
-const OWNER_MANAGER: Role[] = [Role.OWNER, Role.MANAGER];
+/** Owner-class roles (full company scope, finance). */
+export const OWNER_ROLES: Role[] = [Role.OWNER, Role.ADMIN];
+
+const OWNER_MANAGER: Role[] = [Role.OWNER, Role.ADMIN, Role.MANAGER];
+
+export function isOwnerClass(role: Role | string | undefined | null): boolean {
+  return role === Role.OWNER || role === Role.ADMIN;
+}
 
 export function hasRole(
   user: SessionUser | null | undefined,
@@ -22,15 +29,20 @@ export function hasRole(
 }
 
 export function canManageUsers(user: SessionUser): boolean {
-  return user.role === Role.OWNER;
+  return isOwnerClass(user.role);
 }
 
 export function canViewWarehouseFinance(user: SessionUser): boolean {
-  return user.role === Role.OWNER;
+  return isOwnerClass(user.role);
 }
 
 export function canAccessOwnerArea(user: SessionUser): boolean {
   return OWNER_MANAGER.includes(user.role);
+}
+
+/** Destructive wipe — OWNER only (not ADMIN). */
+export function canWipeCompany(user: SessionUser): boolean {
+  return user.role === Role.OWNER;
 }
 
 export function requireRole(
@@ -51,7 +63,7 @@ export function requireOwnerOrManager(user: SessionUser | null | undefined) {
 }
 
 export function requireOwner(user: SessionUser | null | undefined) {
-  return requireRole(user, [Role.OWNER]);
+  return requireRole(user, OWNER_ROLES);
 }
 
 export function requireSeller(user: SessionUser | null | undefined) {
@@ -60,7 +72,7 @@ export function requireSeller(user: SessionUser | null | undefined) {
 
 /**
  * Store Manager mode: MANAGER is scoped to user.storeId only.
- * OWNER sees the whole company. Returns null = no store filter (owner).
+ * OWNER/ADMIN see the whole company. Returns null = no store filter.
  */
 export function scopedStoreId(
   user: SessionUser

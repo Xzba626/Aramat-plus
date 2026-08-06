@@ -274,6 +274,7 @@ export async function GET(req: Request) {
       const revenue = storeId
         ? stores.reduce((a, s) => a + s.revenue, 0)
         : data.network.revenue;
+      const showFinance = canViewWarehouseFinance(user!);
       const cogs = storeId
         ? stores.reduce((a, s) => a + s.cogs, 0)
         : data.network.cogs;
@@ -287,6 +288,30 @@ export async function GET(req: Request) {
         ? stores.reduce((a, s) => a + s.netProfit, 0)
         : data.network.netProfit;
 
+      // Option A: Manager gets revenue (+ ops expenses) only — no COGS/margin/net.
+      const rows = showFinance
+        ? [
+            { metric: t("exportCsv.metricRevenue"), value: revenue },
+            { metric: t("exportCsv.metricCogs"), value: cogs },
+            { metric: t("exportCsv.metricGross"), value: gross },
+            { metric: t("exportCsv.metricExpenses"), value: expenses },
+            { metric: t("exportCsv.metricNet"), value: net },
+            {
+              metric: t("exportCsv.metricPeriod"),
+              value: periodLabelText(periodLabel, t),
+            },
+            { metric: t("exportCsv.metricStore"), value: storeName },
+          ]
+        : [
+            { metric: t("exportCsv.metricRevenue"), value: revenue },
+            { metric: t("exportCsv.metricExpenses"), value: expenses },
+            {
+              metric: t("exportCsv.metricPeriod"),
+              value: periodLabelText(periodLabel, t),
+            },
+            { metric: t("exportCsv.metricStore"), value: storeName },
+          ];
+
       const buffer = await buildXlsxBuffer({
         sheetName: t("exportCsv.sheetAnalytics"),
         creator,
@@ -294,18 +319,7 @@ export async function GET(req: Request) {
           { header: t("exportCsv.colMetric"), key: "metric", width: 28 },
           { header: t("exportCsv.colValue"), key: "value", width: 24 },
         ],
-        rows: [
-          { metric: t("exportCsv.metricRevenue"), value: revenue },
-          { metric: t("exportCsv.metricCogs"), value: cogs },
-          { metric: t("exportCsv.metricGross"), value: gross },
-          { metric: t("exportCsv.metricExpenses"), value: expenses },
-          { metric: t("exportCsv.metricNet"), value: net },
-          {
-            metric: t("exportCsv.metricPeriod"),
-            value: periodLabelText(periodLabel, t),
-          },
-          { metric: t("exportCsv.metricStore"), value: storeName },
-        ],
+        rows,
         locale,
       });
       return xlsxResponse(buffer, filename);

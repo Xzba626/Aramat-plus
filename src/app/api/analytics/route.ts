@@ -5,6 +5,7 @@ import {
   getAnalyticsBreakdown,
   type AnalyticsPeriod,
 } from "@/lib/services/analytics.service";
+import { stripFinanceForRole } from "@/lib/finance-visibility";
 
 export async function GET(req: Request) {
   try {
@@ -19,11 +20,10 @@ export async function GET(req: Request) {
         : "month"
     ) as AnalyticsPeriod;
     const storeId = scopedStoreId(user!);
-    return jsonOk(
-      await getAnalyticsBreakdown(user!.companyId, period, {
-        storeId: storeId === undefined ? undefined : storeId,
-      })
-    );
+    const data = await getAnalyticsBreakdown(user!.companyId, period, {
+      storeId: storeId === undefined ? undefined : storeId,
+    });
+    return jsonOk(stripFinanceForRole(user!, data));
   } catch (err) {
     return handleApiError(err);
   }

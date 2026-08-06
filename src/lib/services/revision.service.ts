@@ -432,7 +432,7 @@ export async function getInventorySessionDetail(
 
   const isInProgress = session.status === InventoryStatus.IN_PROGRESS;
   const isPending = session.status === InventoryStatus.PENDING_APPROVAL;
-  const isOwner = role === Role.OWNER;
+  const isOwner = role === Role.OWNER || role === Role.ADMIN;
 
   const mapItemMeta = (i: (typeof session.items)[number]) => {
     const p = nameMap.get(i.productId);

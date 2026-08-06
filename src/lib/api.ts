@@ -108,6 +108,8 @@ export function handleApiError(err: unknown) {
       "SELLER_POS_BRANCH_ONLY",
       "SELLER_WRONG_STORE",
       "STORE_NOT_FOUND",
+      "STORE_INVENTORY_IN_PROGRESS",
+      "STORE_CLOSED",
       "STORE_REQUIRED_FOR_RECURRING",
       "SUPPLIER_NOT_FOUND",
       "TRANSFER_BRANCH_ONLY",

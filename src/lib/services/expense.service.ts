@@ -2,6 +2,7 @@ import { ExpensePeriodicity, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { decimalToNumber } from "@/lib/utils";
+import { isPackagingExpenseRow } from "@/lib/packaging-expense";
 
 export type ExpensePeriodicityValue = ExpensePeriodicity;
 
@@ -74,6 +75,7 @@ type ExpenseRow = {
   incurredAt: Date;
   storeId: string | null;
   expenseTypeName: string;
+  description: string | null;
 };
 
 async function loadActiveExpenses(
@@ -107,6 +109,7 @@ async function loadActiveExpenses(
       endsAt: true,
       incurredAt: true,
       storeId: true,
+      description: true,
       expenseType: { select: { name: true } },
     },
   });
@@ -119,13 +122,8 @@ async function loadActiveExpenses(
     incurredAt: r.incurredAt,
     storeId: r.storeId,
     expenseTypeName: r.expenseType.name,
+    description: r.description,
   }));
-}
-
-const PACKAGING_EXPENSE_TYPE = "Флаконы";
-
-function isPackagingExpense(name: string) {
-  return name.trim().toLowerCase() === PACKAGING_EXPENSE_TYPE.toLowerCase();
 }
 
 /** Sum of daily-allocated expenses for [from, to] inclusive calendar days. */
@@ -176,7 +174,12 @@ export async function sumAllocatedExpenses(params: {
       if (share <= 0) continue;
       daySum += share;
       byStore.set(e.storeId, (byStore.get(e.storeId) ?? 0) + share);
-      if (isPackagingExpense(e.expenseTypeName)) {
+      if (
+        isPackagingExpenseRow({
+          expenseTypeName: e.expenseTypeName,
+          description: e.description,
+        })
+      ) {
         dayPack += share;
         packaging += share;
         byStorePackaging.set(

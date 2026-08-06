@@ -1,4 +1,24 @@
-import { PrismaClient, AccountingType, Role, LocationType, StoreKind } from "@prisma/client";
+/**
+ * Production-safe seed — NEVER wipes sales / stock / products.
+ *
+ * Ensures:
+ * - Company + central warehouse exist
+ * - Reference expense types (incl. Флаконы)
+ * - Default role users (bcrypt) upserted
+ *
+ * Destructive demo wipe lives in: prisma/seed-demo-wipe.ts (explicit opt-in only).
+ *
+ * Credentials (documented in DEPLOYMENT.md):
+ *   owner@aromat.plus   / owner1234
+ *   admin@aromat.plus   / admin12345
+ *   manager@aromat.plus / manager12345
+ *   seller@aromat.plus  / seller12345
+ */
+import {
+  PrismaClient,
+  Role,
+  StoreKind,
+} from "@prisma/client";
 import bcrypt from "bcryptjs";
 import {
   SEED_OWNER_EMAIL,
@@ -8,371 +28,185 @@ import {
 
 const prisma = new PrismaClient();
 
-async function main() {
-  console.log("Seeding Aramat Plus…");
+const SEED_USERS: Array<{
+  email: string;
+  name: string;
+  role: Role;
+  password: string;
+  bindStore: boolean;
+}> = [
+  {
+    email: SEED_OWNER_EMAIL,
+    name: SEED_OWNER_NAME,
+    role: Role.OWNER,
+    password: SEED_OWNER_PASSWORD,
+    bindStore: false,
+  },
+  {
+    email: "admin@aromat.plus",
+    name: "Администратор",
+    role: Role.ADMIN,
+    password: "admin12345",
+    bindStore: false,
+  },
+  {
+    email: "manager@aromat.plus",
+    name: "Менеджер",
+    role: Role.MANAGER,
+    password: "manager12345",
+    bindStore: true,
+  },
+  {
+    email: "seller@aromat.plus",
+    name: "Продавец",
+    role: Role.SELLER,
+    password: "seller12345",
+    bindStore: true,
+  },
+];
 
-  await prisma.activityLog.deleteMany();
-  await prisma.notification.deleteMany();
-  await prisma.saleItem.deleteMany();
-  await prisma.sale.deleteMany();
-  await prisma.transferItem.deleteMany();
-  await prisma.transfer.deleteMany();
-  await prisma.batch.deleteMany();
-  await prisma.stockBalance.deleteMany();
-  await prisma.priceHistory.deleteMany();
-  await prisma.productVariant.deleteMany();
-  await prisma.product.deleteMany();
-  await prisma.packagingSku.deleteMany();
-  await prisma.giftRule.deleteMany();
-  await prisma.discountRequest.deleteMany();
-  await prisma.saleReturn.deleteMany();
-  await prisma.inventoryItem.deleteMany();
-  await prisma.inventorySession.deleteMany();
-  await prisma.expense.deleteMany();
-  await prisma.setting.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.store.deleteMany();
-  await prisma.warehouse.deleteMany();
-  await prisma.category.deleteMany();
-  await prisma.brand.deleteMany();
-  await prisma.unit.deleteMany();
-  await prisma.productType.deleteMany();
-  await prisma.operationType.deleteMany();
-  await prisma.expenseType.deleteMany();
-  await prisma.company.deleteMany();
-
-  const company = await prisma.company.create({
-    data: { name: "Aramat Plus", currency: "TJS" },
+async function ensureCompany() {
+  let company = await prisma.company.findFirst({
+    orderBy: { createdAt: "asc" },
   });
+  if (!company) {
+    company = await prisma.company.create({
+      data: { name: "Aramat Plus", currency: "TJS" },
+    });
+    console.log("created company", company.id);
+  }
+  return company;
+}
 
-  const warehouse = await prisma.warehouse.create({
-    data: { name: "Центральный склад", companyId: company.id },
+async function ensureWarehouse(companyId: string) {
+  let wh = await prisma.warehouse.findFirst({
+    where: { companyId, isActive: true },
   });
+  if (!wh) {
+    wh = await prisma.warehouse.create({
+      data: { name: "Центральный склад", companyId },
+    });
+    console.log("created warehouse", wh.id);
+  }
+  return wh;
+}
 
-  const [catPerfume, catGift] = await Promise.all([
-    prisma.category.create({
-      data: { name: "Духи", companyId: company.id, lowStockThreshold: 50 },
-    }),
-    prisma.category.create({
-      data: { name: "Подарки", companyId: company.id, lowStockThreshold: 5 },
-    }),
-  ]);
-
-  const [brandAlRehab, brandHamidi, brandSurrati] = await Promise.all([
-    prisma.brand.create({ data: { name: "Al Rehab", companyId: company.id } }),
-    prisma.brand.create({ data: { name: "Hamidi", companyId: company.id } }),
-    prisma.brand.create({ data: { name: "Surrati", companyId: company.id } }),
-  ]);
-
-  const [unitMl, unitPcs] = await Promise.all([
-    prisma.unit.create({
-      data: { name: "Миллилитр", symbol: "мл", companyId: company.id },
-    }),
-    prisma.unit.create({
-      data: { name: "Штука", symbol: "шт", companyId: company.id },
-    }),
-  ]);
-
-  await Promise.all([
-    prisma.productType.create({ data: { name: "Парфюм", companyId: company.id } }),
-    prisma.productType.create({ data: { name: "Масляные духи", companyId: company.id } }),
-    prisma.productType.create({ data: { name: "Дезодорант", companyId: company.id } }),
-    prisma.productType.create({ data: { name: "Освежитель воздуха", companyId: company.id } }),
-    prisma.productType.create({ data: { name: "Часы", companyId: company.id } }),
-    prisma.productType.create({ data: { name: "Аксессуары", companyId: company.id } }),
-    prisma.productType.create({ data: { name: "Подарки", companyId: company.id } }),
-    prisma.productType.create({ data: { name: "Другое", companyId: company.id } }),
-    prisma.operationType.create({
-      data: { name: "Перемещение", code: "TRANSFER", companyId: company.id },
-    }),
-    prisma.operationType.create({
-      data: { name: "Продажа", code: "SALE", companyId: company.id },
-    }),
-    prisma.expenseType.create({ data: { name: "Аренда", companyId: company.id } }),
-    prisma.expenseType.create({ data: { name: "Зарплата", companyId: company.id } }),
-    prisma.expenseType.create({ data: { name: "Коммунальные", companyId: company.id } }),
-    prisma.expenseType.create({ data: { name: "Интернет", companyId: company.id } }),
-    prisma.expenseType.create({ data: { name: "Прочие", companyId: company.id } }),
-    prisma.expenseType.create({ data: { name: "Флаконы", companyId: company.id } }),
-  ]);
-
-  const store1 = await prisma.store.create({
-    data: {
-      name: "Магазин №1 — Сино",
-      address: "Сино",
-      companyId: company.id,
-      kind: StoreKind.BRANCH,
-    },
+async function ensureBranchStore(companyId: string) {
+  let store = await prisma.store.findFirst({
+    where: { companyId, kind: StoreKind.BRANCH, isActive: true },
+    orderBy: { createdAt: "asc" },
   });
-  const store2 = await prisma.store.create({
-    data: {
-      name: "Магазин №2 — Рудаки",
-      address: "Рудаки",
-      companyId: company.id,
-      kind: StoreKind.BRANCH,
-    },
-  });
+  if (!store) {
+    store = await prisma.store.create({
+      data: {
+        name: "Магазин №1",
+        companyId,
+        kind: StoreKind.BRANCH,
+        isActive: true,
+      },
+    });
+    console.log("created store", store.id);
+  }
+  return store;
+}
 
-  const ownerDirect = await prisma.store.create({
+async function ensureOwnerDirect(companyId: string) {
+  const existing = await prisma.store.findFirst({
+    where: { companyId, kind: StoreKind.OWNER_DIRECT },
+  });
+  if (existing) return existing;
+  return prisma.store.create({
     data: {
       name: "Личные продажи владельца",
-      address: "Центральный склад · прямые продажи",
-      companyId: company.id,
+      companyId,
       kind: StoreKind.OWNER_DIRECT,
+      isActive: true,
     },
   });
+}
 
-  const ownerHash = await bcrypt.hash(SEED_OWNER_PASSWORD, 10);
-  const managerHash = await bcrypt.hash("manager1234", 10);
-  const sellerHash = await bcrypt.hash("seller1234", 10);
-
-  const owner = await prisma.user.create({
-    data: {
-      email: SEED_OWNER_EMAIL,
-      name: SEED_OWNER_NAME,
-      passwordHash: ownerHash,
-      role: Role.OWNER,
-      companyId: company.id,
-    },
-  });
-
-  await prisma.user.create({
-    data: {
-      email: "manager@aromat.plus",
-      name: "Менеджер",
-      passwordHash: managerHash,
-      role: Role.MANAGER,
-      companyId: company.id,
-      storeId: store1.id,
-    },
-  });
-
-  await prisma.user.create({
-    data: {
-      email: "seller@aromat.plus",
-      name: "Фарход",
-      passwordHash: sellerHash,
-      role: Role.SELLER,
-      companyId: company.id,
-      storeId: store1.id,
-    },
-  });
-
-  const p1 = await prisma.product.create({
-    data: {
-      name: "Духи Al Rehab Amber",
-      companyId: company.id,
-      categoryId: catPerfume.id,
-      brandId: brandAlRehab.id,
-      unitId: unitMl.id,
-      accountingType: AccountingType.WEIGHT,
-      salePrice: 25,
-    },
-  });
-
-  const p2 = await prisma.product.create({
-    data: {
-      name: "Масло Уд Royal",
-      companyId: company.id,
-      categoryId: catPerfume.id,
-      brandId: brandHamidi.id,
-      unitId: unitMl.id,
-      accountingType: AccountingType.WEIGHT,
-      salePrice: 60,
-    },
-  });
-
-  const p3 = await prisma.product.create({
-    data: {
-      name: "Дезодорант-стик Musk",
-      companyId: company.id,
-      categoryId: catGift.id,
-      brandId: brandSurrati.id,
-      unitId: unitPcs.id,
-      accountingType: AccountingType.PIECE,
-      salePrice: 18,
-    },
-  });
-
-  // Two separate batches for p1 (different costs — must NOT merge)
-  const weekAgo = new Date();
-  weekAgo.setDate(weekAgo.getDate() - 7);
-
-  await prisma.batch.create({
-    data: {
-      productId: p1.id,
-      locationType: LocationType.WAREHOUSE,
-      locationId: warehouse.id,
-      quantity: 100,
-      initialQuantity: 100,
-      costPerUnit: 100,
-      salePrice: 250,
-      receivedAt: weekAgo,
-      notes: "Партия №1",
-      createdById: owner.id,
-    },
-  });
-  await prisma.batch.create({
-    data: {
-      productId: p1.id,
-      locationType: LocationType.WAREHOUSE,
-      locationId: warehouse.id,
-      quantity: 150,
-      initialQuantity: 150,
-      costPerUnit: 120,
-      salePrice: 250,
-      receivedAt: new Date(),
-      notes: "Партия №2",
-      createdById: owner.id,
-    },
-  });
-  await prisma.stockBalance.create({
-    data: {
-      productId: p1.id,
-      locationType: LocationType.WAREHOUSE,
-      locationId: warehouse.id,
-      quantity: 250,
-    },
-  });
-
-  await prisma.batch.create({
-    data: {
-      productId: p2.id,
-      locationType: LocationType.WAREHOUSE,
-      locationId: warehouse.id,
-      quantity: 320,
-      initialQuantity: 320,
-      costPerUnit: 30,
-      salePrice: 60,
-      notes: "Партия №1",
-      createdById: owner.id,
-    },
-  });
-  await prisma.stockBalance.create({
-    data: {
-      productId: p2.id,
-      locationType: LocationType.WAREHOUSE,
-      locationId: warehouse.id,
-      quantity: 320,
-    },
-  });
-
-  await prisma.batch.create({
-    data: {
-      productId: p3.id,
-      locationType: LocationType.WAREHOUSE,
-      locationId: warehouse.id,
-      quantity: 140,
-      initialQuantity: 140,
-      costPerUnit: 8,
-      salePrice: 18,
-      notes: "Партия №1",
-      createdById: owner.id,
-    },
-  });
-  await prisma.stockBalance.create({
-    data: {
-      productId: p3.id,
-      locationType: LocationType.WAREHOUSE,
-      locationId: warehouse.id,
-      quantity: 140,
-    },
-  });
-
-  // Store №1 starter stock — sequential (no interactive $transaction).
-  // createTransfer uses prisma.$transaction(async tx => …); on Neon *pooler*
-  // URLs that throws P2028 "Transaction not found". Seed stays re-runnable via deleteMany.
-  const seedTransferLines = [
-    { productId: p1.id, quantity: 30 },
-    { productId: p3.id, quantity: 20 },
+async function ensureExpenseTypes(companyId: string) {
+  const names = [
+    "Аренда",
+    "Зарплата",
+    "Коммунальные",
+    "Интернет",
+    "Прочие",
+    "Флаконы",
   ];
+  for (const name of names) {
+    const exists = await prisma.expenseType.findFirst({
+      where: { companyId, name },
+    });
+    if (!exists) {
+      await prisma.expenseType.create({ data: { companyId, name } });
+      console.log("created expenseType", name);
+    }
+  }
+}
 
-  const seedTransfer = await prisma.transfer.create({
+async function upsertUser(params: {
+  email: string;
+  name: string;
+  role: Role;
+  password: string;
+  companyId: string;
+  storeId: string | null;
+}) {
+  const passwordHash = await bcrypt.hash(params.password, 10);
+  const existing = await prisma.user.findUnique({
+    where: { email: params.email },
+  });
+  if (existing) {
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        name: params.name,
+        role: params.role,
+        passwordHash,
+        companyId: params.companyId,
+        storeId: params.storeId,
+        isActive: true,
+      },
+    });
+    console.log("updated user", params.email, params.role);
+    return;
+  }
+  await prisma.user.create({
     data: {
-      fromWarehouseId: warehouse.id,
-      toStoreId: store1.id,
-      createdById: owner.id,
-      status: "COMPLETED",
-      notes: "Seed: стартовые остатки Магазин №1",
+      email: params.email,
+      name: params.name,
+      role: params.role,
+      passwordHash,
+      companyId: params.companyId,
+      storeId: params.storeId,
+      isActive: true,
     },
   });
+  console.log("created user", params.email, params.role);
+}
 
-  for (const line of seedTransferLines) {
-    const whBatch = await prisma.batch.findFirst({
-      where: {
-        productId: line.productId,
-        locationType: LocationType.WAREHOUSE,
-        locationId: warehouse.id,
-        quantity: { gt: 0 },
-      },
-      orderBy: { receivedAt: "asc" },
-    });
-    if (!whBatch || Number(whBatch.quantity) < line.quantity) {
-      throw new Error(`Seed: недостаточно склада для ${line.productId}`);
-    }
+async function main() {
+  console.log("Aramat Plus production seed (idempotent, no wipe)…");
 
-    await prisma.batch.update({
-      where: { id: whBatch.id },
-      data: { quantity: { decrement: line.quantity } },
-    });
-    await prisma.stockBalance.update({
-      where: {
-        productId_locationType_locationId: {
-          productId: line.productId,
-          locationType: LocationType.WAREHOUSE,
-          locationId: warehouse.id,
-        },
-      },
-      data: { quantity: { decrement: line.quantity } },
-    });
+  const company = await ensureCompany();
+  await ensureWarehouse(company.id);
+  await ensureOwnerDirect(company.id);
+  const branch = await ensureBranchStore(company.id);
+  await ensureExpenseTypes(company.id);
 
-    const transferItem = await prisma.transferItem.create({
-      data: {
-        transferId: seedTransfer.id,
-        productId: line.productId,
-        quantity: line.quantity,
-        sourceBatchId: whBatch.id,
-        costPerUnit: whBatch.costPerUnit,
-      },
-    });
-
-    await prisma.batch.create({
-      data: {
-        productId: line.productId,
-        locationType: LocationType.STORE,
-        locationId: store1.id,
-        quantity: line.quantity,
-        initialQuantity: line.quantity,
-        costPerUnit: whBatch.costPerUnit,
-        salePrice: whBatch.salePrice ?? 0,
-        notes: `Seed transfer ${seedTransfer.id}`,
-        transferItemId: transferItem.id,
-        createdById: owner.id,
-      },
-    });
-    await prisma.stockBalance.create({
-      data: {
-        productId: line.productId,
-        locationType: LocationType.STORE,
-        locationId: store1.id,
-        quantity: line.quantity,
-      },
+  for (const u of SEED_USERS) {
+    await upsertUser({
+      email: u.email,
+      name: u.name,
+      role: u.role,
+      password: u.password,
+      companyId: company.id,
+      storeId: u.bindStore ? branch.id : null,
     });
   }
 
-  console.log("Seed complete.");
-  console.log(`  Owner:   ${SEED_OWNER_EMAIL} / ${SEED_OWNER_PASSWORD}`);
-  console.log("  Manager: manager@aromat.plus / manager1234");
-  console.log("  Seller:  seller@aromat.plus / seller1234");
-  console.log(`  Warehouse: ${warehouse.name}`);
-  console.log(`  Stores: ${ownerDirect.name}, ${store1.name}, ${store2.name}`);
-  console.log("  Store №1 seed stock: Amber 30 + Musk 20 (via transfer)");
-
-  const { ensureDefaultPackagingSkus } = await import(
-    "../src/lib/services/packaging.service"
-  );
-  await ensureDefaultPackagingSkus(company.id);
-  console.log("  Packaging: default glass Skus 5/10/30/50/100 ml");
+  console.log("Seed complete. Live sales/stock/products were not deleted.");
 }
 
 main()
@@ -380,6 +214,4 @@ main()
     console.error(e);
     process.exit(1);
   })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .finally(() => prisma.$disconnect());

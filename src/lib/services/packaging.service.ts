@@ -14,10 +14,12 @@ import { resolveUnitId } from "@/lib/services/product-nomenclature.service";
 import { deductBatchesFifo } from "@/lib/services/stock.service";
 import { notifyCompanyRoles } from "@/lib/services/notification.service";
 import { isProofArtifactName } from "@/lib/proof-artifacts";
+import {
+  AUTO_BOTTLE_PREFIX,
+  BOTTLE_EXPENSE_TYPE_NAME,
+} from "@/lib/packaging-expense";
 
 export const BOTTLE_LOW_STOCK_THRESHOLD = 5; // legacy default; runtime uses getLowStockThresholds().bottlePiece
-const BOTTLE_EXPENSE_TYPE_NAME = "Флаконы";
-
 const DEFAULT_VOLUMES = [5, 10, 30, 50, 100] as const;
 
 export class PackagingDuplicateError extends Error {
@@ -624,8 +626,8 @@ export async function createBottleSaleExpenseInTx(
       storeId: params.storeId,
       // Human marker for export — never embed raw sale:cuid in description.
       description: params.label?.trim()
-        ? `AUTO_BOTTLE|${params.label.trim()}`
-        : "AUTO_BOTTLE",
+        ? `${AUTO_BOTTLE_PREFIX}|${params.label.trim()}`
+        : AUTO_BOTTLE_PREFIX,
       createdById: params.createdById,
       incurredAt: now,
       periodicity: ExpensePeriodicity.ONCE,

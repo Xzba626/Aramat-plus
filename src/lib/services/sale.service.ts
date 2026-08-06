@@ -90,6 +90,7 @@ export async function createSale(params: {
         name: true,
         kind: true,
         companyId: true,
+        status: true,
       },
     }),
     prisma.user.findFirst({
@@ -118,6 +119,12 @@ export async function createSale(params: {
 
   if (!store) throw new Error("STORE_NOT_FOUND");
   if (!seller) throw new Error("USER_NOT_FOUND");
+  if (store.status === "INVENTORY") {
+    throw new Error("STORE_INVENTORY_IN_PROGRESS");
+  }
+  if (store.status === "CLOSED") {
+    throw new Error("STORE_CLOSED");
+  }
 
   if (seller.role === "SELLER") {
     if (!seller.storeId || seller.storeId !== store.id) {
@@ -354,6 +361,10 @@ export async function createSale(params: {
         throw new Error("DISCOUNT_EXCEEDS_TOTAL");
       }
 
+      if (!lineRows.length) {
+        throw new Error("EMPTY_CART");
+      }
+
       const total = subtotal.sub(discount);
 
       const sale = await tx.sale.create({
@@ -404,6 +415,10 @@ export async function createSale(params: {
           },
         },
       });
+
+      if (!sale.items.length) {
+        throw new Error("EMPTY_CART");
+      }
 
       if (discountRequestId) {
         await linkDiscountToSale(tx, {

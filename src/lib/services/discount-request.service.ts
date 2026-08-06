@@ -160,7 +160,7 @@ export async function createDiscountRequest(params: {
 
   await notifyCompanyRoles({
     companyId: params.companyId,
-    roles: [Role.OWNER, Role.MANAGER],
+    roles: [Role.OWNER, Role.ADMIN, Role.MANAGER],
     type: "DISCOUNT_REQUEST",
     title: "notif.discountRequest",
     message: `${requester.name} · ${store.name} · ${params.originalAmount} → ${

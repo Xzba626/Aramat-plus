@@ -8,6 +8,7 @@ import {
 } from "@/lib/services/analytics.service";
 import AnalyticsClient from "./analytics-client";
 import { RouteLoading } from "@/components/ui/route-loading";
+import { stripFinanceForRole, canViewOwnerFinance } from "@/lib/finance-visibility";
 
 const DEFAULT_PERIOD: AnalyticsPeriod = "today";
 
@@ -22,7 +23,11 @@ export default async function AnalyticsPage() {
 
   return (
     <Suspense fallback={<RouteLoading />}>
-      <AnalyticsClient initial={initial} initialPeriod={DEFAULT_PERIOD} />
+      <AnalyticsClient
+        initial={stripFinanceForRole(user, initial)}
+        initialPeriod={DEFAULT_PERIOD}
+        canViewFinance={canViewOwnerFinance(user)}
+      />
     </Suspense>
   );
 }

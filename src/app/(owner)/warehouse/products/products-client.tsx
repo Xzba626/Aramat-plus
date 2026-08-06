@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Role } from "@prisma/client";
+import { isOwnerClass } from "@/lib/rbac";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingBlock } from "@/components/ui/empty-state";
@@ -69,7 +70,7 @@ export default function WarehouseCatalogClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
-  const isOwner = session?.user?.role === Role.OWNER;
+  const isOwner = isOwnerClass(session?.user?.role);
   const { t } = useI18n();
   const [filters, setFilters, filtersReady] = usePersistedState<Filters>(
     "warehouse-catalog",

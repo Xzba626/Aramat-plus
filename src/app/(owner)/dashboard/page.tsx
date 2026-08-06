@@ -3,6 +3,7 @@ import { scopedStoreId } from "@/lib/rbac";
 import { getDashboardPayload } from "@/lib/services/dashboard.service";
 import { OwnerDashboardClient } from "@/components/dashboard/owner-dashboard-client";
 import { redirect } from "next/navigation";
+import { stripFinanceForRole } from "@/lib/finance-visibility";
 
 export default async function DashboardPage() {
   const user = await getSessionUser();
@@ -13,7 +14,7 @@ export default async function DashboardPage() {
   });
   return (
     <OwnerDashboardClient
-      initial={data}
+      initial={stripFinanceForRole(user, data)}
       userName={user.name ?? ""}
       userRole={user.role}
     />

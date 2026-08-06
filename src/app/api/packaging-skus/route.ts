@@ -1,6 +1,7 @@
 import { Role } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
 import {
+  isOwnerClass,
   requireOwner,
   requireOwnerOrManager,
 } from "@/lib/rbac";
@@ -85,7 +86,7 @@ export async function PATCH(req: Request) {
     if (!Object.keys(data).length) return jsonError("VALIDATION", 400);
 
     // Financial field — OWNER only
-    if (data.defaultCost !== undefined && user!.role !== Role.OWNER) {
+    if (data.defaultCost !== undefined && !isOwnerClass(user!.role)) {
       return jsonError("FORBIDDEN", 403);
     }
 

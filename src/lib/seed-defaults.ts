@@ -1,7 +1,16 @@
-/** Factory / seed credentials — wipe resets OWNER back to these. */
+/** Factory / seed credentials — safe seed upserts OWNER back to these. */
 export const SEED_OWNER_EMAIL = "owner@aromat.plus";
 export const SEED_OWNER_PASSWORD = "owner1234";
 export const SEED_OWNER_NAME = "Владелец";
+
+export const SEED_ADMIN_EMAIL = "admin@aromat.plus";
+export const SEED_ADMIN_PASSWORD = "admin12345";
+
+export const SEED_MANAGER_EMAIL = "manager@aromat.plus";
+export const SEED_MANAGER_PASSWORD = "manager12345";
+
+export const SEED_SELLER_EMAIL = "seller@aromat.plus";
+export const SEED_SELLER_PASSWORD = "seller12345";
 
 /** Shared archive retention (days). Soft-deleted entities purged after this. */
 export const ARCHIVE_RETENTION_SETTING_KEY = "archiveRetentionDays";

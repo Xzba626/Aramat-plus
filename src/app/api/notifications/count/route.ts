@@ -2,7 +2,7 @@ import { getSessionUser } from "@/lib/session";
 import { handleApiError, jsonOk } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
-import { scopedStoreId } from "@/lib/rbac";
+import { scopedStoreId, isOwnerClass } from "@/lib/rbac";
 
 export async function GET() {
   try {
@@ -15,7 +15,7 @@ export async function GET() {
 
     // Owner/Manager: also count unread-style dashboard attention chips
     let dashUnread = 0;
-    if (user.role === Role.OWNER || user.role === Role.MANAGER) {
+    if (isOwnerClass(user.role) || user.role === Role.MANAGER) {
       const { getDashboardPayload } = await import(
         "@/lib/services/dashboard.service"
       );

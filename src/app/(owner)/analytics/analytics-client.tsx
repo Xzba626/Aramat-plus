@@ -106,6 +106,7 @@ function tabFromView(view: string | null): Tab {
 export default function AnalyticsClient({
   initial,
   initialPeriod = "today",
+  canViewFinance = true,
 }: {
   initial?: {
     network: Network | null;
@@ -120,6 +121,7 @@ export default function AnalyticsClient({
     productTypes?: NamedAgg[];
   } | null;
   initialPeriod?: Period;
+  canViewFinance?: boolean;
 }) {
   const { t, formatMoney, formatDate } = useI18n();
   const searchParams = useSearchParams();
@@ -260,24 +262,32 @@ export default function AnalyticsClient({
             ? "…"
             : formatMoney(network?.revenue ?? 0, { short: true }),
         },
-        {
-          label: t("dashboard.grossProfitLabel"),
-          value: loading
-            ? "…"
-            : formatMoney(network?.grossProfit ?? 0, { short: true }),
-        },
+        ...(canViewFinance
+          ? [
+              {
+                label: t("dashboard.grossProfitLabel"),
+                value: loading
+                  ? "…"
+                  : formatMoney(network?.grossProfit ?? 0, { short: true }),
+              },
+            ]
+          : []),
         {
           label: t(expensesLabelKey(period)),
           value: loading
             ? "…"
             : formatMoney(network?.expenses ?? expenseTotal, { short: true }),
         },
-        {
-          label: t("dashboard.netProfit"),
-          value: loading
-            ? "…"
-            : formatMoney(network?.netProfit ?? 0, { short: true }),
-        },
+        ...(canViewFinance
+          ? [
+              {
+                label: t("dashboard.netProfit"),
+                value: loading
+                  ? "…"
+                  : formatMoney(network?.netProfit ?? 0, { short: true }),
+              },
+            ]
+          : []),
       ]}
     >
       <div className="mb-4 flex flex-wrap gap-2">
@@ -319,14 +329,22 @@ export default function AnalyticsClient({
       {tab === "network" ? (
         <ModuleSection title={t("analyticsPage.tabNetwork")}>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              ["revenue", network?.revenue],
-              ["cogs", network?.cogs],
-              ["gross", network?.grossProfit],
-              ["expenses", network?.expenses],
-              ["net", network?.netProfit],
-              ["sales", network?.salesCount],
-            ].map(([key, val]) => (
+            {(
+              [
+                ["revenue", network?.revenue],
+                ...(canViewFinance
+                  ? ([
+                      ["cogs", network?.cogs],
+                      ["gross", network?.grossProfit],
+                    ] as const)
+                  : []),
+                ["expenses", network?.expenses],
+                ...(canViewFinance
+                  ? ([["net", network?.netProfit]] as const)
+                  : []),
+                ["sales", network?.salesCount],
+              ] as [string, number | undefined][]
+            ).map(([key, val]) => (
               <Card
                 key={String(key)}
                 id={key === "net" ? "finance-net" : undefined}

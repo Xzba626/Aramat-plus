@@ -90,8 +90,17 @@ export default auth((req) => {
     }
   }
 
-  if ((role === "OWNER" || role === "MANAGER") && pathname.startsWith("/pos")) {
+  // OWNER + ADMIN + MANAGER use owner area; POS is seller-only.
+  if (
+    (role === "OWNER" || role === "ADMIN" || role === "MANAGER") &&
+    pathname.startsWith("/pos")
+  ) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
+  // ADMIN cannot wipe (OWNER-only UI path)
+  if (role === "ADMIN" && pathname.startsWith("/settings/wipe")) {
+    return NextResponse.redirect(new URL("/settings", req.url));
   }
 
   if (pathname === "/") {

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { Role } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
 import {
+  isOwnerClass,
   requireOwner,
   requireOwnerOrManager,
   requireStoreAccess,
@@ -68,7 +69,7 @@ export async function GET(req: Request) {
           ? { companyId: user!.companyId, id: "__none__" }
           : { companyId: user!.companyId, id: scope };
 
-    const isOwner = user!.role === Role.OWNER;
+    const isOwner = isOwnerClass(user!.role);
     const sessions = await prisma.inventorySession.findMany({
       where: { store: storeWhere },
       include: {
@@ -169,7 +170,7 @@ export async function PATCH(req: Request) {
           })
         );
       }
-      const isOwner = user!.role === Role.OWNER;
+      const isOwner = isOwnerClass(user!.role);
       return jsonOk(
         await cancelInventorySession({
           companyId: user!.companyId,

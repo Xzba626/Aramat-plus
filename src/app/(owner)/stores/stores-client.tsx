@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Role } from "@prisma/client";
+import { isOwnerClass } from "@/lib/rbac";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,7 @@ type Props = {
 export default function StoresClient({ initialStores }: Props) {
   const { t, formatMoney, formatDateTime } = useI18n();
   const { data: session } = useSession();
-  const isOwner = session?.user?.role === Role.OWNER;
+  const isOwner = isOwnerClass(session?.user?.role);
   const [stores, setStores] = useState<StoreCard[]>(initialStores);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

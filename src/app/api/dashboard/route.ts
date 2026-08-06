@@ -2,6 +2,7 @@ import { getSessionUser } from "@/lib/session";
 import { requireOwnerOrManager, scopedStoreId } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
 import { getDashboardPayload } from "@/lib/services/dashboard.service";
+import { stripFinanceForRole } from "@/lib/finance-visibility";
 
 export async function GET() {
   try {
@@ -12,7 +13,7 @@ export async function GET() {
     const data = await getDashboardPayload(user!.companyId, {
       storeId: storeId === undefined ? undefined : storeId,
     });
-    return jsonOk(data);
+    return jsonOk(stripFinanceForRole(user!, data));
   } catch (err) {
     return handleApiError(err);
   }

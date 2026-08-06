@@ -205,6 +205,7 @@ export function buildJournalWhere(
   const roleRaw = input.role;
   if (
     roleRaw === Role.OWNER ||
+    roleRaw === Role.ADMIN ||
     roleRaw === Role.MANAGER ||
     roleRaw === Role.SELLER
   ) {

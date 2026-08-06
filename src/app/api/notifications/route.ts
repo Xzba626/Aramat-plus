@@ -1,6 +1,6 @@
 import { Prisma, Role } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
-import { scopedStoreId } from "@/lib/rbac";
+import { scopedStoreId, isOwnerClass } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import {
@@ -133,7 +133,7 @@ export async function GET(req: Request) {
     if (
       view === "feed" &&
       !cursor &&
-      (user.role === Role.OWNER || user.role === Role.MANAGER)
+      (isOwnerClass(user.role) || user.role === Role.MANAGER)
     ) {
       const { getDashboardPayload } = await import(
         "@/lib/services/dashboard.service"

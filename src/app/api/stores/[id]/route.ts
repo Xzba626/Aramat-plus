@@ -2,6 +2,7 @@ import { getSessionUser } from "@/lib/session";
 import { requireOwnerOrManager, requireStoreAccess } from "@/lib/rbac";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { getStoreDetail } from "@/lib/services/stores-detail.service";
+import { stripFinanceForRole } from "@/lib/finance-visibility";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -14,7 +15,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     const scopeDenied = requireStoreAccess(user!, id);
     if (scopeDenied) return scopeDenied;
     const detail = await getStoreDetail(user!.companyId, id);
-    return jsonOk(detail);
+    return jsonOk(stripFinanceForRole(user!, detail));
   } catch (err) {
     return handleApiError(err);
   }

@@ -71,7 +71,8 @@ export function OwnerDashboardClient({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [hour, setHour] = useState(12);
   const [chartRange, setChartRange] = useState<"7d" | "30d">("7d");
-  const canDecide = userRole === Role.OWNER;
+  const canDecide = userRole === Role.OWNER || userRole === Role.ADMIN;
+  const canViewFinance = userRole === Role.OWNER || userRole === Role.ADMIN;
 
   const refreshStats = useCallback(async () => {
     const res = await fetch("/api/dashboard");
@@ -295,49 +296,70 @@ export function OwnerDashboardClient({
         </Link>
       </section>
 
-      {/* Today — finance funnel (same math as before, clearer layout) */}
+      {/* Today — finance funnel (Owner) or revenue-only (Manager) */}
       <section>
         <ZoneHeader title={t("dashboard.zoneToday")} />
-        <FinanceFunnel
-          scope="network"
-          revenue={today.revenue}
-          cogs={today.cogs ?? 0}
-          grossProfit={today.grossProfit ?? today.profit}
-          expenses={today.expenses ?? 0}
-          netProfit={today.netProfit ?? today.profit}
-          expenseLayers={{
-            packaging: today.packagingCost ?? 0,
-            operational: today.operationalExpenses ?? 0,
-          }}
-          storeExpenses={data.stores.map((s) => ({
-            id: s.id,
-            name: storeDisplayName(s),
-            expenses: s.expenses ?? 0,
-          }))}
-          revenueComparison={
-            hasSales
-              ? {
-                  today: today.revenue,
-                  yesterday: today.yesterday?.revenue ?? 0,
-                  diff: today.deltas.revenue.abs,
-                }
-              : null
-          }
-          grossComparison={
-            hasSales
-              ? {
-                  today: today.grossProfit ?? today.profit,
-                  yesterday: today.yesterday?.grossProfit ?? 0,
-                  diff: today.deltas.grossProfit.abs,
-                }
-              : null
-          }
-          netComparison={{
-            today: today.netProfit ?? today.profit,
-            yesterday: today.yesterday?.netProfit ?? 0,
-            diff: today.deltas.netProfit.abs,
-          }}
-        />
+        {canViewFinance ? (
+          <FinanceFunnel
+            scope="network"
+            revenue={today.revenue}
+            cogs={today.cogs ?? 0}
+            grossProfit={today.grossProfit ?? today.profit}
+            expenses={today.expenses ?? 0}
+            netProfit={today.netProfit ?? today.profit}
+            expenseLayers={{
+              packaging: today.packagingCost ?? 0,
+              operational: today.operationalExpenses ?? 0,
+            }}
+            storeExpenses={data.stores.map((s) => ({
+              id: s.id,
+              name: storeDisplayName(s),
+              expenses: s.expenses ?? 0,
+            }))}
+            revenueComparison={
+              hasSales
+                ? {
+                    today: today.revenue,
+                    yesterday: today.yesterday?.revenue ?? 0,
+                    diff: today.deltas.revenue.abs,
+                  }
+                : null
+            }
+            grossComparison={
+              hasSales
+                ? {
+                    today: today.grossProfit ?? today.profit,
+                    yesterday: today.yesterday?.grossProfit ?? 0,
+                    diff: today.deltas.grossProfit.abs,
+                  }
+                : null
+            }
+            netComparison={{
+              today: today.netProfit ?? today.profit,
+              yesterday: today.yesterday?.netProfit ?? 0,
+              diff: today.deltas.netProfit.abs,
+            }}
+          />
+        ) : (
+          <div className="mb-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl bg-card p-4 ring-1 ring-border">
+              <div className="text-xs text-muted">
+                {t("dashboard.revenueLabel")}
+              </div>
+              <div className="mt-1 text-2xl font-bold text-ink">
+                {formatMoney(today.revenue ?? 0, { short: true })}
+              </div>
+            </div>
+            <div className="rounded-2xl bg-card p-4 ring-1 ring-border">
+              <div className="text-xs text-muted">
+                {t("dashboard.expensesLabelToday")}
+              </div>
+              <div className="mt-1 text-2xl font-bold text-ink">
+                {formatMoney(today.expenses ?? 0, { short: true })}
+              </div>
+            </div>
+          </div>
+        )}
 
         <PaymentMethodBreakdown
           rows={today.paymentMethods ?? []}
@@ -478,7 +500,8 @@ export function OwnerDashboardClient({
         ) : null}
       </section>
 
-      {/* Profit by store — same numbers as funnel / network totals */}
+      {/* Profit by store — Owner finance only */}
+      {canViewFinance ? (
       <section>
         <ZoneHeader
           title={t("dashboard.funnelStoresTitle")}
@@ -505,6 +528,7 @@ export function OwnerDashboardClient({
           />
         )}
       </section>
+      ) : null}
 
       {/* Request center — decisions vs informational alerts */}
       <section id="decisions">

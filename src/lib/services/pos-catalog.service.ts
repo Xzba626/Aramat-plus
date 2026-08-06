@@ -23,8 +23,19 @@ export async function getPosCatalog(params: {
       kind: StoreKind.BRANCH,
       isActive: true,
     },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+    },
   });
   if (!store) throw new Error("SELLER_NO_STORE");
+  if (store.status === "INVENTORY") {
+    throw new Error("STORE_INVENTORY_IN_PROGRESS");
+  }
+  if (store.status === "CLOSED") {
+    throw new Error("STORE_CLOSED");
+  }
 
   // includeZero: keep sold-out cards visible (OUT state)
   const balances = await getStoreStock(store.id, { includeZero: true });

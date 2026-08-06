@@ -1,0 +1,275 @@
+{
+  "tag": "PRA_1786000416795",
+  "profile": "EXEC_SMALL",
+  "startedAt": "2026-08-06T07:13:36.795Z",
+  "finishedAt": "2026-08-06T07:45:13.870Z",
+  "summary": {
+    "pass": 32,
+    "fail": 0,
+    "notTested": 5
+  },
+  "rows": [
+    {
+      "module": "Scale",
+      "test": "SMALL_requested_5stores_500sku_5k_sales",
+      "result": "NOT_TESTED",
+      "evidence": "Requested SMALL not run end-to-end this pass; EXEC profile used for exact oracle (see Org/Sale rows). Prior Neon wall: ~18min for 210 sales."
+    },
+    {
+      "module": "Scale",
+      "test": "MEDIUM_20stores_5k_sku_100k_sales",
+      "result": "NOT_TESTED",
+      "evidence": "Not executed — Neon connection pool / wall-time risk"
+    },
+    {
+      "module": "Scale",
+      "test": "STRESS_50stores_10k_sku_1M_saleItems",
+      "result": "NOT_TESTED",
+      "evidence": "Not executed — requires dedicated Postgres + load lab"
+    },
+    {
+      "module": "Org",
+      "test": "bootstrap_stores_roles",
+      "result": "PASS",
+      "evidence": "stores=5 managers=5 sellers=20",
+      "count": 30
+    },
+    {
+      "module": "Org",
+      "test": "bootstrap_ms",
+      "result": "PASS",
+      "evidence": "26447ms"
+    },
+    {
+      "module": "Purchase",
+      "test": "dual_fifo_receive",
+      "result": "PASS",
+      "evidence": "piece=40×400 + weight=20×1000 ml; 94651ms",
+      "count": 60
+    },
+    {
+      "module": "Purchase",
+      "test": "wh_stock_oracle_sample",
+      "result": "PASS",
+      "evidence": "mismatches=0/10",
+      "count": 10
+    },
+    {
+      "module": "FIFO",
+      "test": "batch_immutable_vs_catalog",
+      "result": "PASS",
+      "evidence": "changed=0",
+      "count": 2
+    },
+    {
+      "module": "Transfer",
+      "test": "fifo_salePrice_slice",
+      "result": "PASS",
+      "evidence": "expected 40@100 got 40",
+      "count": 1
+    },
+    {
+      "module": "Transfer",
+      "test": "all_stores_moved",
+      "result": "PASS",
+      "evidence": "stores=5 sku=15 115170ms",
+      "count": 75
+    },
+    {
+      "module": "Oracle",
+      "test": "stock_after_transfer",
+      "result": "PASS",
+      "evidence": "mismatches=0/30",
+      "count": 30
+    },
+    {
+      "module": "Sale",
+      "test": "weight_5ml_customer_bottle",
+      "result": "PASS",
+      "evidence": "qty=5",
+      "count": 1
+    },
+    {
+      "module": "Sale",
+      "test": "weight_10ml_customer_bottle",
+      "result": "PASS",
+      "evidence": "qty=10",
+      "count": 1
+    },
+    {
+      "module": "Sale",
+      "test": "weight_25ml_customer_bottle",
+      "result": "PASS",
+      "evidence": "qty=25",
+      "count": 1
+    },
+    {
+      "module": "Sale",
+      "test": "weight_50ml_customer_bottle",
+      "result": "PASS",
+      "evidence": "qty=50",
+      "count": 1
+    },
+    {
+      "module": "FIFO",
+      "test": "exact_150_split_19500",
+      "result": "PASS",
+      "evidence": "120×100 150×50 rev=19500 cogs=13000",
+      "count": 1
+    },
+    {
+      "module": "Sale",
+      "test": "volume_by_role",
+      "result": "PASS",
+      "evidence": "seller=204 manager=100 owner=100 total=405 rev=66576 1568759ms",
+      "count": 405
+    },
+    {
+      "module": "Sale",
+      "test": "oversell_rejected",
+      "result": "PASS",
+      "evidence": "threw=true avail=0",
+      "count": 1
+    },
+    {
+      "module": "Concurrency",
+      "test": "race_8_on_stock_5",
+      "result": "PASS",
+      "evidence": "ok=5 fail=3 stock=0",
+      "count": 8
+    },
+    {
+      "module": "Return",
+      "test": "partial_approve",
+      "result": "PASS",
+      "evidence": "return=cmsh7mldk031bumkonag2407i",
+      "count": 1
+    },
+    {
+      "module": "Expense",
+      "test": "create_once",
+      "result": "PASS",
+      "evidence": "amount=500 id=cmsh7msmf031pumkokgdl84uc",
+      "count": 1
+    },
+    {
+      "module": "Revision",
+      "test": "H1_block_sale_during_inventory",
+      "result": "PASS",
+      "evidence": "STORE_INVENTORY_IN_PROGRESS",
+      "count": 1
+    },
+    {
+      "module": "Analytics",
+      "test": "tagged_saleItem_vs_oracle_revenue",
+      "result": "PASS",
+      "evidence": "oracle=66576 saleItems=66826 headers=66826",
+      "count": 411
+    },
+    {
+      "module": "Analytics",
+      "test": "tagged_saleItem_cogs",
+      "result": "PASS",
+      "evidence": "saleItemsCogs=33699 (oracle tracked=33649; returns may diverge)",
+      "count": 411
+    },
+    {
+      "module": "Analytics",
+      "test": "company_dashboard_equals_tagged_exact",
+      "result": "NOT_TESTED",
+      "evidence": "Shared company day mixes live sales; tagged SaleItem oracle used instead"
+    },
+    {
+      "module": "Oracle",
+      "test": "stock_final_sample",
+      "result": "PASS",
+      "evidence": "mismatches=0/50",
+      "count": 50
+    },
+    {
+      "module": "DataIntegrity",
+      "test": "empty_sale_headers",
+      "result": "PASS",
+      "evidence": "count=0",
+      "count": 0
+    },
+    {
+      "module": "DataIntegrity",
+      "test": "empty_transfer_headers",
+      "result": "PASS",
+      "evidence": "count=0",
+      "count": 0
+    },
+    {
+      "module": "DataIntegrity",
+      "test": "negative_stock",
+      "result": "PASS",
+      "evidence": "count=0",
+      "count": 0
+    },
+    {
+      "module": "RBAC",
+      "test": "seller_dashboard_forbidden",
+      "result": "PASS",
+      "evidence": "status=403",
+      "count": 1
+    },
+    {
+      "module": "RBAC",
+      "test": "seller_warehouse_forbidden",
+      "result": "PASS",
+      "evidence": "status=403",
+      "count": 1
+    },
+    {
+      "module": "RBAC",
+      "test": "manager_no_cogs_in_dashboard",
+      "result": "PASS",
+      "evidence": "status=200 leak=false",
+      "count": 1
+    },
+    {
+      "module": "RBAC",
+      "test": "manager_idor_foreign_store",
+      "result": "PASS",
+      "evidence": "status=403",
+      "count": 1
+    },
+    {
+      "module": "RBAC",
+      "test": "owner_sees_cogs",
+      "result": "PASS",
+      "evidence": "status=200 hasCogs=true",
+      "count": 1
+    },
+    {
+      "module": "RBAC",
+      "test": "manager_wipe_forbidden",
+      "result": "PASS",
+      "evidence": "status=403",
+      "count": 1
+    },
+    {
+      "module": "Frontend",
+      "test": "browser_full_screen_walk",
+      "result": "NOT_TESTED",
+      "evidence": "Browser MCP cannot reach host localhost; no Playwright suite"
+    },
+    {
+      "module": "Cleanup",
+      "test": "tagged_data_removed",
+      "result": "PASS",
+      "evidence": "PRA artifacts purged"
+    }
+  ],
+  "oracle": {
+    "revenue": 66576,
+    "cogs": 33649,
+    "sales": 405,
+    "payments": {
+      "CASH": 19324,
+      "CARD": 19265,
+      "TRANSFER": 8487
+    }
+  }
+}

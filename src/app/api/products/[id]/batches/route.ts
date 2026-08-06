@@ -1,10 +1,10 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager } from "@/lib/rbac";
+import { isOwnerClass, requireOwnerOrManager } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { batchSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity } from "@/lib/services/activity-log.service";
-import { BatchOrigin, LocationType, ProductKind, Role } from "@prisma/client";
+import { BatchOrigin, LocationType, ProductKind } from "@prisma/client";
 import { addBatch } from "@/lib/services/stock.service";
 import { getActiveSupplier } from "@/lib/services/supplier.service";
 import { Prisma } from "@prisma/client";
@@ -65,7 +65,7 @@ export async function POST(req: Request, ctx: Ctx) {
     const isPackaging = product.kind === ProductKind.PACKAGING;
     // Non-owners cannot set a new plan cost — force current planned cost
     let costPerUnit = body.costPerUnit;
-    if (isPackaging && user!.role !== Role.OWNER) {
+    if (isPackaging && !isOwnerClass(user!.role)) {
       costPerUnit =
         product.defaultCostPerUnit != null
           ? Number(product.defaultCostPerUnit)
@@ -120,7 +120,7 @@ export async function POST(req: Request, ctx: Ctx) {
       }
 
       // Last purchase price becomes current planned cost (OWNER receive only)
-      if (isPackaging && user!.role === Role.OWNER) {
+      if (isPackaging && isOwnerClass(user!.role)) {
         const plan = new Prisma.Decimal(costPerUnit.toString());
         await tx.product.update({
           where: { id },
@@ -150,7 +150,7 @@ export async function POST(req: Request, ctx: Ctx) {
           salePrice: batchSalePrice,
           supplierId: body.supplierId ?? null,
           supplierName,
-          planCostUpdated: isPackaging && user!.role === Role.OWNER,
+          planCostUpdated: isPackaging && isOwnerClass(user!.role),
         },
       });
 

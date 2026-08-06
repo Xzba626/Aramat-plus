@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Role } from "@prisma/client";
 import { useSession } from "next-auth/react";
+import { isOwnerClass } from "@/lib/rbac";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
@@ -150,7 +151,7 @@ export default function StoreDetailClient() {
   const tab = search.get("tab") || "overview";
   const { t, formatMoney, formatDate, formatDateTime } = useI18n();
   const { data: session } = useSession();
-  const isOwner = session?.user?.role === Role.OWNER;
+  const isOwner = isOwnerClass(session?.user?.role);
 
   const [store, setStore] = useState<StoreDetail | null>(null);
   const [error, setError] = useState("");

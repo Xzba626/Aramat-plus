@@ -1,11 +1,11 @@
 import { auth } from "@/lib/auth";
-import { Role } from "@prisma/client";
+import { isOwnerClass } from "@/lib/rbac";
 import { getWarehouseOverview } from "@/lib/services/warehouse.service";
 import { WarehouseOverviewClient } from "@/components/warehouse/warehouse-overview-client";
 
 export default async function WarehouseOverviewPage() {
   const session = await auth();
-  const showFinance = session!.user.role === Role.OWNER;
+  const showFinance = isOwnerClass(session!.user.role);
   const data = await getWarehouseOverview(session!.user.companyId, showFinance);
 
   return (

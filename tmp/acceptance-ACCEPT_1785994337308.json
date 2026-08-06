@@ -1,0 +1,260 @@
+{
+  "title": "SYSTEM ACCEPTANCE REPORT",
+  "tag": "ACCEPT_1785994337308",
+  "scale": "SMALL",
+  "finishedAt": "2026-08-06T05:49:49.269Z",
+  "coverage": {
+    "pass": 29,
+    "fail": 1,
+    "partial": 0,
+    "notTested": 5,
+    "total": 35
+  },
+  "oracle": {
+    "revenue": 29662,
+    "saleCount": 210,
+    "payments": {
+      "CASH": 10152,
+      "CARD": 9900,
+      "TRANSFER": 9510
+    }
+  },
+  "integrity": {
+    "before": {
+      "saleEmpty": 2,
+      "transferEmpty": 24,
+      "negBal": 0
+    },
+    "after": {
+      "saleEmpty": 2,
+      "transferEmpty": 24,
+      "negBal": 0
+    }
+  },
+  "perf": [
+    {
+      "name": "org_create",
+      "ms": 6866,
+      "meta": "stores=5 sellers=10"
+    },
+    {
+      "name": "catalog_receive",
+      "ms": 139765
+    },
+    {
+      "name": "transfers",
+      "ms": 143758
+    },
+    {
+      "name": "sales_loop",
+      "ms": 667491,
+      "meta": "sales≈210"
+    },
+    {
+      "name": "analytics_today",
+      "ms": 4751
+    }
+  ],
+  "checks": [
+    {
+      "id": "integrity.before",
+      "status": "PASS",
+      "detail": "emptySales=2 emptyTransfers=24 negBal=0"
+    },
+    {
+      "id": "org.owner",
+      "status": "PASS",
+      "detail": "owner=cmsd9m319000jjv04i8q3ldic"
+    },
+    {
+      "id": "org.create",
+      "status": "PASS",
+      "detail": "stores=5 managers=3 sellers=10",
+      "ms": 6866
+    },
+    {
+      "id": "catalog.receive_dual_fifo",
+      "status": "PASS",
+      "detail": "piece=50 weight=50",
+      "ms": 139765
+    },
+    {
+      "id": "reconcile.wh_sample10",
+      "status": "PASS",
+      "detail": "mismatches=0/10"
+    },
+    {
+      "id": "batch.immutable_on_catalog_price",
+      "status": "PASS",
+      "detail": "changed=0"
+    },
+    {
+      "id": "transfer.fifo_salePrice_slice",
+      "status": "PASS",
+      "detail": "expected 40@100 got 40"
+    },
+    {
+      "id": "sale.weight_1ml",
+      "status": "PASS",
+      "detail": "store=ACCEPT_1785994337308 Shop 1 rev=1.5"
+    },
+    {
+      "id": "sale.weight_5ml",
+      "status": "PASS",
+      "detail": "store=ACCEPT_1785994337308 Shop 1 rev=7.5"
+    },
+    {
+      "id": "sale.weight_50ml",
+      "status": "PASS",
+      "detail": "store=ACCEPT_1785994337308 Shop 1 rev=75"
+    },
+    {
+      "id": "sale.weight_1ml",
+      "status": "PASS",
+      "detail": "store=ACCEPT_1785994337308 Shop 2 rev=1.5"
+    },
+    {
+      "id": "sale.weight_5ml",
+      "status": "PASS",
+      "detail": "store=ACCEPT_1785994337308 Shop 2 rev=7.5"
+    },
+    {
+      "id": "sale.weight_50ml",
+      "status": "PASS",
+      "detail": "store=ACCEPT_1785994337308 Shop 2 rev=75"
+    },
+    {
+      "id": "sale.weight_1ml",
+      "status": "PASS",
+      "detail": "store=ACCEPT_1785994337308 Shop 3 rev=1.5"
+    },
+    {
+      "id": "sale.weight_5ml",
+      "status": "PASS",
+      "detail": "store=ACCEPT_1785994337308 Shop 3 rev=7.5"
+    },
+    {
+      "id": "sale.weight_50ml",
+      "status": "PASS",
+      "detail": "store=ACCEPT_1785994337308 Shop 3 rev=75"
+    },
+    {
+      "id": "sale.ignore_client_price",
+      "status": "PASS",
+      "detail": "got=100"
+    },
+    {
+      "id": "sales.volume",
+      "status": "PASS",
+      "detail": "oracleSales=210 revenue=29662"
+    },
+    {
+      "id": "sale.oversell_atomic",
+      "status": "PASS",
+      "detail": "threw=true"
+    },
+    {
+      "id": "sale.concurrent_last5",
+      "status": "PASS",
+      "detail": "ok=1 fail=1 stock=0 runners=2"
+    },
+    {
+      "id": "expense.create_once",
+      "status": "PASS",
+      "detail": "amount=250 id=cmsh3i36d02anumfwxp77qwri"
+    },
+    {
+      "id": "return.partial_approve",
+      "status": "PASS",
+      "detail": "return=cmsh3i64v02arumfw5834a32d"
+    },
+    {
+      "id": "revision.blind_in_progress_owner",
+      "status": "PASS",
+      "detail": "blind=true"
+    },
+    {
+      "id": "revision.H1_sale_during_inventory",
+      "status": "FAIL",
+      "detail": "sale allowed"
+    },
+    {
+      "id": "revision.pending_shows_system_fact_diff",
+      "status": "PASS",
+      "detail": "blind=false items=21"
+    },
+    {
+      "id": "analytics.today_vs_oracle_revenue",
+      "status": "PASS",
+      "detail": "analytics=30247 oracle=29662",
+      "ms": 4751
+    },
+    {
+      "id": "dashboard.load",
+      "status": "PASS",
+      "detail": "today=30247"
+    },
+    {
+      "id": "reconcile.oracle_stock_sample",
+      "status": "PASS",
+      "detail": "mismatches=0/40"
+    },
+    {
+      "id": "http.rbac_suite",
+      "status": "NOT_TESTED",
+      "detail": "fetch failed"
+    },
+    {
+      "id": "frontend.all_screens_browser",
+      "status": "NOT_TESTED",
+      "detail": "Browser MCP cannot reach host localhost; no Playwright suite in this run"
+    },
+    {
+      "id": "scale.full_20_stores_500_sku_10k_sales",
+      "status": "NOT_TESTED",
+      "detail": "ACCEPT_SCALE=medium not executed in this report pass"
+    },
+    {
+      "id": "discount.vs_fifo_edge",
+      "status": "NOT_TESTED",
+      "detail": "Requires discount-request approve then FIFO subtotal lower than estimate"
+    },
+    {
+      "id": "network.offline_mid_sale",
+      "status": "NOT_TESTED",
+      "detail": "Needs browser/network fault injection"
+    },
+    {
+      "id": "integrity.after",
+      "status": "PASS",
+      "detail": "emptySales=2 emptyTransfers=24 negBal=0"
+    },
+    {
+      "id": "cleanup",
+      "status": "PASS",
+      "detail": "tagged data removed"
+    }
+  ],
+  "defects": [
+    {
+      "id": "DATA-EMPTY-HEADERS",
+      "severity": "MEDIUM",
+      "module": "DataIntegrity",
+      "scenario": "Pre-existing empty Sale/Transfer headers",
+      "expected": "0 empty headers (or proven seed-only)",
+      "actual": "sales=2 transfers=24",
+      "reproduction": "count Sale/Transfer with no items",
+      "evidence": "ACCEPT_1785994337308"
+    },
+    {
+      "id": "H1-SALE-DURING-INVENTORY",
+      "severity": "HIGH",
+      "module": "Revision/Sale",
+      "scenario": "Sale while INVENTORY",
+      "expected": "reject",
+      "actual": "sale succeeded",
+      "reproduction": "start revision → createSale",
+      "evidence": "cmsh3icl202b4umfwgvpcrt7e"
+    }
+  ]
+}

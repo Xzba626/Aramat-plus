@@ -1,6 +1,6 @@
 import { Role, ReturnReasonCode } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager, scopedStoreId } from "@/lib/rbac";
+import { isOwnerClass, requireOwnerOrManager, scopedStoreId } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
 import {
   createSaleReturn,
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
 
     if (
       user.role !== Role.SELLER &&
-      user.role !== Role.OWNER &&
+      !isOwnerClass(user.role) &&
       user.role !== Role.MANAGER
     ) {
       return handleApiError(new Error("UNAUTHORIZED"));

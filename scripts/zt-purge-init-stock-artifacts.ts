@@ -11,11 +11,12 @@ async function main() {
   const ids = names.map((x) => x.id);
   if (ids.length) {
     await prisma.notification.deleteMany({ where: { entityId: { in: ids } } });
-    await prisma.transferItem.deleteMany({ where: { productId: { in: ids } } });
+    // Find transfers BEFORE deleting items (otherwise headers become orphan empty).
     const tr = await prisma.transfer.findMany({
       where: { items: { some: { productId: { in: ids } } } },
       select: { id: true },
     });
+    await prisma.transferItem.deleteMany({ where: { productId: { in: ids } } });
     await prisma.stockBalance.deleteMany({ where: { productId: { in: ids } } });
     await prisma.batch.deleteMany({ where: { productId: { in: ids } } });
     await prisma.activityLog.deleteMany({

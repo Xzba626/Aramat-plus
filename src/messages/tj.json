@@ -58,6 +58,8 @@
     "PRODUCT_TYPE_NOT_FOUND": "Намуди мол ёфт нашуд",
     "BRAND_NOT_FOUND": "Бренд ёфт нашуд",
     "STORE_NOT_FOUND": "Мағоза ёфт нашуд",
+    "STORE_INVENTORY_IN_PROGRESS": "Дар мағоза инвентаризатсия идома дорад. Фурӯш муваққатан дастнорас аст.",
+    "STORE_CLOSED": "Мағоза баста аст. Фурӯш дастнорас аст.",
     "SUPPLIER_NOT_FOUND": "Таъминкунанда ёфт нашуд",
     "USER_NOT_FOUND": "Корбар ёфт нашуд",
     "WRONG_PASSWORD": "Рамзи ҳозира нодуруст",

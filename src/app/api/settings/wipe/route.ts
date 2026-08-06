@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwner } from "@/lib/rbac";
+import { requireRole } from "@/lib/rbac";
+import { Role } from "@prisma/client";
 import { jsonOk, handleApiError } from "@/lib/api";
 import {
   CRM_WIPE_PHRASE,
@@ -18,7 +19,8 @@ const wipeSchema = z.object({
 export async function GET() {
   try {
     const user = await getSessionUser();
-    const denied = requireOwner(user);
+    // Destructive wipe: OWNER only (ADMIN cannot wipe).
+    const denied = requireRole(user, [Role.OWNER]);
     if (denied) return denied;
     const meta = await getWipeMasterMeta(user!.companyId);
     return jsonOk({
@@ -60,7 +62,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
-    const denied = requireOwner(user);
+    const denied = requireRole(user, [Role.OWNER]);
     if (denied) return denied;
 
     const body = wipeSchema.parse(await req.json());

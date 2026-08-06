@@ -4,6 +4,16 @@
  */
 import bcrypt from "bcryptjs";
 import { PrismaClient, Role } from "@prisma/client";
+import {
+  SEED_ADMIN_EMAIL,
+  SEED_ADMIN_PASSWORD,
+  SEED_MANAGER_EMAIL,
+  SEED_MANAGER_PASSWORD,
+  SEED_OWNER_EMAIL,
+  SEED_OWNER_PASSWORD,
+  SEED_SELLER_EMAIL,
+  SEED_SELLER_PASSWORD,
+} from "../src/lib/seed-defaults";
 
 const prisma = new PrismaClient();
 
@@ -56,25 +66,32 @@ async function main() {
   });
 
   await upsertUser({
-    email: "owner@aromat.plus",
+    email: SEED_OWNER_EMAIL,
     name: "Владелец",
     role: Role.OWNER,
-    password: "owner1234",
+    password: SEED_OWNER_PASSWORD,
     companyId: company.id,
   });
   await upsertUser({
-    email: "manager@aromat.plus",
+    email: SEED_ADMIN_EMAIL,
+    name: "Администратор",
+    role: Role.ADMIN,
+    password: SEED_ADMIN_PASSWORD,
+    companyId: company.id,
+  });
+  await upsertUser({
+    email: SEED_MANAGER_EMAIL,
     name: "Менеджер",
     role: Role.MANAGER,
-    password: "manager1234",
+    password: SEED_MANAGER_PASSWORD,
     companyId: company.id,
     storeId: store?.id ?? null,
   });
   await upsertUser({
-    email: "seller@aromat.plus",
-    name: "Фарход",
+    email: SEED_SELLER_EMAIL,
+    name: "Продавец",
     role: Role.SELLER,
-    password: "seller1234",
+    password: SEED_SELLER_PASSWORD,
     companyId: company.id,
     storeId: store?.id ?? null,
   });

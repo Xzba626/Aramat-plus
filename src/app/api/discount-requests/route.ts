@@ -2,6 +2,7 @@ import { Role } from "@prisma/client";
 import { z } from "zod";
 import { getSessionUser } from "@/lib/session";
 import {
+  isOwnerClass,
   requireOwnerOrManager,
   requireStoreAccess,
   scopedStoreId,
@@ -92,7 +93,7 @@ export async function POST(req: Request) {
     if (!user) return handleApiError(new Error("UNAUTHORIZED"));
     if (
       user.role !== Role.SELLER &&
-      user.role !== Role.OWNER &&
+      !isOwnerClass(user.role) &&
       user.role !== Role.MANAGER
     ) {
       return handleApiError(new Error("FORBIDDEN"));

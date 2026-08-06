@@ -683,7 +683,7 @@ export async function getStoreRevisions(
     take: 100,
   });
 
-  const isOwner = viewerRole === Role.OWNER;
+  const isOwner = viewerRole === Role.OWNER || viewerRole === Role.ADMIN;
 
   return sessions.map((s) => {
     const base = {

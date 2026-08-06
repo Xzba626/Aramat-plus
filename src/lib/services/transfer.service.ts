@@ -51,6 +51,7 @@ export async function executeWarehouseToStoreTransferInTx(
     },
   });
 
+  let itemCount = 0;
   for (const line of params.items) {
     const qty = new Prisma.Decimal(line.quantity);
     if (qty.lte(0)) throw new Error("QTY_MUST_BE_POSITIVE");
@@ -75,6 +76,7 @@ export async function executeWarehouseToStoreTransferInTx(
     });
 
     for (const slice of consumed) {
+      itemCount++;
       const item = await tx.transferItem.create({
         data: {
           transferId: transfer.id,
@@ -100,6 +102,10 @@ export async function executeWarehouseToStoreTransferInTx(
         createdById: params.createdById,
       });
     }
+  }
+
+  if (itemCount === 0) {
+    throw new Error("EMPTY_CART");
   }
 
   await logActivity({
@@ -329,6 +335,7 @@ export async function createStoreTransfer(params: {
         },
       });
 
+      let itemCount = 0;
       for (const line of params.items) {
         const qty = new Prisma.Decimal(line.quantity);
         if (qty.lte(0)) throw new Error("QTY_MUST_BE_POSITIVE");
@@ -350,6 +357,7 @@ export async function createStoreTransfer(params: {
         });
 
         for (const slice of consumed) {
+          itemCount++;
           const item = await tx.transferItem.create({
             data: {
               transferId: transfer.id,
@@ -373,6 +381,10 @@ export async function createStoreTransfer(params: {
             createdById: params.createdById,
           });
         }
+      }
+
+      if (itemCount === 0) {
+        throw new Error("EMPTY_CART");
       }
 
       await logActivity({

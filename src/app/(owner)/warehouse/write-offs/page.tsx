@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Role } from "@prisma/client";
+import { isOwnerClass } from "@/lib/rbac";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel } from "@/components/ui/card";
@@ -47,7 +48,7 @@ export default function WriteOffsPage() {
   const { toast } = useToast();
   const { t, formatDateTime, formatMoney } = useI18n();
   const { data: session } = useSession();
-  const isOwner = session?.user?.role === Role.OWNER;
+  const isOwner = isOwnerClass(session?.user?.role);
   const [rows, setRows] = useState<WriteOffRow[]>([]);
   const [stock, setStock] = useState<StockItem[]>([]);
   const [productId, setProductId] = useState("");

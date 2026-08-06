@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Role } from "@prisma/client";
+import { isOwnerClass } from "@/lib/rbac";
 import { PageHeader } from "@/components/ui/page-header";
 import { getProductImageUrl } from "@/lib/product-image-url";
 import { Button } from "@/components/ui/button";
@@ -45,7 +46,7 @@ export default function ProductDetailPage() {
   const search = useSearchParams();
   const { data: session } = useSession();
   const { t, formatMoney, formatDateTime } = useI18n();
-  const isOwner = session?.user?.role === Role.OWNER;
+  const isOwner = isOwnerClass(session?.user?.role);
   const showCost = isOwner || session?.user?.role === Role.MANAGER;
   const [product, setProduct] = useState<Product | null>(null);
   const [error, setError] = useState("");

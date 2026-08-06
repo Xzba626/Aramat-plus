@@ -58,6 +58,8 @@
     "PRODUCT_TYPE_NOT_FOUND": "Тип товара не найден",
     "BRAND_NOT_FOUND": "Бренд не найден",
     "STORE_NOT_FOUND": "Магазин не найден",
+    "STORE_INVENTORY_IN_PROGRESS": "В магазине идёт инвентаризация. Продажи временно недоступны.",
+    "STORE_CLOSED": "Магазин закрыт. Продажи недоступны.",
     "SUPPLIER_NOT_FOUND": "Поставщик не найден",
     "USER_NOT_FOUND": "Пользователь не найден",
     "WRONG_PASSWORD": "Неверный текущий пароль",

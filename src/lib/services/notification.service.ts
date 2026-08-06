@@ -1,7 +1,8 @@
 import { NotificationType, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { OWNER_ROLES } from "@/lib/rbac";
 
-/** Notify all active owners (and optionally managers) in a company. */
+/** Notify all active owners/admins (and optionally managers) in a company. */
 export async function notifyCompanyRoles(params: {
   companyId: string;
   roles?: Role[];
@@ -11,7 +12,7 @@ export async function notifyCompanyRoles(params: {
   entityType?: string;
   entityId?: string;
 }) {
-  const roles = params.roles ?? [Role.OWNER];
+  const roles = params.roles ?? OWNER_ROLES;
   const users = await prisma.user.findMany({
     where: {
       companyId: params.companyId,

@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
+import { isOwnerClass } from "@/lib/rbac";
 
 type DiscountRow = {
   id: string;
@@ -49,7 +50,7 @@ type ProductOption = { id: string; name: string };
 export default function DiscountsPage() {
   const { t, formatMoney, formatDateTime } = useI18n();
   const { data: session } = useSession();
-  const canDecide = session?.user?.role === Role.OWNER;
+  const canDecide = isOwnerClass(session?.user?.role);
 
   const [tab, setTab] = useState<Tab>("pending");
   const [rows, setRows] = useState<DiscountRow[]>([]);

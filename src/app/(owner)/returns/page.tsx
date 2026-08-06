@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { DashboardPayload } from "@/lib/services/dashboard.service";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { isOwnerClass } from "@/lib/rbac";
 import { apiErrorMessage } from "@/lib/i18n/labels";
 
 type Decision = DashboardPayload["decisions"][number];
@@ -32,7 +33,7 @@ type HistoryRow = {
 export default function ReturnsPage() {
   const { t, formatMoney, formatDateTime } = useI18n();
   const { data: session } = useSession();
-  const canDecide = session?.user?.role === Role.OWNER;
+  const canDecide = isOwnerClass(session?.user?.role);
   const [tab, setTab] = useState<Tab>("pending");
   const [pending, setPending] = useState<Decision[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
