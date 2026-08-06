@@ -10,6 +10,7 @@ import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
 import { ProductCard } from "@/components/products/product-card";
 import { ProductThumb } from "@/components/products/product-thumb";
+import { resolveProductImageUrl } from "@/lib/product-image";
 import { formatProductName } from "@/lib/i18n/product-label";
 
 type StockItem = {
