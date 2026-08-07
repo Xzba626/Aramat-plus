@@ -112,16 +112,16 @@ export async function deductBatchesFifo(
   // One round-trip: apply all batch qty changes + atomic balance decrement
   {
     const valueRows = consumed.map(
-      (c) => Prisma.sql`(${c.batchId}::text, ${c.nextQty}::numeric)`
+      (c) => Prisma.sql`(${c.batchId}::text, ${c.quantity}::numeric)`
     );
     const bal = await tx.$executeRaw`
       WITH batch_upd AS (
         UPDATE "Batch" AS b
         SET
-          quantity = v.qty,
+          quantity = b.quantity - v.take,
           "updatedAt" = CURRENT_TIMESTAMP
-        FROM (VALUES ${Prisma.join(valueRows)}) AS v(id, qty)
-        WHERE b.id = v.id
+        FROM (VALUES ${Prisma.join(valueRows)}) AS v(id, take)
+        WHERE b.id = v.id AND b.quantity >= v.take
         RETURNING b.id
       )
       UPDATE "StockBalance"
@@ -133,7 +133,7 @@ export async function deductBatchesFifo(
         AND "locationType" = CAST(${params.locationType} AS "LocationType")
         AND "locationId" = ${params.locationId}
         AND quantity >= ${need}
-        AND EXISTS (SELECT 1 FROM batch_upd)
+        AND (SELECT COUNT(*)::int FROM batch_upd) = ${consumed.length}
     `;
     if (Number(bal) === 0) {
       throw new Error("INSUFFICIENT_STOCK");

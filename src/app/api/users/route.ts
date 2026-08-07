@@ -1,3 +1,4 @@
+import { Role } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
 import { requireOwner, requireOwnerOrManager } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
@@ -5,6 +6,18 @@ import { userCreateSchema, userUpdateSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity } from "@/lib/services/activity-log.service";
 import bcrypt from "bcryptjs";
+
+/** Only true OWNER may create/manage ADMIN accounts. Never assign OWNER via API. */
+function assertAssignableRole(
+  actorRole: Role,
+  targetRole: Role | undefined
+): void {
+  if (!targetRole) return;
+  if (targetRole === Role.OWNER) throw new Error("FORBIDDEN");
+  if (targetRole === Role.ADMIN && actorRole !== Role.OWNER) {
+    throw new Error("FORBIDDEN");
+  }
+}
 
 export async function GET(req: Request) {
   try {
@@ -47,6 +60,7 @@ export async function POST(req: Request) {
     if (denied) return denied;
 
     const body = userCreateSchema.parse(await req.json());
+    assertAssignableRole(user!.role, body.role);
     // Sellers may be created without a store, then assigned from store card / users page.
     if (body.storeId) {
       const store = await prisma.store.findFirst({
@@ -108,6 +122,21 @@ export async function PATCH(req: Request) {
       where: { id, companyId: user!.companyId },
     });
     if (!existing) return handleApiError(new Error("USER_NOT_FOUND"));
+
+    // ADMIN cannot mutate OWNER accounts; only OWNER may change ADMIN role/password/status
+    if (existing.role === Role.OWNER && user!.role !== Role.OWNER) {
+      return handleApiError(new Error("FORBIDDEN"));
+    }
+    if (
+      existing.role === Role.ADMIN &&
+      user!.role !== Role.OWNER &&
+      (body.role !== undefined ||
+        body.password !== undefined ||
+        body.isActive !== undefined)
+    ) {
+      return handleApiError(new Error("FORBIDDEN"));
+    }
+    assertAssignableRole(user!.role, body.role);
 
     if (body.storeId) {
       const store = await prisma.store.findFirst({

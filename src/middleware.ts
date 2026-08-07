@@ -34,6 +34,24 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
+  // Same-origin check for cookie-authenticated mutations (CSRF mitigation)
+  if (
+    pathname.startsWith("/api/") &&
+    ["POST", "PUT", "PATCH", "DELETE"].includes(req.method)
+  ) {
+    const origin = req.headers.get("origin");
+    const host = req.headers.get("host");
+    if (origin && host) {
+      try {
+        if (new URL(origin).host !== host) {
+          return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+        }
+      } catch {
+        return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+      }
+    }
+  }
+
   if (publicPaths.some((p) => pathname.startsWith(p))) {
     if (isLoggedIn && role) {
       return NextResponse.redirect(new URL(homePathForRole(role), req.url));

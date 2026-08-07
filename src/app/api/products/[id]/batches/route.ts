@@ -31,6 +31,14 @@ export async function GET(_req: Request, ctx: Ctx) {
       },
       orderBy: { receivedAt: "desc" },
     });
+    if (!isOwnerClass(user!.role)) {
+      return jsonOk(
+        batches.map(({ costPerUnit: _c, ...b }) => ({
+          ...b,
+          costPerUnit: null,
+        }))
+      );
+    }
     return jsonOk(batches);
   } catch (err) {
     return handleApiError(err);

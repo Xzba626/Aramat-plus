@@ -232,10 +232,13 @@ export const usePosCart = create<PosCartState>()(
         ) {
           return;
         }
-        // Switch namespace — previous cart already persisted via zustand set()
+        /**
+         * Switch IDB/localStorage namespace, then rehydrate.
+         * Do NOT write emptyCart before rehydrate — that overwrote the
+         * namespaced cart and caused empty /pos/cart after remount.
+         */
         cartNamespace = nextNs;
         set({
-          ...emptyCart,
           sellerId,
           storeId,
           _hasHydrated: false,

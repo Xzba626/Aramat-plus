@@ -51,6 +51,10 @@ export async function createSaleReturn(params: {
     if (sale.sellerId !== requester.id) {
       throw new Error("FORBIDDEN");
     }
+  } else if (requester.role === "MANAGER") {
+    if (!requester.storeId || sale.storeId !== requester.storeId) {
+      throw new Error("FORBIDDEN");
+    }
   }
 
   const existing = await prisma.saleReturn.findFirst({

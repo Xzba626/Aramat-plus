@@ -104,13 +104,14 @@ export default function WriteOffsPage() {
         title={t("wh.writeOffTitle")}
         subtitle={t("wh.actionWriteOff")}
       >
-        <EmptyState title={`${t("roles.owner")} only`} />
+        <EmptyState title={t("roles.ownerOnly")} />
       </ModuleWorkspace>
     );
   }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (busy) return;
     const fd = new FormData(e.currentTarget);
     const pid = String(fd.get("productId") || productId);
     const qty = Number(fd.get("qty"));
@@ -120,12 +121,17 @@ export default function WriteOffsPage() {
 
     setBusy(true);
     setError("");
+    const idempotencyKey =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `wo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const res = await fetch("/api/warehouse/write-offs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         reasonCode: reasonCode,
         comment: comment || null,
+        idempotencyKey,
         items: [{ productId: pid, quantity: qty }],
       }),
     });

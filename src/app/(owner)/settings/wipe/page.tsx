@@ -24,6 +24,7 @@ export default function SettingsWipePage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [masterConfigured, setMasterConfigured] = useState(false);
   const [masterHint, setMasterHint] = useState<string | null>(null);
 
@@ -71,6 +72,9 @@ export default function SettingsWipePage() {
       setError(apiErrorMessage(data.error, t));
       return;
     }
+    if (typeof data.temporaryPassword === "string") {
+      setTempPassword(data.temporaryPassword);
+    }
     setDone(true);
     router.refresh();
   }
@@ -89,6 +93,17 @@ export default function SettingsWipePage() {
           <Card className="border-success/30 bg-success/5 p-5">
             <p className="font-semibold text-success">{t("wipe.done")}</p>
             <p className="mt-2 text-sm text-muted">{t("wipe.doneHint")}</p>
+            {tempPassword ? (
+              <div className="mt-3 rounded-xl border border-border bg-card p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                  {t("wipe.tempPasswordLabel")}
+                </p>
+                <p className="mt-1 break-all font-mono text-sm text-ink">
+                  {tempPassword}
+                </p>
+                <p className="mt-2 text-xs text-danger">{t("wipe.tempPasswordHint")}</p>
+              </div>
+            ) : null}
             <Link href="/dashboard" className="mt-4 inline-block text-sm font-semibold text-brand">
               {t("common.home")}
             </Link>

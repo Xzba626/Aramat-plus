@@ -11,6 +11,7 @@ import {
 const createSchema = z.object({
   reasonCode: z.nativeEnum(WriteOffReasonCode),
   comment: z.string().max(500).optional().nullable(),
+  idempotencyKey: z.string().max(80).optional().nullable(),
   /** @deprecated use reasonCode */
   reason: z.string().max(500).optional(),
   items: z
@@ -57,6 +58,7 @@ export async function POST(req: Request) {
       createdById: user!.id,
       reasonCode,
       comment: body.comment ?? body.reason,
+      idempotencyKey: body.idempotencyKey,
       items: body.items,
     });
     return jsonOk(result, 201);

@@ -16,6 +16,12 @@ import {
   resolveClientLocation,
 } from "@/lib/security/client-location";
 import { notifyIfNewLogin } from "@/lib/services/security-notify.service";
+import {
+  accountLockDurationMs,
+  clearIpLoginFailures,
+  isIpLoginBlocked,
+  recordIpLoginFailure,
+} from "@/lib/security/login-rate-limit";
 
 declare module "next-auth" {
   interface User {
@@ -50,15 +56,6 @@ const credentialsSchema = z.object({
   /** Client-supplied UA backup when Next headers() is empty in authorize(). */
   userAgent: z.string().max(800).optional(),
 });
-
-/** Progressive lockout after consecutive failures: 30s → 1m → 5m → 15m. */
-function lockDurationMs(failCount: number): number | null {
-  if (failCount < 3) return null;
-  if (failCount < 6) return 30_000;
-  if (failCount < 9) return 60_000;
-  if (failCount < 12) return 5 * 60_000;
-  return 15 * 60_000;
-}
 
 const STORE_REFRESH_MS = 15_000;
 
@@ -159,11 +156,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const deviceMeta = deviceMetaForLog(deviceInfo);
         const locationMeta = location ? locationMetaForLog(location) : {};
 
+        if (isIpLoginBlocked(ip)) {
+          await logActivity({
+            companyId: null,
+            userId: null,
+            action: "LOGIN_LOCKED",
+            entityType: "User",
+            entityId: null,
+            comment: "ip_rate_limited",
+            result: "FAIL",
+            ip,
+            userAgent,
+            metadata: { email, ...deviceMeta, ...locationMeta },
+          });
+          return null;
+        }
+
         const user = await prisma.user.findUnique({
           where: { email },
         });
 
         if (!user || !user.isActive) {
+          recordIpLoginFailure(ip);
           await logActivity({
             companyId: user?.companyId ?? null,
             userId: user?.id ?? null,
@@ -186,6 +200,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         if (user.lockedUntil && user.lockedUntil > new Date()) {
+          recordIpLoginFailure(ip);
           await logActivity({
             companyId: user.companyId,
             userId: user.id,
@@ -211,8 +226,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const ok = await bcrypt.compare(parsed.data.password, user.passwordHash);
         if (!ok) {
+          recordIpLoginFailure(ip);
           const failCount = user.failedLoginCount + 1;
-          const lockMs = lockDurationMs(failCount);
+          const lockMs = accountLockDurationMs(failCount);
           const lockedUntil = lockMs
             ? new Date(Date.now() + lockMs)
             : null;
@@ -245,9 +261,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               ...locationMeta,
             },
           });
+
+          if (lockMs) {
+            const { notifyOwnersOfSuspiciousLogin } = await import(
+              "@/lib/services/security-notify.service"
+            );
+            void notifyOwnersOfSuspiciousLogin({
+              companyId: user.companyId,
+              email,
+              failCount,
+              ip,
+              userAgent,
+            }).catch(() => undefined);
+          }
           return null;
         }
 
+        clearIpLoginFailures(ip);
         await prisma.user.update({
           where: { id: user.id },
           data: {

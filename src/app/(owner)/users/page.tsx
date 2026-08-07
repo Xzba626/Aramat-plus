@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel, SectionTitle } from "@/components/ui/card";
@@ -21,6 +22,8 @@ type Store = { id: string; name: string; kind?: string };
 
 export default function UsersPage() {
   const t = useT();
+  const { data: session } = useSession();
+  const canCreateAdmin = session?.user?.role === "OWNER";
   const [users, setUsers] = useState<UserRow[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [error, setError] = useState("");
@@ -194,7 +197,7 @@ export default function UsersPage() {
                 name="password"
                 type="password"
                 required
-                minLength={4}
+                minLength={8}
                 className="w-full"
               />
             </div>
@@ -203,7 +206,9 @@ export default function UsersPage() {
               <select name="role" className="w-full" defaultValue="SELLER">
                 <option value="SELLER">{t("roles.seller")}</option>
                 <option value="MANAGER">{t("roles.manager")}</option>
-                <option value="OWNER">{t("roles.owner")}</option>
+                {canCreateAdmin ? (
+                  <option value="ADMIN">{t("roles.admin")}</option>
+                ) : null}
               </select>
             </div>
             <div>
@@ -240,6 +245,7 @@ export default function UsersPage() {
         >
           <option value="ALL">{t("usersPage.allRoles")}</option>
           <option value="OWNER">{t("roles.owner")}</option>
+          <option value="ADMIN">{t("roles.admin")}</option>
           <option value="MANAGER">{t("roles.manager")}</option>
           <option value="SELLER">{t("roles.seller")}</option>
         </select>
@@ -308,7 +314,7 @@ export default function UsersPage() {
                     type="password"
                     value={resetPass}
                     onChange={(e) => setResetPass(e.target.value)}
-                    minLength={4}
+                    minLength={8}
                     required
                     className="w-full"
                   />

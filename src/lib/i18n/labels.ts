@@ -2,6 +2,7 @@
 
 export const ROLE_KEYS = {
   OWNER: "roles.owner",
+  ADMIN: "roles.admin",
   MANAGER: "roles.manager",
   SELLER: "roles.seller",
 } as const;

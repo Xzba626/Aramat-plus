@@ -100,3 +100,45 @@ export async function notifyPasswordReset(userId: string) {
     entityId: userId,
   });
 }
+
+/** Alert OWNER/ADMIN when an account hits progressive lockout. */
+export async function notifyOwnersOfSuspiciousLogin(params: {
+  companyId: string;
+  email: string;
+  failCount: number;
+  ip: string | null;
+  userAgent: string | null;
+}) {
+  const owners = await prisma.user.findMany({
+    where: {
+      companyId: params.companyId,
+      isActive: true,
+      role: { in: ["OWNER", "ADMIN"] },
+    },
+    select: { id: true },
+  });
+  if (!owners.length) return;
+
+  const info = parseUserAgent(params.userAgent);
+  const message = [
+    params.email,
+    `fails: ${params.failCount}`,
+    info.browser,
+    info.os,
+    `IP: ${formatIpForStorage(params.ip)}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  await Promise.all(
+    owners.map((o) =>
+      notifyUser({
+        userId: o.id,
+        type: NotificationType.SYSTEM,
+        title: "notif.suspiciousLogin",
+        message,
+        entityType: "User",
+      })
+    )
+  );
+}

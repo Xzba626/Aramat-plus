@@ -153,25 +153,42 @@ async function upsertUser(params: {
   companyId: string;
   storeId: string | null;
 }) {
-  const passwordHash = await bcrypt.hash(params.password, 10);
+  const forcePasswords = process.env.FORCE_SEED_PASSWORDS === "1";
   const existing = await prisma.user.findUnique({
     where: { email: params.email },
   });
   if (existing) {
+    const data: {
+      name: string;
+      role: Role;
+      companyId: string;
+      storeId: string | null;
+      isActive: boolean;
+      passwordHash?: string;
+    } = {
+      name: params.name,
+      role: params.role,
+      companyId: params.companyId,
+      storeId: params.storeId,
+      isActive: true,
+    };
+    // Never reset live passwords unless explicitly forced (ops recovery only).
+    if (forcePasswords) {
+      data.passwordHash = await bcrypt.hash(params.password, 10);
+    }
     await prisma.user.update({
       where: { id: existing.id },
-      data: {
-        name: params.name,
-        role: params.role,
-        passwordHash,
-        companyId: params.companyId,
-        storeId: params.storeId,
-        isActive: true,
-      },
+      data,
     });
-    console.log("updated user", params.email, params.role);
+    console.log(
+      "updated user",
+      params.email,
+      params.role,
+      forcePasswords ? "(password reset)" : "(password preserved)"
+    );
     return;
   }
+  const passwordHash = await bcrypt.hash(params.password, 10);
   await prisma.user.create({
     data: {
       email: params.email,

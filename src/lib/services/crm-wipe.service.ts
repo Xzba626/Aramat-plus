@@ -1,13 +1,10 @@
 import { Prisma, Role, StoreKind } from "@prisma/client";
+import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { verifyWipeMasterPassword } from "@/lib/services/wipe-master.service";
-import {
-  SEED_OWNER_EMAIL,
-  SEED_OWNER_NAME,
-  SEED_OWNER_PASSWORD,
-} from "@/lib/seed-defaults";
+import { SEED_OWNER_EMAIL, SEED_OWNER_NAME } from "@/lib/seed-defaults";
 import { ensureOwnerDirectStore } from "@/lib/services/owner-direct.service";
 
 export const CRM_WIPE_PHRASE = "WIPE";
@@ -16,8 +13,8 @@ type Tx = Prisma.TransactionClient;
 
 /**
  * Owner-only CRM wipe.
- * KEEP: Company, Owner account (reset to seed creds), Warehouse shell,
- *        Setting, Unit/ProductType/OperationType/ExpenseType.
+ * KEEP: Company, Owner account (email/name reset; password = one-time random),
+ *        Warehouse shell, Setting, Unit/ProductType/OperationType/ExpenseType.
  * WIPE: all operational + catalog data, ALL stores (incl. OWNER_DIRECT),
  *        non-owner users, journals (then one wipe confirmation row).
  */
@@ -47,7 +44,9 @@ export async function wipeCompanyOperationalData(params: {
 
   await verifyWipeMasterPassword(params.companyId, params.masterPassword);
 
-  const passwordHash = await bcrypt.hash(SEED_OWNER_PASSWORD, 10);
+  // One-time random password — never reset to known seed defaults in source.
+  const temporaryPassword = randomBytes(18).toString("base64url");
+  const passwordHash = await bcrypt.hash(temporaryPassword, 10);
   const wipedAt = new Date();
 
   await prisma.$transaction(
@@ -89,6 +88,8 @@ export async function wipeCompanyOperationalData(params: {
     ok: true as const,
     ownerEmail: SEED_OWNER_EMAIL,
     ownerPasswordReset: true as const,
+    /** Shown once in wipe UI — not logged. */
+    temporaryPassword,
   };
 }
 

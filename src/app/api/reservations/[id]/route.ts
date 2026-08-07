@@ -4,6 +4,7 @@ import {
   canApplyDirectDiscount,
   requireOwnerOrManager,
   requireSeller,
+  requireStoreAccess,
 } from "@/lib/rbac";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { cancelReservation } from "@/lib/services/reservation.service";
@@ -36,7 +37,19 @@ export async function POST(req: Request, ctx: Ctx) {
       if (denied) return denied;
     }
 
+    const reservation = await prisma.reservation.findFirst({
+      where: { id, companyId: user.companyId },
+      include: { items: true },
+    });
+    if (!reservation) return handleApiError(new Error("RESERVATION_NOT_FOUND"));
+
+    const storeDenied = requireStoreAccess(user, reservation.storeId);
+    if (storeDenied) return storeDenied;
+
     if (body.action === "CANCEL") {
+      if (user.role === Role.SELLER && reservation.createdById !== user.id) {
+        return handleApiError(new Error("FORBIDDEN"));
+      }
       const row = await cancelReservation({
         companyId: user.companyId,
         reservationId: id,
@@ -46,11 +59,6 @@ export async function POST(req: Request, ctx: Ctx) {
       return jsonOk(row);
     }
 
-    const reservation = await prisma.reservation.findFirst({
-      where: { id, companyId: user.companyId },
-      include: { items: true },
-    });
-    if (!reservation) return handleApiError(new Error("RESERVATION_NOT_FOUND"));
     if (user.role === Role.SELLER) {
       if (reservation.createdById !== user.id) {
         return handleApiError(new Error("FORBIDDEN"));

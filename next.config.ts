@@ -8,7 +8,27 @@ const nextConfig: NextConfig = {
   // Keep sharp as native external (avoid dual-bundle with Next's sharp)
   serverExternalPackages: ["sharp"],
   async headers() {
+    const security = [
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "X-Frame-Options", value: "SAMEORIGIN" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      {
+        key: "Permissions-Policy",
+        value: "camera=(), microphone=(), geolocation=()",
+      },
+    ];
+    const authUrl = process.env.AUTH_URL || process.env.NEXTAUTH_URL || "";
+    if (authUrl.startsWith("https://")) {
+      security.push({
+        key: "Strict-Transport-Security",
+        value: "max-age=31536000; includeSubDomains",
+      });
+    }
     return [
+      {
+        source: "/:path*",
+        headers: security,
+      },
       {
         source: "/sw.js",
         headers: [

@@ -17,14 +17,47 @@ export async function createWarehouseWriteOff(params: {
   reasonCode: WriteOffReasonCode;
   comment?: string;
   items: WriteOffLine[];
+  /** Client idempotency key — duplicate within 15s returns prior result shape. */
+  idempotencyKey?: string | null;
 }) {
   if (!params.items.length) throw new Error("VALIDATION_ERROR");
 
   const warehouse = await getCentralWarehouse(params.companyId);
   if (!warehouse) throw new Error("WAREHOUSE_MISSING");
 
-  const operationId = `wo-${Date.now()}`;
   const comment = params.comment?.trim() || params.reasonCode;
+  const itemsKey = params.items
+    .map((i) => `${i.productId}:${Number(i.quantity)}`)
+    .sort()
+    .join("|");
+  const fingerprint =
+    params.idempotencyKey?.trim() ||
+    `${params.reasonCode}|${comment}|${itemsKey}`;
+
+  const recent = await prisma.activityLog.findFirst({
+    where: {
+      companyId: params.companyId,
+      userId: params.createdById,
+      action: "WRITE_OFF",
+      createdAt: { gte: new Date(Date.now() - 15_000) },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (recent?.metadata && typeof recent.metadata === "object") {
+    const meta = recent.metadata as Record<string, unknown>;
+    if (meta.fingerprint === fingerprint && recent.entityId) {
+      return {
+        operationId: recent.entityId,
+        warehouseId: warehouse.id,
+        itemCount: params.items.length,
+        totalCost: Number(meta.totalCost ?? 0),
+        reasonCode: params.reasonCode,
+        deduplicated: true,
+      };
+    }
+  }
+
+  const operationId = `wo-${Date.now()}`;
 
   return prisma.$transaction(
     async (tx) => {
@@ -66,6 +99,8 @@ export async function createWarehouseWriteOff(params: {
         });
       }
 
+      const totalCost = moved.reduce((s, m) => s + m.cost, 0);
+
       await logActivity({
         tx,
         userId: params.createdById,
@@ -79,6 +114,8 @@ export async function createWarehouseWriteOff(params: {
           items: moved,
           reasonCode: params.reasonCode,
           reason: comment,
+          fingerprint,
+          totalCost,
         },
       });
 
@@ -86,7 +123,7 @@ export async function createWarehouseWriteOff(params: {
         operationId,
         warehouseId: warehouse.id,
         itemCount: moved.length,
-        totalCost: moved.reduce((s, m) => s + m.cost, 0),
+        totalCost,
         reasonCode: params.reasonCode,
       };
     },

@@ -113,20 +113,22 @@ export const storeSchema = z.object({
   sellerIds: z.array(z.string().min(1)).optional(),
 });
 
+export const ASSIGNABLE_ROLES = [Role.ADMIN, Role.MANAGER, Role.SELLER] as const;
+
 export const userCreateSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1).max(120),
-  password: z.string().min(4).max(100),
-  role: z.nativeEnum(Role),
+  password: z.string().min(8).max(100),
+  role: z.enum(ASSIGNABLE_ROLES),
   storeId: z.string().optional().nullable(),
 });
 
 export const userUpdateSchema = z.object({
   name: z.string().min(1).max(120).optional(),
-  role: z.nativeEnum(Role).optional(),
+  role: z.enum(ASSIGNABLE_ROLES).optional(),
   storeId: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
-  password: z.string().min(4).max(100).optional(),
+  password: z.string().min(8).max(100).optional(),
 });
 
 export const transferSchema = z.object({
@@ -175,12 +177,12 @@ export const initialStoreStockSchema = z
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
-  newPassword: z.string().min(4).max(100),
+  newPassword: z.string().min(8).max(100),
 });
 
 export const resetPasswordSchema = z.object({
   userId: z.string().min(1),
-  newPassword: z.string().min(4).max(100),
+  newPassword: z.string().min(8).max(100),
 });
 
 export const saleSchema = z.object({

@@ -43,10 +43,24 @@ export default function LoginPageClient() {
     } catch {
       /* non-blocking */
     }
-    // Only relative paths — never follow absolute localhost from Auth/callback
+    // Only same-origin relative paths (block //, /\, protocol-relative tricks)
     const raw = searchParams.get("callbackUrl") || "/";
-    const callback =
-      raw.startsWith("/") && !raw.startsWith("//") ? raw : "/";
+    let callback = "/";
+    if (
+      raw.startsWith("/") &&
+      !raw.startsWith("//") &&
+      !raw.startsWith("/\\") &&
+      !raw.includes("\\")
+    ) {
+      try {
+        const u = new URL(raw, window.location.origin);
+        if (u.origin === window.location.origin) {
+          callback = `${u.pathname}${u.search}${u.hash}`;
+        }
+      } catch {
+        callback = "/";
+      }
+    }
     router.push(callback);
     router.refresh();
   }

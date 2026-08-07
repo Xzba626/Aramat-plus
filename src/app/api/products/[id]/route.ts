@@ -1,5 +1,5 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwner, requireOwnerOrManager } from "@/lib/rbac";
+import { canViewWarehouseFinance, requireOwner, requireOwnerOrManager } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { productSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
@@ -35,6 +35,26 @@ export async function GET(_req: Request, ctx: Ctx) {
       },
     });
     if (!item) return handleApiError(new Error("PRODUCT_NOT_FOUND"));
+
+    // Manager must not see COGS / cost history (finance Option A)
+    if (!canViewWarehouseFinance(user!)) {
+      const {
+        costHistory: _c,
+        defaultCostPerUnit: _d,
+        batches,
+        ...rest
+      } = item;
+      return jsonOk({
+        ...rest,
+        defaultCostPerUnit: null,
+        costHistory: [],
+        batches: batches.map(({ costPerUnit: _cp, ...b }) => ({
+          ...b,
+          costPerUnit: null,
+        })),
+      });
+    }
+
     return jsonOk(item);
   } catch (err) {
     return handleApiError(err);

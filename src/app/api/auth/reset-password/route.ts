@@ -1,3 +1,4 @@
+import { Role } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { resetPasswordSchema } from "@/lib/validators";
@@ -19,6 +20,14 @@ export async function POST(req: Request) {
       where: { id: body.userId, companyId: user!.companyId },
     });
     if (!target) return handleApiError(new Error("USER_NOT_FOUND"));
+
+    // Only true OWNER may reset OWNER (or peer ADMIN) passwords
+    if (target.role === Role.OWNER && user!.role !== Role.OWNER) {
+      return handleApiError(new Error("FORBIDDEN"));
+    }
+    if (target.role === Role.ADMIN && user!.role !== Role.OWNER) {
+      return handleApiError(new Error("FORBIDDEN"));
+    }
 
     const passwordHash = await bcrypt.hash(body.newPassword, 10);
     await prisma.user.update({
