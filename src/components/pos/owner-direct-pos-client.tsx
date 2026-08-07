@@ -81,6 +81,9 @@ export function OwnerDirectPosClient({
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [cart, setCart] = useState<Line[]>([]);
   const [payment, setPayment] = useState<"CASH" | "CARD" | "TRANSFER">("CASH");
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [discountInput, setDiscountInput] = useState("");
+  const [showDiscount, setShowDiscount] = useState(false);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
   const [history, setHistory] = useState<
@@ -181,6 +184,15 @@ export function OwnerDirectPosClient({
     (s, l) => s + (l.quantity > 0 ? l.salePrice * l.quantity : 0),
     0
   );
+  const payable = Math.max(0, total - discountAmount);
+
+  useEffect(() => {
+    if (discountAmount > 0 && discountAmount > total) {
+      setDiscountAmount(0);
+      setDiscountInput("");
+    }
+  }, [total, discountAmount]);
+
   const missingBottle = cart.some(
     (l) =>
       l.quantity > 0 &&
@@ -403,6 +415,7 @@ export function OwnerDirectPosClient({
         body: JSON.stringify({
           storeId,
           paymentMethod: payment,
+          ...(discountAmount > 0 ? { discountAmount } : {}),
           items: items.map((l) => ({
             productId: l.productId,
             quantity: l.quantity,
@@ -428,7 +441,9 @@ export function OwnerDirectPosClient({
         setError(apiErrorMessage(data.error, t, "pos.saleError"));
         return;
       }
-      const saleTotal = decimalToNumber(data.total as never);
+      const saleTotal = decimalToNumber(
+        (data.finalAmount ?? data.total) as never
+      );
       setHistory((prev) => [
         {
           id: data.id,
@@ -446,6 +461,9 @@ export function OwnerDirectPosClient({
         ...prev,
       ]);
       setCart([]);
+      setDiscountAmount(0);
+      setDiscountInput("");
+      setShowDiscount(false);
       setMsg(t("pos.saleDone"));
       toast(t("pos.saleDone"));
       await loadCatalog();
@@ -755,12 +773,115 @@ export function OwnerDirectPosClient({
                     </button>
                   ))}
                 </div>
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-sm text-muted">{t("pos.total")}</span>
-                  <span className="text-xl font-bold text-ink">
-                    {formatMoney(total)}
-                  </span>
+                <div className="space-y-2 pt-1">
+                  {discountAmount > 0 ? (
+                    <>
+                      <div className="flex justify-between text-sm text-muted line-through">
+                        <span>{t("pos.originalTotal")}</span>
+                        <span>{formatMoney(total)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-muted">
+                        <span>{t("pos.ownerDiscount")}</span>
+                        <span>−{formatMoney(discountAmount)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted">{t("pos.total")}</span>
+                        <span className="text-xl font-bold text-success">
+                          {formatMoney(payable)}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted">{t("pos.total")}</span>
+                      <span className="text-xl font-bold text-ink">
+                        {formatMoney(total)}
+                      </span>
+                    </div>
+                  )}
                 </div>
+                {showDiscount ? (
+                  <div className="space-y-2 rounded-xl bg-page p-3 ring-1 ring-border">
+                    <FieldLabel>{t("pos.desiredDiscount")}</FieldLabel>
+                    <input
+                      type="number"
+                      min={0}
+                      max={total}
+                      step="0.01"
+                      value={discountInput}
+                      onChange={(e) => setDiscountInput(e.target.value)}
+                      className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                      placeholder="0"
+                    />
+                    <p className="text-xs text-muted">{t("pos.applyDiscountHint")}</p>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        className="flex-1"
+                        onClick={() => {
+                          const amount = Number(discountInput) || 0;
+                          if (!(amount > 0) || amount > total) {
+                            toast(t("pos.discountInvalid"));
+                            return;
+                          }
+                          setDiscountAmount(amount);
+                          setShowDiscount(false);
+                          toast(t("pos.discountApplied"));
+                        }}
+                      >
+                        {t("pos.applyDiscount")}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                          setShowDiscount(false);
+                          setDiscountInput(
+                            discountAmount > 0 ? String(discountAmount) : ""
+                          );
+                        }}
+                      >
+                        {t("common.cancel")}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="flex-1"
+                      onClick={() => {
+                        setDiscountInput(
+                          discountAmount > 0
+                            ? String(discountAmount)
+                            : String(
+                                Math.min(
+                                  10,
+                                  Math.round(total * 0.1 * 100) / 100
+                                )
+                              )
+                        );
+                        setShowDiscount(true);
+                      }}
+                      disabled={total <= 0}
+                    >
+                      {t("pos.applyDiscount")}
+                    </Button>
+                    {discountAmount > 0 ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                          setDiscountAmount(0);
+                          setDiscountInput("");
+                        }}
+                      >
+                        {t("pos.clearDiscount")}
+                      </Button>
+                    ) : null}
+                  </div>
+                )}
                 <Button
                   type="button"
                   onClick={checkout}

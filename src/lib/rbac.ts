@@ -40,6 +40,13 @@ export function canAccessOwnerArea(user: SessionUser): boolean {
   return OWNER_MANAGER.includes(user.role);
 }
 
+/** OWNER/ADMIN may apply a POS discount without DiscountRequest. */
+export function canApplyDirectDiscount(
+  role: Role | string | undefined | null
+): boolean {
+  return isOwnerClass(role);
+}
+
 /** Destructive wipe — OWNER only (not ADMIN). */
 export function canWipeCompany(user: SessionUser): boolean {
   return user.role === Role.OWNER;

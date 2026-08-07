@@ -355,6 +355,10 @@ export async function createSale(params: {
         discountApprovedById = consumed.approvedById;
         discountApprovedAt = consumed.approvedAt;
         discountRequestId = consumed.requestId;
+      } else if (discount.gt(0)) {
+        // OWNER/ADMIN direct discount — no DiscountRequest row
+        discountApprovedById = params.sellerId;
+        discountApprovedAt = new Date();
       }
 
       if (discount.gt(subtotal)) {

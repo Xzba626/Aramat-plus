@@ -1,6 +1,7 @@
 import { Role } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
 import {
+  canApplyDirectDiscount,
   requireOwnerOrManager,
   requireSeller,
   requireStoreAccess,
@@ -105,7 +106,7 @@ export async function POST(req: Request) {
       paymentMethod: body.paymentMethod,
       notes: body.notes ?? undefined,
       reservationId: body.reservationId,
-      enforceApprovedDiscount: user.role === Role.SELLER,
+      enforceApprovedDiscount: !canApplyDirectDiscount(user.role),
     });
 
     return jsonOk(sale, 201);

@@ -1,6 +1,10 @@
 import { Role } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager, requireSeller } from "@/lib/rbac";
+import {
+  canApplyDirectDiscount,
+  requireOwnerOrManager,
+  requireSeller,
+} from "@/lib/rbac";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { cancelReservation } from "@/lib/services/reservation.service";
 import { createSale } from "@/lib/services/sale.service";
@@ -64,6 +68,7 @@ export async function POST(req: Request, ctx: Ctx) {
       paymentMethod: body.paymentMethod,
       discountAmount: body.discountAmount,
       notes: body.notes ?? undefined,
+      enforceApprovedDiscount: !canApplyDirectDiscount(user.role),
       items: reservation.items.map((it) => ({
         productId: it.productId,
         quantity: Number(it.quantity),
