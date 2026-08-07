@@ -17,10 +17,11 @@ Copy `.env.example` → `.env` (or Compose `--env-file`).
 | `DATABASE_URL` / `DIRECT_URL` | Postgres. On Neon keep pooler vs direct split. |
 | `AUTH_SECRET` | Long random secret |
 | `AUTH_URL` / `NEXTAUTH_URL` | **Real domain only** — never `localhost` in production |
-| `STORAGE_PROVIDER` | `local` (Docker volume) or `vercel-blob` |
+| `STORAGE_PROVIDER` | `local` (VPS disk / Docker volume) or `vercel-blob` |
+| `UPLOAD_DIR` | Absolute base on VPS, e.g. `/var/www/aramat/uploads`. Empty → `cwd/public/uploads` (dev). Files under `<UPLOAD_DIR>/products/`. Public URL stays `/uploads/products/…` |
 | `BLOB_READ_WRITE_TOKEN` | Only if using Vercel Blob / remote object storage |
 
-File storage is behind `ImageStorageBackend` (`src/lib/storage`). Swap provider without touching product/sale logic.
+File storage is behind `ImageStorageBackend` (`src/lib/storage`). Swap provider without touching product/sale logic. Local files are served by `GET/HEAD /uploads/products/[...path]` (not raw `public/` in production).
 
 ## Option A — Docker Compose (recommended)
 
@@ -45,7 +46,7 @@ npm run build
 node .next/standalone/server.js
 ```
 
-Set `STORAGE_PROVIDER=local` and ensure `public/uploads` is writable (or use Blob).
+Set `STORAGE_PROVIDER=local` and `UPLOAD_DIR=/var/www/aramat/uploads` (writable dir outside the repo). Copy any existing `public/uploads/products` into `$UPLOAD_DIR/products` once.
 
 ## Migrations
 

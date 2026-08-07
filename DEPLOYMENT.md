@@ -80,8 +80,36 @@ nano .env
 | `AUTH_URL` | `http://YOUR_IP:3000` or `https://your.domain` |
 | `NEXTAUTH_URL` | same as AUTH_URL |
 | `NODE_ENV` | `production` |
+| `STORAGE_PROVIDER` | `local` (VPS disk) |
+| `UPLOAD_DIR` | `/var/www/aramat/uploads` (outside the git tree) |
 
 > Не оставляйте `localhost` в `AUTH_URL` на VPS — cookies/session сломаются.
+
+### Product photos (Contabo)
+
+Файлы **не** в `public/` приложения (standalone/next start их не всегда отдаёт).  
+Диск: `$UPLOAD_DIR/products/`. В БД по-прежнему `Product.imageUrl = /uploads/products/...` — отдаёт route handler.
+
+```bash
+sudo mkdir -p /var/www/aramat/uploads/products
+sudo chown -R "$USER:$USER" /var/www/aramat/uploads
+# one-time: copy files already under the project
+cp -a ~/Aramat-plus/public/uploads/products/. /var/www/aramat/uploads/products/ 2>/dev/null || true
+```
+
+В `.env`:
+
+```env
+STORAGE_PROVIDER=local
+UPLOAD_DIR=/var/www/aramat/uploads
+```
+
+Проверка после restart:
+
+```bash
+curl -I http://127.0.0.1:3000/uploads/products/<file>-md.webp
+# 200 + content-type: image/webp
+```
 
 Загрузка env для PM2 (пример):
 

@@ -13,6 +13,11 @@ const publicPaths = ["/login", "/offline"];
 export default auth((req) => {
   const { pathname } = req.nextUrl;
 
+  // Product images — public (no auth); served by App Router from UPLOAD_DIR
+  if (pathname.startsWith("/uploads/")) {
+    return NextResponse.next();
+  }
+
   // PWA assets must bypass auth
   if (
     pathname === "/sw.js" ||

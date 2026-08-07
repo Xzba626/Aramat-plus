@@ -1,16 +1,16 @@
 import { mkdir, writeFile, unlink } from "fs/promises";
-import path from "path";
 import type {
   ImageStorageBackend,
   SaveObjectInput,
   StoredObject,
 } from "@/lib/storage/types";
-
-const PUBLIC_PREFIX = "/uploads/products";
-
-function uploadRoot() {
-  return path.join(process.cwd(), "public", "uploads", "products");
-}
+import {
+  PRODUCT_UPLOADS_PUBLIC_PREFIX,
+  getUploadProductsDir,
+  productFileNameFromUrlOrKey,
+  publicUrlForProductFile,
+  resolveSafeProductFile,
+} from "@/lib/storage/upload-paths";
 
 function toBuffer(body: SaveObjectInput["body"]): Buffer {
   if (Buffer.isBuffer(body)) return body;
@@ -19,19 +19,10 @@ function toBuffer(body: SaveObjectInput["body"]): Buffer {
   throw new Error("LOCAL_STORAGE_BLOB_UNSUPPORTED");
 }
 
-function toPublicPath(item: string): string | null {
-  if (/^https?:\/\//i.test(item)) return null;
-  if (item.startsWith("products/")) {
-    return `${PUBLIC_PREFIX}/${item.slice("products/".length)}`;
-  }
-  if (item.startsWith(PUBLIC_PREFIX)) return item;
-  if (item.startsWith("/uploads/products/")) return item;
-  return null;
-}
-
 /**
- * Dev / VPS disk storage under public/uploads/products.
- * Keys: `products/<name>.webp` or bare `<name>.webp`.
+ * Local disk storage (dev + Contabo VPS).
+ * Disk root: UPLOAD_DIR/products or cwd/public/uploads/products.
+ * Public URLs stay /uploads/products/* (served by App Router).
  */
 export function createLocalFsBackend(): ImageStorageBackend {
   return {
@@ -39,22 +30,28 @@ export function createLocalFsBackend(): ImageStorageBackend {
 
     async save(input: SaveObjectInput): Promise<StoredObject> {
       const fileName = input.key.replace(/^products\//, "");
-      const dir = uploadRoot();
+      const filePath = resolveSafeProductFile(fileName);
+      if (!filePath) throw new Error("INVALID_UPLOAD_KEY");
+
+      const dir = getUploadProductsDir();
       await mkdir(dir, { recursive: true });
-      const buf = toBuffer(input.body);
-      await writeFile(path.join(dir, fileName), buf);
-      const url = `${PUBLIC_PREFIX}/${fileName}`;
-      return { key: `products/${fileName}`, url };
+      await writeFile(filePath, toBuffer(input.body));
+
+      return {
+        key: `products/${fileName}`,
+        url: publicUrlForProductFile(fileName),
+      };
     },
 
     async delete(urlsOrKeys: string[]): Promise<void> {
       await Promise.all(
         urlsOrKeys.map(async (item) => {
-          const publicPath = toPublicPath(item);
-          if (!publicPath) return;
-          const publicRel = publicPath.replace(/^\//, "");
+          const name = productFileNameFromUrlOrKey(item);
+          if (!name) return;
+          const filePath = resolveSafeProductFile(name);
+          if (!filePath) return;
           try {
-            await unlink(path.join(process.cwd(), "public", publicRel));
+            await unlink(filePath);
           } catch {
             /* missing ok */
           }
@@ -64,12 +61,13 @@ export function createLocalFsBackend(): ImageStorageBackend {
 
     getUrl(key: string): string {
       const fileName = key.replace(/^products\//, "");
-      return `${PUBLIC_PREFIX}/${fileName}`;
+      return publicUrlForProductFile(fileName);
     },
 
     ownsUrl(url: string): boolean {
       return (
-        url.startsWith(PUBLIC_PREFIX) || url.includes("/uploads/products/")
+        url.startsWith(PRODUCT_UPLOADS_PUBLIC_PREFIX) ||
+        url.includes("/uploads/products/")
       );
     },
   };
