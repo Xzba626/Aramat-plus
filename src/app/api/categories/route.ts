@@ -5,6 +5,7 @@ import { categorySchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { ensureDefaultCategories } from "@/lib/services/product-nomenclature.service";
+import { scrubStoredLabel } from "@/lib/security/sanitize-text";
 
 export async function GET(req: Request) {
   try {
@@ -35,6 +36,7 @@ export async function GET(req: Request) {
     return jsonOk(
       items.map((c) => ({
         ...c,
+        name: scrubStoredLabel(c.name),
         productCount: c._count.products,
         canDelete: c._count.products === 0,
       }))

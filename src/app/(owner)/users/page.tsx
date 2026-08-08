@@ -44,7 +44,7 @@ export default function UsersPage() {
     ]);
     const uData = await uRes.json();
     const sData = await sRes.json();
-    if (uRes.ok) setUsers(uData);
+    if (uRes.ok) setUsers(Array.isArray(uData) ? uData : []);
     else setError(apiErrorMessage(uData.error, t, "usersPage.errorOwner"));
     if (sRes.ok)
       setStores(

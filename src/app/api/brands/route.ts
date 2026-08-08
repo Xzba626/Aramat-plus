@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { brandSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { logActivity } from "@/lib/services/activity-log.service";
+import { scrubStoredLabel } from "@/lib/security/sanitize-text";
 
 export async function GET(req: Request) {
   try {
@@ -22,7 +23,13 @@ export async function GET(req: Request) {
       },
       orderBy: { name: "asc" },
     });
-    return jsonOk(items);
+    // Defense in depth: never serve raw markup leftovers from old rows
+    return jsonOk(
+      items.map((b) => ({
+        ...b,
+        name: scrubStoredLabel(b.name),
+      }))
+    );
   } catch (err) {
     return handleApiError(err);
   }

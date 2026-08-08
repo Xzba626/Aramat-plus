@@ -8,6 +8,7 @@ import {
   getLowStockThresholds,
   resolveStockStatus,
 } from "@/lib/services/low-stock-thresholds.service";
+import { scrubStoredLabel } from "@/lib/security/sanitize-text";
 
 /** Catalog for Seller POS — available qty = physical − ACTIVE reservations. */
 export async function getPosCatalog(params: {
@@ -93,7 +94,7 @@ export async function getPosCatalog(params: {
         decimalToNumber(b.product.salePrice),
       product: {
         id: b.product.id,
-        name: b.product.name,
+        name: scrubStoredLabel(b.product.name),
         sku: b.product.sku,
         barcode: b.product.barcode,
         kind: b.product.kind,
@@ -103,12 +104,15 @@ export async function getPosCatalog(params: {
         brand: b.product.brand
           ? {
               id: b.product.brand.id,
-              name: b.product.brand.name,
+              name: scrubStoredLabel(b.product.brand.name),
               imageUrl: b.product.brand.imageUrl,
             }
           : null,
         category: b.product.category
-          ? { id: b.product.category.id, name: b.product.category.name }
+          ? {
+              id: b.product.category.id,
+              name: scrubStoredLabel(b.product.category.name),
+            }
           : null,
         unit: b.product.unit
           ? { symbol: b.product.unit.symbol, name: b.product.unit.name }
@@ -156,9 +160,12 @@ export async function getPosCatalog(params: {
   });
 
   return {
-    store: { id: store.id, name: store.name },
+    store: { id: store.id, name: scrubStoredLabel(store.name) },
     locationType: LocationType.STORE,
     items,
-    categories,
+    categories: categories.map((c) => ({
+      id: c.id,
+      name: scrubStoredLabel(c.name),
+    })),
   };
 }

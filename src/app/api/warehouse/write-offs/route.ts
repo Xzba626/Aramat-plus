@@ -7,13 +7,14 @@ import {
   createWarehouseWriteOff,
   listWarehouseWriteOffs,
 } from "@/lib/services/write-off.service";
+import { optionalPlainText } from "@/lib/validators";
 
 const createSchema = z.object({
   reasonCode: z.nativeEnum(WriteOffReasonCode),
-  comment: z.string().max(500).optional().nullable(),
+  comment: optionalPlainText(500),
   idempotencyKey: z.string().max(80).optional().nullable(),
   /** @deprecated use reasonCode */
-  reason: z.string().max(500).optional(),
+  reason: optionalPlainText(500),
   items: z
     .array(
       z.object({
@@ -57,7 +58,7 @@ export async function POST(req: Request) {
       companyId: user!.companyId,
       createdById: user!.id,
       reasonCode,
-      comment: body.comment ?? body.reason,
+      comment: body.comment ?? body.reason ?? undefined,
       idempotencyKey: body.idempotencyKey,
       items: body.items,
     });

@@ -13,6 +13,10 @@ export function jsonError(message: string, status = 400) {
 /** Never leak raw Prisma / stack traces to the client. */
 export function handleApiError(err: unknown) {
   if (err instanceof ZodError) {
+    const unsafe = err.issues.find((i) => i.message === "UNSAFE_INPUT");
+    if (unsafe) {
+      return jsonError("UNSAFE_INPUT", 400);
+    }
     const imageIssue = err.issues.find(
       (i) =>
         i.message === "IMAGE_URL_INVALID" ||
@@ -114,6 +118,7 @@ export function handleApiError(err: unknown) {
       "SUPPLIER_NOT_FOUND",
       "TRANSFER_BRANCH_ONLY",
       "UNAUTHORIZED",
+      "UNSAFE_INPUT",
       "USE_PRICE_ENDPOINT",
       "USER_NOT_FOUND",
       "VALIDATION_ERROR",

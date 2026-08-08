@@ -6,9 +6,10 @@ import { handleApiError, jsonOk } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { COMPANY_BRAND_TAG } from "@/lib/company-cache";
+import { plainName } from "@/lib/validators";
 
 const patchSchema = z.object({
-  name: z.string().min(1).max(120).optional(),
+  name: plainName(120).optional(),
   currency: z.string().min(3).max(8).optional(),
 });
 
@@ -39,7 +40,7 @@ export async function PATCH(req: Request) {
     const company = await prisma.company.update({
       where: { id: user!.companyId },
       data: {
-        ...(body.name != null ? { name: body.name.trim() } : {}),
+        ...(body.name != null ? { name: body.name } : {}),
         ...(body.currency != null
           ? { currency: body.currency.trim().toUpperCase() }
           : {}),

@@ -22,9 +22,23 @@ export default function WarehouseBrandsPage() {
   const [name, setName] = useState("");
 
   async function load() {
-    const res = await fetch(`/api/brands?archived=${showArchived ? "1" : "0"}`);
-    const data = await res.json();
-    setItems(Array.isArray(data) ? data : []);
+    try {
+      setError("");
+      const res = await fetch(
+        `/api/brands?archived=${showArchived ? "1" : "0"}`
+      );
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setItems([]);
+        setError(apiErrorMessage(data?.error, t));
+        return;
+      }
+      setItems(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("[brands] load failed", err);
+      setItems([]);
+      setError(t("common.error"));
+    }
   }
 
   useEffect(() => {

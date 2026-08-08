@@ -427,7 +427,14 @@ function StockTab({
       });
       const res = await fetch(`/api/stores/${storeId}/stock?${sp}`);
       const json = await res.json();
-      if (res.ok) setData(json);
+      if (res.ok) {
+        setData({
+          items: Array.isArray(json.items) ? json.items : [],
+          total: typeof json.total === "number" ? json.total : 0,
+          pages: typeof json.pages === "number" ? json.pages : 1,
+          page: typeof json.page === "number" ? json.page : page,
+        });
+      }
     }, 200);
     return () => clearTimeout(tmr);
   }, [storeId, q, status, sort, page, reloadKey]);
@@ -806,8 +813,8 @@ function SalesTab({
       const res = await fetch(`/api/stores/${storeId}/sales?page=${page}`);
       const data = await res.json();
       if (res.ok) {
-        setItems(data.items);
-        setPages(data.pages);
+        setItems(Array.isArray(data.items) ? data.items : []);
+        setPages(typeof data.pages === "number" ? data.pages : 1);
       }
     })();
   }, [storeId, page]);
@@ -829,7 +836,7 @@ function SalesTab({
                     {labelSaleStatus(s.status, t)}
                   </div>
                   <div className="mt-1 text-xs text-muted">
-                    {s.items
+                    {(Array.isArray(s.items) ? s.items : [])
                       .map((it) => {
                         const bottle =
                           it.containerSource === "CUSTOMER_BOTTLE"
@@ -911,7 +918,7 @@ function DiscountsTab({
     (async () => {
       const res = await fetch(`/api/stores/${storeId}/discounts`);
       const data = await res.json();
-      if (res.ok) setItems(data);
+      if (res.ok) setItems(Array.isArray(data) ? data : []);
     })();
   }, [storeId]);
 
@@ -965,7 +972,7 @@ function ReturnsTab({
     (async () => {
       const res = await fetch(`/api/stores/${storeId}/returns`);
       const data = await res.json();
-      if (res.ok) setItems(data);
+      if (res.ok) setItems(Array.isArray(data) ? data : []);
     })();
   }, [storeId]);
 
@@ -983,7 +990,9 @@ function ReturnsTab({
             </div>
             <div className="mt-1 text-xs text-muted">
               {r.reason ?? "—"} ·{" "}
-              {r.products.map((p) => `${p.name} ×${p.quantity}`).join(", ")}
+              {(Array.isArray(r.products) ? r.products : [])
+                .map((p) => `${p.name} ×${p.quantity}`)
+                .join(", ")}
             </div>
           </div>
         ))
@@ -1018,7 +1027,7 @@ function RevisionsTab({
     (async () => {
       const res = await fetch(`/api/stores/${storeId}/revisions`);
       const data = await res.json();
-      if (res.ok) setItems(data);
+      if (res.ok) setItems(Array.isArray(data) ? data : []);
     })();
   }, [storeId]);
 
@@ -1046,7 +1055,7 @@ function RevisionsTab({
                   {t("storeDetail.shortageSurplus", {
                     shortage: s.shortageQty ?? 0,
                     surplus: s.surplusQty ?? 0,
-                    n: s.items.length,
+                    n: Array.isArray(s.items) ? s.items.length : 0,
                   })}
                 </div>
               )}
@@ -1415,7 +1424,7 @@ function RequestsTab({
       const res = await fetch(`/api/stores/${storeId}/requests?status=${status}`);
       const data = await res.json();
       if (res.ok) {
-        setItems(data.items);
+        setItems(Array.isArray(data.items) ? data.items : []);
         setNote(data.writeOffsNoteKey ? t(data.writeOffsNoteKey) : "");
       }
     })();

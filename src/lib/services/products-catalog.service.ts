@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { LocationType } from "@prisma/client";
 import { decimalToNumber } from "@/lib/utils";
+import { scrubStoredLabel } from "@/lib/security/sanitize-text";
 
 export type ProductCatalogStatus =
   | "active"
@@ -105,6 +106,16 @@ export async function listProductCatalog(
           : ("active" as const);
     return {
       ...p,
+      name: scrubStoredLabel(p.name),
+      description: p.description
+        ? scrubStoredLabel(p.description)
+        : p.description,
+      brand: p.brand
+        ? { ...p.brand, name: scrubStoredLabel(p.brand.name) }
+        : p.brand,
+      category: p.category
+        ? { ...p.category, name: scrubStoredLabel(p.category.name) }
+        : p.category,
       warehouseQty: qty,
       statusKey,
     };

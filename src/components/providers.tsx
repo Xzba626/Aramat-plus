@@ -13,6 +13,7 @@ import { CompanyBrandProvider } from "@/components/company/company-brand-provide
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import { InstallPrompt } from "@/components/pwa/install-prompt";
 import { SyncStatusProvider } from "@/components/pwa/sync-status";
+import { AppErrorBoundary } from "@/components/error/app-error-boundary";
 
 function makeQueryClient() {
   return new QueryClient({
@@ -55,7 +56,7 @@ function AppProviders({
               <ToastProvider>
                 <ServiceWorkerRegister />
                 <InstallPrompt />
-                {children}
+                <AppErrorBoundary>{children}</AppErrorBoundary>
               </ToastProvider>
             </SyncStatusProvider>
           </CompanyBrandProvider>

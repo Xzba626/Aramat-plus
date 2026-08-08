@@ -16,6 +16,26 @@ const nextConfig: NextConfig = {
         key: "Permissions-Policy",
         value: "camera=(), microphone=(), geolocation=()",
       },
+      /**
+       * Report-Only CSP: observe without breaking Next inline theme bootstrap / SW.
+       * Tighten to enforcing after Contabo report review.
+       */
+      {
+        key: "Content-Security-Policy-Report-Only",
+        value: [
+          "default-src 'self'",
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+          "style-src 'self' 'unsafe-inline'",
+          "img-src 'self' data: blob:",
+          "font-src 'self' data:",
+          "connect-src 'self'",
+          "worker-src 'self' blob:",
+          "frame-ancestors 'self'",
+          "base-uri 'self'",
+          "form-action 'self'",
+          "object-src 'none'",
+        ].join("; "),
+      },
     ];
     const authUrl = process.env.AUTH_URL || process.env.NEXTAUTH_URL || "";
     if (authUrl.startsWith("https://")) {

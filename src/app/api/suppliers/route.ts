@@ -81,5 +81,9 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE() {
-  return handleApiError(new Error("ARCHIVE_ONLY"));
+  try {
+    return handleApiError(new Error("ARCHIVE_ONLY"));
+  } catch (err) {
+    return handleApiError(err);
+  }
 }

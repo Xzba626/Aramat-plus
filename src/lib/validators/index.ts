@@ -1,43 +1,94 @@
 import { AccountingType, Role, StoreStatus } from "@prisma/client";
 import { z } from "zod";
+import {
+  sanitizeOptionalText,
+  sanitizePlainText,
+} from "@/lib/security/sanitize-text";
+
+function plainName(max: number) {
+  return z
+    .string()
+    .min(1)
+    .max(max)
+    .superRefine((val, ctx) => {
+      try {
+        sanitizePlainText(val, max);
+      } catch (err) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            err instanceof Error && err.message === "UNSAFE_INPUT"
+              ? "UNSAFE_INPUT"
+              : "VALIDATION_ERROR",
+        });
+      }
+    })
+    .transform((val) => sanitizePlainText(val, max));
+}
+
+function optionalPlainText(max: number) {
+  return z
+    .string()
+    .max(max)
+    .optional()
+    .nullable()
+    .superRefine((val, ctx) => {
+      if (val == null || val === "") return;
+      try {
+        sanitizeOptionalText(val, max);
+      } catch (err) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            err instanceof Error && err.message === "UNSAFE_INPUT"
+              ? "UNSAFE_INPUT"
+              : "VALIDATION_ERROR",
+        });
+      }
+    })
+    .transform((val) => sanitizeOptionalText(val, max));
+}
+
+/** Exported for route-local schemas (write-offs, company, etc.). */
+export { plainName, optionalPlainText };
 
 export const categorySchema = z.object({
-  name: z.string().min(1).max(120),
+  name: plainName(120),
   lowStockThreshold: z.coerce.number().min(0).optional(),
 });
 
 export const brandSchema = z.object({
-  name: z.string().min(1).max(120),
+  name: plainName(120),
   imageUrl: z.string().max(500).optional().nullable(),
 });
 
 export const supplierSchema = z.object({
-  name: z.string().min(1).max(120),
+  name: plainName(120),
   phone: z.string().max(40).optional().nullable(),
-  comment: z.string().max(500).optional().nullable(),
+  comment: optionalPlainText(500),
   isActive: z.boolean().optional(),
 });
 
 export const unitSchema = z.object({
-  name: z.string().min(1).max(120),
-  symbol: z.string().min(1).max(20),
+  name: plainName(120),
+  symbol: plainName(20),
 });
 
 export const productTypeSchema = z.object({
-  name: z.string().min(1).max(120),
+  name: plainName(120),
 });
 
 export const operationTypeSchema = z.object({
-  name: z.string().min(1).max(120),
+  name: plainName(120),
   code: z.string().min(1).max(60),
 });
 
 export const expenseTypeSchema = z.object({
-  name: z.string().min(1).max(120),
+  name: plainName(120),
 });
 
 export const giftRuleSchema = z.object({
-  name: z.string().min(1).max(200).optional(),
+  name: plainName(200).optional(),
   productId: z.string().cuid().optional().nullable(),
   minQuantity: z.coerce.number().positive().optional().nullable(),
   giftProductId: z.string().cuid(),
@@ -46,10 +97,10 @@ export const giftRuleSchema = z.object({
 });
 
 export const productSchema = z.object({
-  name: z.string().min(1).max(200),
+  name: plainName(200),
   sku: z.string().max(80).optional().nullable(),
   barcode: z.string().max(80).optional().nullable(),
-  description: z.string().max(2000).optional().nullable(),
+  description: optionalPlainText(2000),
   imageUrl: z
     .string()
     .max(2048)
@@ -81,7 +132,7 @@ export const batchSchema = z.object({
   /** Sale price for THIS new batch only (immutable). Defaults to Product.salePrice catalog. */
   salePrice: z.coerce.number().min(0).optional(),
   receivedAt: z.coerce.date().optional(),
-  notes: z.string().max(500).optional().nullable(),
+  notes: optionalPlainText(500),
   // Kept for API/DB compat — UI no longer sends suppliers (Part 4).
   supplierId: z.string().cuid().optional().nullable(),
   /** When true (or salePrice sent), update Product.salePrice catalog only — never old batches. */
@@ -90,19 +141,19 @@ export const batchSchema = z.object({
 
 export const priceSchema = z.object({
   salePrice: z.coerce.number().positive(),
-  reason: z.string().min(1).max(300),
+  reason: plainName(300),
 });
 
 export const costSchema = z.object({
   defaultCostPerUnit: z.coerce.number().positive().nullable(),
-  reason: z.string().min(1).max(300),
+  reason: plainName(300),
 });
 
 export const storeSchema = z.object({
-  name: z.string().min(1).max(200),
-  address: z.string().max(300).optional().nullable(),
+  name: plainName(200),
+  address: optionalPlainText(300),
   phone: z.string().max(40).optional().nullable(),
-  workingHours: z.string().max(200).optional().nullable(),
+  workingHours: optionalPlainText(200),
   isActive: z.boolean().optional(),
   status: z.nativeEnum(StoreStatus).optional(),
   managerId: z.string().optional().nullable(),
@@ -117,14 +168,14 @@ export const ASSIGNABLE_ROLES = [Role.ADMIN, Role.MANAGER, Role.SELLER] as const
 
 export const userCreateSchema = z.object({
   email: z.string().email(),
-  name: z.string().min(1).max(120),
+  name: plainName(120),
   password: z.string().min(8).max(100),
   role: z.enum(ASSIGNABLE_ROLES),
   storeId: z.string().optional().nullable(),
 });
 
 export const userUpdateSchema = z.object({
-  name: z.string().min(1).max(120).optional(),
+  name: plainName(120).optional(),
   role: z.enum(ASSIGNABLE_ROLES).optional(),
   storeId: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
@@ -135,7 +186,7 @@ export const transferSchema = z.object({
   fromWarehouseId: z.string().min(1).optional(),
   fromStoreId: z.string().min(1).optional(),
   toStoreId: z.string().min(1),
-  notes: z.string().max(500).optional().nullable(),
+  notes: optionalPlainText(500),
   items: z
     .array(
       z.object({
@@ -154,7 +205,7 @@ export const initialStoreStockSchema = z
     forceCreate: z.boolean().optional(),
     newProduct: z
       .object({
-        name: z.string().min(1).max(200),
+        name: plainName(200),
         brandId: z.string().min(1).optional().nullable(),
         categoryId: z.string().min(1).optional().nullable(),
         productTypeId: z.string().min(1).optional().nullable(),
@@ -191,7 +242,7 @@ export const saleSchema = z.object({
   discountAmount: z.coerce.number().min(0).optional(),
   discountRequestId: z.string().min(1).optional(),
   reservationId: z.string().min(1).optional(),
-  notes: z.string().max(500).optional().nullable(),
+  notes: optionalPlainText(500),
   items: z
     .array(
       z.object({
@@ -210,7 +261,7 @@ export const saleSchema = z.object({
 
 export const reservationCreateSchema = z.object({
   storeId: z.string().min(1).optional(),
-  customerNote: z.string().max(500).optional().nullable(),
+  customerNote: optionalPlainText(500),
   ttlMinutes: z.coerce.number().min(5).max(24 * 60).optional(),
   items: z
     .array(
@@ -223,10 +274,10 @@ export const reservationCreateSchema = z.object({
 });
 
 export const packagingSkuSchema = z.object({
-  name: z.string().min(1).max(200).optional(),
+  name: plainName(200).optional(),
   volumeMl: z.coerce.number().positive(),
   material: z.enum(["glass", "plastic"]).optional().nullable(),
-  color: z.string().max(60).optional().nullable(),
+  color: optionalPlainText(60),
   skuCode: z.string().max(80).optional().nullable(),
   defaultCost: z.coerce.number().nonnegative().optional().nullable(),
   isDefaultForVolume: z.boolean().optional(),
