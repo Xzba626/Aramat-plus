@@ -1,5 +1,5 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager, scopedStoreId } from "@/lib/rbac";
+import { requireOwner, scopedStoreId } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
 import {
   getAnalyticsBreakdown,
@@ -10,7 +10,7 @@ import { stripFinanceForRole } from "@/lib/finance-visibility";
 export async function GET(req: Request) {
   try {
     const user = await getSessionUser();
-    const denied = requireOwnerOrManager(user);
+    const denied = requireOwner(user);
     if (denied) return denied;
     const periodParam =
       new URL(req.url).searchParams.get("period") ?? "month";

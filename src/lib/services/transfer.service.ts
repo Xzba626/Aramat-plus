@@ -435,16 +435,24 @@ export async function createStoreTransfer(params: {
 
 export async function listTransfers(
   companyId: string,
-  opts?: { storeId?: string | null }
+  opts?: { storeId?: string | null; storeIds?: string[] }
 ) {
-  const storeId = opts?.storeId;
-  if (storeId === null) return [];
+  const storeIds =
+    opts?.storeIds ??
+    (opts?.storeId === undefined
+      ? undefined
+      : opts.storeId === null
+        ? []
+        : [opts.storeId]);
+
+  if (storeIds && storeIds.length === 0) return [];
+
   return prisma.transfer.findMany({
-    where: storeId
+    where: storeIds
       ? {
           OR: [
-            { toStoreId: storeId, toStore: { companyId } },
-            { fromStoreId: storeId, fromStore: { companyId } },
+            { toStoreId: { in: storeIds }, toStore: { companyId } },
+            { fromStoreId: { in: storeIds }, fromStore: { companyId } },
           ],
         }
       : {

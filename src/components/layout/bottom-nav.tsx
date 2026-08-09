@@ -2,16 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   Home,
   Package,
   Store,
   Wallet,
   MoreHorizontal,
+  ArrowLeftRight,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/components/i18n/i18n-provider";
+import { Role } from "@prisma/client";
 
 const OWNER_TABS: {
   href: string;
@@ -61,9 +64,45 @@ const OWNER_TABS: {
   },
 ];
 
+/** M1 — ops-only bottom tabs for MANAGER (no finance). */
+const MANAGER_TABS: typeof OWNER_TABS = [
+  {
+    href: "/stores",
+    labelKey: "nav.stores",
+    icon: Store,
+    match: (p) => p.startsWith("/stores"),
+  },
+  {
+    href: "/warehouse/transfers",
+    labelKey: "nav.inventoryTransfers",
+    icon: ArrowLeftRight,
+    match: (p) =>
+      p.startsWith("/warehouse/transfers") ||
+      p.startsWith("/warehouse/return-in"),
+  },
+  {
+    href: "/warehouse/stock",
+    labelKey: "nav.storesStock",
+    icon: Package,
+    match: (p) => p.startsWith("/warehouse/stock"),
+  },
+  {
+    href: "/more",
+    labelKey: "nav.more",
+    icon: MoreHorizontal,
+    match: (p) =>
+      p.startsWith("/more") ||
+      p.startsWith("/settings") ||
+      p.startsWith("/notifications"),
+  },
+];
+
 export function OwnerBottomNav() {
   const pathname = usePathname();
   const t = useT();
+  const { data: session } = useSession();
+  const tabs =
+    session?.user?.role === Role.MANAGER ? MANAGER_TABS : OWNER_TABS;
 
   return (
     <nav
@@ -71,7 +110,7 @@ export function OwnerBottomNav() {
       aria-label={t("common.menu")}
     >
       <div className="mx-auto flex max-w-[640px]">
-        {OWNER_TABS.map((l) => {
+        {tabs.map((l) => {
           const active = l.match(pathname);
           const Icon = l.icon;
           return (

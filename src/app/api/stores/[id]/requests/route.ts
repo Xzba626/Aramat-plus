@@ -11,7 +11,7 @@ export async function GET(req: Request, ctx: Ctx) {
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
     const { id } = await ctx.params;
-    const scopeDenied = requireStoreAccess(user!, id);
+    const scopeDenied = await requireStoreAccess(user!, id);
     if (scopeDenied) return scopeDenied;
     const status = new URL(req.url).searchParams.get("status") as
       | "PENDING"

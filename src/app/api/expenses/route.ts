@@ -1,18 +1,19 @@
 import { z } from "zod";
 import { ExpensePeriodicity } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
-import { requireOwner, requireOwnerOrManager, scopedStoreId } from "@/lib/rbac";
+import { requireOwner } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
 import {
   createExpense,
   listExpenses,
 } from "@/lib/services/expense.service";
+import { optionalPlainText } from "@/lib/validators";
 
 const createSchema = z.object({
   expenseTypeId: z.string().min(1),
   amount: z.coerce.number().positive(),
   storeId: z.string().min(1).optional().nullable(),
-  description: z.string().max(500).optional().nullable(),
+  description: optionalPlainText(500),
   incurredAt: z.string().datetime().optional().nullable(),
   periodicity: z.nativeEnum(ExpensePeriodicity).optional(),
   startsAt: z.string().datetime().optional().nullable(),
@@ -23,18 +24,11 @@ const createSchema = z.object({
 export async function GET(req: Request) {
   try {
     const user = await getSessionUser();
-    const denied = requireOwnerOrManager(user);
+    const denied = requireOwner(user);
     if (denied) return denied;
 
-    const requested =
-      new URL(req.url).searchParams.get("storeId") ?? undefined;
-    const scope = scopedStoreId(user!);
     const storeId =
-      scope === undefined
-        ? requested
-        : scope === null
-          ? "__none__"
-          : scope;
+      new URL(req.url).searchParams.get("storeId") ?? undefined;
     return jsonOk(
       await listExpenses(user!.companyId, { storeId, limit: 100 })
     );

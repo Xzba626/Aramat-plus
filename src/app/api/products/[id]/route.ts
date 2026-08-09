@@ -11,6 +11,7 @@ import {
 } from "@/lib/services/product-nomenclature.service";
 import { hardDeleteProductCascade } from "@/lib/services/archive-retention.service";
 import { sanitizeIncomingImageUrl } from "@/lib/product-image-url";
+import { stripExactStockForManager } from "@/lib/permissions/manager-response";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -44,7 +45,7 @@ export async function GET(_req: Request, ctx: Ctx) {
         batches,
         ...rest
       } = item;
-      return jsonOk({
+      const scrubbed = {
         ...rest,
         defaultCostPerUnit: null,
         costHistory: [],
@@ -52,7 +53,8 @@ export async function GET(_req: Request, ctx: Ctx) {
           ...b,
           costPerUnit: null,
         })),
-      });
+      };
+      return jsonOk(stripExactStockForManager(user!, scrubbed));
     }
 
     return jsonOk(item);

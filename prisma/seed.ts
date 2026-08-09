@@ -186,10 +186,10 @@ async function upsertUser(params: {
       params.role,
       forcePasswords ? "(password reset)" : "(password preserved)"
     );
-    return;
+    return existing.id;
   }
   const passwordHash = await bcrypt.hash(params.password, 10);
-  await prisma.user.create({
+  const created = await prisma.user.create({
     data: {
       email: params.email,
       name: params.name,
@@ -201,6 +201,7 @@ async function upsertUser(params: {
     },
   });
   console.log("created user", params.email, params.role);
+  return created.id;
 }
 
 async function main() {
@@ -213,7 +214,7 @@ async function main() {
   await ensureExpenseTypes(company.id);
 
   for (const u of SEED_USERS) {
-    await upsertUser({
+    const userId = await upsertUser({
       email: u.email,
       name: u.name,
       role: u.role,
@@ -221,6 +222,30 @@ async function main() {
       companyId: company.id,
       storeId: u.bindStore ? branch.id : null,
     });
+    if (u.role === Role.MANAGER && userId) {
+      const defaults = [
+        "stores.view",
+        "stores.stock.bands",
+        "transfers.view",
+        "transfers.create",
+        "inventory.audit.view",
+        "inventory.audit.create",
+        "notifications.low_stock",
+        "notifications.out_of_stock",
+        "notifications.transfers",
+        "notifications.discrepancy",
+        "notifications.audit",
+      ];
+      const count = await prisma.managerPermission.count({
+        where: { userId },
+      });
+      if (count === 0) {
+        await prisma.managerPermission.createMany({
+          data: defaults.map((key) => ({ userId, key, enabled: true })),
+          skipDuplicates: true,
+        });
+      }
+    }
   }
 
   console.log("Seed complete. Live sales/stock/products were not deleted.");

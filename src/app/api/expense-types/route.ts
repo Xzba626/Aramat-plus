@@ -1,5 +1,5 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager, requireOwner } from "@/lib/rbac";
+import { requireOwner } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { expenseTypeSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
@@ -7,7 +7,7 @@ import { jsonOk, handleApiError } from "@/lib/api";
 export async function GET() {
   try {
     const user = await getSessionUser();
-    const denied = requireOwnerOrManager(user);
+    const denied = requireOwner(user);
     if (denied) return denied;
     const items = await prisma.expenseType.findMany({
       where: { companyId: user!.companyId },

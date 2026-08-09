@@ -1,48 +1,20 @@
 # RBAC — Роли и права доступа
 
+**Source of truth (MANAGER):** [`docs/MANAGER-MASTER-SPEC.md`](./MANAGER-MASTER-SPEC.md)
+
+> Менеджер управляет **движением** товара, не **стоимостью**.  
+> `sales.create` = **DEFAULT OFF**. OWNER UI: `/users` → Права. Exact stock = bands only.
+
 ## Роли
 
 | Роль | Код | Описание |
 |------|-----|----------|
-| Owner | `OWNER` | Полный доступ ко всем модулям |
-| Manager | `MANAGER` | Операционный доступ: склад, магазины, продажи — без админки пользователей, CRM wipe, списаний и утверждения скидок/возвратов |
-| Seller | `SELLER` | Только свой магазин (POS); без себестоимости и аналитики |
+| Owner | `OWNER` / `ADMIN` | Бизнес + деньги + каталог + склад + настройки + права MANAGER |
+| Manager | `MANAGER` | Ops в store scope — без finance / exact qty / catalog write |
+| Seller | `SELLER` | POS своего магазина + подтверждение приёмки |
 
-## Матрица прав (Milestone 1)
+## Код
 
-| Ресурс | Owner | Manager | Seller |
-|--------|-------|---------|--------|
-| Справочники (CRUD) | ✅ | ✅ | ❌ |
-| Товары / партии | ✅ | ✅ | ❌ |
-| Склад | ✅ | ✅ | ❌ |
-| Списания (`/warehouse/write-offs`) | ✅ | ❌ | ❌ |
-| Магазины (просмотр) | ✅ | ✅ | ❌ |
-| Создание / архив магазинов | ✅ | ❌ | ❌ |
-| Перемещения | ✅ | ✅ | ❌ |
-| Пользователи (`/users`) | ✅ | ❌ (UI + middleware) | ❌ |
-| CRM wipe (`/settings/wipe`) | ✅ | ❌ | ❌ |
-| Утверждение скидок / возвратов | ✅ | ❌ (очередь read-only) | ❌ |
-| Журнал (`GET /api/journal`) | ✅ | ✅ | ❌ |
-| Dashboard | ✅ | ✅ | ❌ |
-| POS | ✅ | ✅ | ✅ |
-
-> **Примечание:** `GET /api/users` может оставаться `OwnerOrManager` на уровне API (например, для назначения персонала), но UI и middleware блокируют `/users` для Manager.
-
-## Post-login redirect
-
-- `OWNER`, `MANAGER` → `/dashboard`
-- `SELLER` → `/pos`
-
-## Auth flows
-
-- Login / Logout — credentials provider
-- Смена пароля — authenticated user
-- Password reset — admin reset by Owner (email позже)
-- Self-registration отсутствует — пользователей создаёт Owner
-
-## Реализация
-
-- `src/middleware.ts` — route protection (Seller → POS; Manager blocked from `/users`, `/settings/wipe`, `/warehouse/write-offs`)
-- `src/lib/navigation/owner-nav.ts` — nav items filtered by role (write-offs, wipe — Owner only)
-- `src/lib/rbac.ts` — `requireRole()`, `hasPermission()`
-- API routes проверяют роль через session
+- `src/lib/rbac.ts` + `src/lib/permissions/*` — один authz path
+- Never-grantable keys не пишутся в БД
+- Scope: `LEGACY_SINGLE | ALL_STORES | SELECTED_STORES`

@@ -241,7 +241,16 @@ export default function StoreDetailClient() {
         />
       ) : null}
       {tab === "staff" && !isOwnerDirect ? (
-        <StaffTab storeId={id} onChanged={load} setError={setError} setMsg={setMsg} t={t} formatMoney={formatMoney} formatDateTime={formatDateTime} />
+        <StaffTab
+          storeId={id}
+          isOwner={!!isOwner}
+          onChanged={load}
+          setError={setError}
+          setMsg={setMsg}
+          t={t}
+          formatMoney={formatMoney}
+          formatDateTime={formatDateTime}
+        />
       ) : null}
       {tab === "sales" ? <SalesTab storeId={id} t={t} formatMoney={formatMoney} formatDateTime={formatDateTime} /> : null}
       {tab === "discounts" ? <DiscountsTab storeId={id} t={t} formatMoney={formatMoney} formatDateTime={formatDateTime} /> : null}
@@ -583,6 +592,7 @@ function StockTab({
 
 function StaffTab({
   storeId,
+  isOwner,
   onChanged,
   setError,
   setMsg,
@@ -591,6 +601,7 @@ function StaffTab({
   formatDateTime,
 }: {
   storeId: string;
+  isOwner: boolean;
   onChanged: () => void;
   setError: (v: string) => void;
   setMsg: (v: string) => void;
@@ -612,30 +623,65 @@ function StaffTab({
   const [selectedUserId, setSelectedUserId] = useState("");
   const [busy, setBusy] = useState(false);
   const [staffLoading, setStaffLoading] = useState(true);
+  const [canCreate, setCanCreate] = useState(isOwner);
+  const [canAssign, setCanAssign] = useState(isOwner);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createEmail, setCreateEmail] = useState("");
+  const [createPassword, setCreatePassword] = useState("");
+
+  useEffect(() => {
+    if (isOwner) {
+      setCanCreate(true);
+      setCanAssign(true);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/me/permissions")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const perms = (data?.permissions ?? {}) as Record<string, boolean>;
+        setCanCreate(Boolean(perms["sellers.create"]));
+        setCanAssign(Boolean(perms["sellers.assign"]));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCanCreate(false);
+          setCanAssign(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwner]);
 
   async function load() {
     setStaffLoading(true);
-    const [staffRes, candRes] = await Promise.all([
-      fetch(`/api/stores/${storeId}/staff`),
-      fetch(`/api/stores/${storeId}/staff?candidates=1`),
-    ]);
+    const staffRes = await fetch(`/api/stores/${storeId}/staff`);
     const staffData = await staffRes.json();
-    const candData = await candRes.json();
     if (staffRes.ok) setStaff(staffData);
     else setError(apiErrorMessage(staffData.error, t, "common.error"));
-    if (candRes.ok) setCandidates(Array.isArray(candData) ? candData : []);
-    else setCandidates([]);
+
+    if (canAssign || isOwner) {
+      const candRes = await fetch(`/api/stores/${storeId}/staff?candidates=1`);
+      const candData = await candRes.json();
+      if (candRes.ok) setCandidates(Array.isArray(candData) ? candData : []);
+      else setCandidates([]);
+    } else {
+      setCandidates([]);
+    }
     setStaffLoading(false);
   }
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeId]);
+  }, [storeId, canAssign, isOwner]);
 
   async function assignStaff(e: FormEvent) {
     e.preventDefault();
-    if (!selectedUserId) return;
+    if (!selectedUserId || !canAssign) return;
     setBusy(true);
     setError("");
     setMsg("");
@@ -657,6 +703,7 @@ function StaffTab({
   }
 
   async function unassignStaff(userId: string) {
+    if (!canAssign) return;
     setBusy(true);
     setError("");
     setMsg("");
@@ -671,6 +718,38 @@ function StaffTab({
       return;
     }
     setMsg(t("storeDetail.staffUnassigned"));
+    load();
+    onChanged();
+  }
+
+  async function createSeller(e: FormEvent) {
+    e.preventDefault();
+    if (!canCreate) return;
+    setBusy(true);
+    setError("");
+    setMsg("");
+    const res = await fetch("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: createName,
+        email: createEmail,
+        password: createPassword,
+        role: "SELLER",
+        storeId,
+      }),
+    });
+    const data = await res.json();
+    setBusy(false);
+    if (!res.ok) {
+      setError(apiErrorMessage(data.error, t, "common.error"));
+      return;
+    }
+    setMsg(t("usersPage.created"));
+    setShowCreate(false);
+    setCreateName("");
+    setCreateEmail("");
+    setCreatePassword("");
     load();
     onChanged();
   }
@@ -714,58 +793,119 @@ function StaffTab({
                     {t("storeDetail.staffReturns")} {u.returnRequests}
                   </div>
                 </div>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  fullWidth={false}
-                  disabled={busy}
-                  onClick={() => unassignStaff(u.id)}
-                >
-                  {t("storeDetail.unassignStaff")}
-                </Button>
+                {canAssign && (isOwner || u.role === "SELLER") ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    fullWidth={false}
+                    disabled={busy}
+                    onClick={() => unassignStaff(u.id)}
+                  >
+                    {t("storeDetail.unassignStaff")}
+                  </Button>
+                ) : null}
               </div>
             </div>
           ))
         )}
       </Card>
 
-      <Card className="max-w-lg p-4">
-        <div className="mb-2 text-sm font-semibold text-ink">
-          {t("storeDetail.assignExisting")}
-        </div>
-        <form onSubmit={assignStaff} className="space-y-3">
-          <div>
-            <FieldLabel>{t("storeDetail.selectEmployee")}</FieldLabel>
-            <select
-              className="w-full"
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              required
+      {canCreate ? (
+        <Card className="mb-4 max-w-lg p-4">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm font-semibold text-ink">
+              {t("storeDetail.createSeller")}
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              fullWidth={false}
+              onClick={() => setShowCreate((v) => !v)}
             >
-              <option value="">—</option>
-              {candidates.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.email}) · {labelRole(c.role, t)}
-                  {c.store ? ` · ${c.store.name}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-          {candidates.length === 0 ? (
-            <p className="text-xs text-muted">{t("storeDetail.noCandidates")}</p>
-          ) : null}
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={busy || !selectedUserId} fullWidth={false}>
-              {t("storeDetail.assignStaff")}
+              {showCreate ? t("common.cancel") : t("usersPage.create")}
             </Button>
-            <Link href="/users">
-              <Button type="button" variant="secondary" fullWidth={false}>
-                {t("storeDetail.goCreateUser")}
-              </Button>
-            </Link>
           </div>
-        </form>
-      </Card>
+          {showCreate ? (
+            <form onSubmit={createSeller} className="space-y-3">
+              <div>
+                <FieldLabel>{t("usersPage.name")}</FieldLabel>
+                <input
+                  className="w-full"
+                  required
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                />
+              </div>
+              <div>
+                <FieldLabel>{t("usersPage.loginEmail")}</FieldLabel>
+                <input
+                  className="w-full"
+                  type="email"
+                  required
+                  value={createEmail}
+                  onChange={(e) => setCreateEmail(e.target.value)}
+                />
+              </div>
+              <div>
+                <FieldLabel>{t("usersPage.tempPassword")}</FieldLabel>
+                <input
+                  className="w-full"
+                  type="password"
+                  required
+                  minLength={8}
+                  value={createPassword}
+                  onChange={(e) => setCreatePassword(e.target.value)}
+                />
+              </div>
+              <Button type="submit" disabled={busy} fullWidth={false}>
+                {t("common.save")}
+              </Button>
+            </form>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {canAssign ? (
+        <Card className="max-w-lg p-4">
+          <div className="mb-2 text-sm font-semibold text-ink">
+            {t("storeDetail.assignExisting")}
+          </div>
+          <form onSubmit={assignStaff} className="space-y-3">
+            <div>
+              <FieldLabel>{t("storeDetail.selectEmployee")}</FieldLabel>
+              <select
+                className="w-full"
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                required
+              >
+                <option value="">—</option>
+                {candidates.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.email}) · {labelRole(c.role, t)}
+                    {c.store ? ` · ${c.store.name}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {candidates.length === 0 ? (
+              <p className="text-xs text-muted">{t("storeDetail.noCandidates")}</p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={busy || !selectedUserId} fullWidth={false}>
+                {t("storeDetail.assignStaff")}
+              </Button>
+              {isOwner ? (
+                <Link href="/users">
+                  <Button type="button" variant="secondary" fullWidth={false}>
+                    {t("storeDetail.goCreateUser")}
+                  </Button>
+                </Link>
+              ) : null}
+            </div>
+          </form>
+        </Card>
+      ) : null}
     </div>
   );
 }

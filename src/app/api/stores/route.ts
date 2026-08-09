@@ -2,8 +2,9 @@ import { getSessionUser } from "@/lib/session";
 import {
   requireOwner,
   requireOwnerOrManager,
+  requirePermission,
   requireStoreAccess,
-  scopedStoreId,
+  resolveScopedStoreFilter,
 } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { storeSchema } from "@/lib/validators";
@@ -16,20 +17,35 @@ import {
   hardDeleteStore,
 } from "@/lib/services/store-lifecycle.service";
 import { isOwnerDirect } from "@/lib/services/owner-direct.service";
+import { stripFinanceForRole } from "@/lib/finance-visibility";
+import { stripExactStockForManager } from "@/lib/permissions/manager-response";
+import { Role } from "@prisma/client";
 
 export async function GET(req: Request) {
   try {
     const user = await getSessionUser();
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
+
+    if (user!.role === Role.MANAGER) {
+      const permDenied = await requirePermission(user, "stores.view");
+      if (permDenied) return permDenied;
+    }
+
     const includeArchived =
       new URL(req.url).searchParams.get("archived") === "1";
-    const scope = scopedStoreId(user!);
+    const scope = await resolveScopedStoreFilter(user!);
     const rows = await listStoresForCompany(user!.companyId, {
       includeArchived,
-      storeId: scope === undefined ? undefined : scope,
+      ...(scope.all
+        ? {}
+        : scope.storeIds.length === 0
+          ? { storeId: null }
+          : { storeIds: scope.storeIds }),
     });
-    return jsonOk(rows);
+    return jsonOk(
+      stripExactStockForManager(user!, stripFinanceForRole(user!, rows))
+    );
   } catch (err) {
     return handleApiError(err);
   }
@@ -72,8 +88,25 @@ export async function PATCH(req: Request) {
       where: { id, companyId: user!.companyId },
     });
     if (!existing) return handleApiError(new Error("STORE_NOT_FOUND"));
-    const scopeDenied = requireStoreAccess(user!, id);
+    const scopeDenied = await requireStoreAccess(user!, id);
     if (scopeDenied) return scopeDenied;
+
+    if (user!.role === Role.MANAGER) {
+      const permDenied = await requirePermission(user, "stores.edit");
+      if (permDenied) return permDenied;
+      // Manager: only operational fields
+      const store = await prisma.store.update({
+        where: { id },
+        data: {
+          name: isOwnerDirect(existing) ? undefined : body.name,
+          address: body.address === undefined ? undefined : body.address,
+          phone: body.phone === undefined ? undefined : body.phone,
+          workingHours:
+            body.workingHours === undefined ? undefined : body.workingHours,
+        },
+      });
+      return jsonOk(store);
+    }
 
     if (isOwnerDirect(existing) && data.isArchived === true) {
       return handleApiError(new Error("VALIDATION_ERROR"));

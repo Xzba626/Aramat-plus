@@ -34,13 +34,18 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
-  // Same-origin check for cookie-authenticated mutations (CSRF mitigation)
+  // Same-origin check for cookie-authenticated mutations (CSRF mitigation).
+  // Require Origin match OR Sec-Fetch-Site same-origin/same-site (modern browsers).
   if (
     pathname.startsWith("/api/") &&
     ["POST", "PUT", "PATCH", "DELETE"].includes(req.method)
   ) {
     const origin = req.headers.get("origin");
     const host = req.headers.get("host");
+    const fetchSite = (req.headers.get("sec-fetch-site") || "").toLowerCase();
+    const sameSiteFetch =
+      fetchSite === "same-origin" || fetchSite === "same-site";
+
     if (origin && host) {
       try {
         if (new URL(origin).host !== host) {
@@ -49,6 +54,9 @@ export default auth((req) => {
       } catch {
         return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
       }
+    } else if (!sameSiteFetch) {
+      // Missing Origin and not a same-site fetch → reject cross-site CSRF vectors
+      return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
     }
   }
 
@@ -107,9 +115,30 @@ export default auth((req) => {
       "/settings/system",
       "/settings/references",
       "/warehouse/write-offs",
+      // M1 — finance / catalog / receive / sales (ops-only shell)
+      "/dashboard",
+      "/analytics",
+      "/reports",
+      "/owner-sales",
+      "/warehouse/receive",
+      "/warehouse/purchases",
+      "/warehouse/products",
+      "/warehouse/categories",
+      "/warehouse/brands",
+      "/warehouse/packaging",
+      "/warehouse/new",
+      "/warehouse/history",
+      "/revision",
+      "/returns",
+      "/discounts",
+      "/reservations",
     ];
     if (managerBlockedPrefixes.some((p) => pathname.startsWith(p))) {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
+      return NextResponse.redirect(new URL("/stores", req.url));
+    }
+    // Exact /warehouse overview is finance-heavy — send to transfers
+    if (pathname === "/warehouse" || pathname === "/warehouse/") {
+      return NextResponse.redirect(new URL("/warehouse/transfers", req.url));
     }
   }
 
@@ -118,7 +147,9 @@ export default auth((req) => {
     (role === "OWNER" || role === "ADMIN" || role === "MANAGER") &&
     pathname.startsWith("/pos")
   ) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+    return NextResponse.redirect(
+      new URL(homePathForRole(role), req.url)
+    );
   }
 
   // ADMIN cannot wipe (OWNER-only UI path)

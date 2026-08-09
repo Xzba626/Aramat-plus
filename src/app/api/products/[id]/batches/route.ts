@@ -1,5 +1,5 @@
 import { getSessionUser } from "@/lib/session";
-import { isOwnerClass, requireOwnerOrManager } from "@/lib/rbac";
+import { isOwnerClass, requireOwner } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { batchSchema } from "@/lib/validators";
 import { jsonOk, handleApiError } from "@/lib/api";
@@ -14,7 +14,7 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function GET(_req: Request, ctx: Ctx) {
   try {
     const user = await getSessionUser();
-    const denied = requireOwnerOrManager(user);
+    const denied = requireOwner(user);
     if (denied) return denied;
     const { id } = await ctx.params;
 
@@ -48,7 +48,7 @@ export async function GET(_req: Request, ctx: Ctx) {
 export async function POST(req: Request, ctx: Ctx) {
   try {
     const user = await getSessionUser();
-    const denied = requireOwnerOrManager(user);
+    const denied = requireOwner(user);
     if (denied) return denied;
     const { id } = await ctx.params;
     const body = batchSchema.parse(await req.json());
@@ -71,18 +71,21 @@ export async function POST(req: Request, ctx: Ctx) {
     }
 
     const isPackaging = product.kind === ProductKind.PACKAGING;
-    // Non-owners cannot set a new plan cost — force current planned cost
+    const ownerFinance = isOwnerClass(user!.role);
+
+    // Non-owners cannot invent COGS — use planned cost (or reject if missing)
     let costPerUnit = body.costPerUnit;
-    if (isPackaging && !isOwnerClass(user!.role)) {
-      costPerUnit =
-        product.defaultCostPerUnit != null
-          ? Number(product.defaultCostPerUnit)
-          : body.costPerUnit;
+    if (!ownerFinance) {
+      if (product.defaultCostPerUnit == null) {
+        return handleApiError(new Error("FORBIDDEN"));
+      }
+      costPerUnit = Number(product.defaultCostPerUnit);
     }
 
+    // Managers may receive stock but cannot change catalog sale price
     const batchSalePrice = isPackaging
       ? 0
-      : body.salePrice != null
+      : ownerFinance && body.salePrice != null
         ? body.salePrice
         : Number(product.salePrice);
 
@@ -100,8 +103,9 @@ export async function POST(req: Request, ctx: Ctx) {
         createdById: user!.id,
       });
 
-      // Catalog price only — never mutate existing Batch.salePrice
+      // Catalog price only — never mutate existing Batch.salePrice; OWNER/ADMIN only
       if (
+        ownerFinance &&
         !isPackaging &&
         body.updateCatalogPrice &&
         body.salePrice != null &&
@@ -128,7 +132,7 @@ export async function POST(req: Request, ctx: Ctx) {
       }
 
       // Last purchase price becomes current planned cost (OWNER receive only)
-      if (isPackaging && isOwnerClass(user!.role)) {
+      if (isPackaging && ownerFinance) {
         const plan = new Prisma.Decimal(costPerUnit.toString());
         await tx.product.update({
           where: { id },
@@ -150,21 +154,27 @@ export async function POST(req: Request, ctx: Ctx) {
         action: "BATCH_CREATE",
         entityType: "Batch",
         entityId: created.id,
-        comment: `${product.name}: ${body.quantity} @ ${costPerUnit}${supplierPart}`,
+        comment: ownerFinance
+          ? `${product.name}: ${body.quantity} @ ${costPerUnit}${supplierPart}`
+          : `${product.name}: ${body.quantity}${supplierPart}`,
         metadata: {
           productId: id,
           quantity: body.quantity,
-          costPerUnit,
+          ...(ownerFinance ? { costPerUnit } : {}),
           salePrice: batchSalePrice,
           supplierId: body.supplierId ?? null,
           supplierName,
-          planCostUpdated: isPackaging && isOwnerClass(user!.role),
+          planCostUpdated: isPackaging && ownerFinance,
         },
       });
 
       return created;
     });
 
+    if (!ownerFinance) {
+      const { costPerUnit: _c, ...safe } = batch;
+      return jsonOk({ ...safe, costPerUnit: null }, 201);
+    }
     return jsonOk(batch, 201);
   } catch (err) {
     return handleApiError(err);

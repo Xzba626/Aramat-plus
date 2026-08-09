@@ -128,6 +128,7 @@ export function handleApiError(err: unknown) {
       "MASTER_PASSWORD_REQUIRED",
       "WIPE_PHRASE_MISMATCH",
       "ACCOUNT_LOCKED",
+      "RATE_LIMITED",
       "RETURN_QTY_EXCEEDS",
       "RETURN_ITEMS_REQUIRED",
     ]);
@@ -137,6 +138,8 @@ export function handleApiError(err: unknown) {
           ? 401
           : err.message === "FORBIDDEN"
             ? 403
+            : err.message === "RATE_LIMITED"
+              ? 429
             : err.message === "NOT_FOUND" ||
                 err.message === "PRODUCT_NOT_FOUND" ||
                 err.message === "STORE_NOT_FOUND" ||

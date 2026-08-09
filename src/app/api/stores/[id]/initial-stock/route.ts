@@ -19,7 +19,7 @@ export async function GET(req: Request, ctx: Ctx) {
     if (denied) return denied;
 
     const { id: storeId } = await ctx.params;
-    const scopeDenied = requireStoreAccess(user!, storeId);
+    const scopeDenied = await requireStoreAccess(user!, storeId);
     if (scopeDenied) return scopeDenied;
 
     const sp = new URL(req.url).searchParams;
@@ -47,7 +47,7 @@ export async function POST(req: Request, ctx: Ctx) {
     if (denied) return denied;
 
     const { id: storeId } = await ctx.params;
-    const scopeDenied = requireStoreAccess(user!, storeId);
+    const scopeDenied = await requireStoreAccess(user!, storeId);
     if (scopeDenied) return scopeDenied;
 
     const body = initialStoreStockSchema.parse(await req.json());

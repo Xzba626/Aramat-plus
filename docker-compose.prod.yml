@@ -1,23 +1,26 @@
 # Full stack on a VPS: Postgres + Next.js (standalone).
 # Usage:
-#   cp .env.example .env.prod   # set AUTH_URL to https://your-domain
+#   cp .env.example .env.prod   # set AUTH_URL, AUTH_SECRET, POSTGRES_* (required)
 #   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# Fail closed: no default DB passwords — set POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB.
 
 services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-aramat}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aramat}
-      POSTGRES_DB: ${POSTGRES_DB:-aramat_plus}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env.prod}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.prod}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env.prod}
     volumes:
       - aramat_pg_data:/var/lib/postgresql/data
+    # Not published to host — only reachable on the compose network
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-aramat} -d ${POSTGRES_DB:-aramat_plus}",
+          "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB",
         ]
       interval: 5s
       timeout: 5s
@@ -29,10 +32,10 @@ services:
     ports:
       - "${APP_PORT:-3000}:3000"
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-aramat}:${POSTGRES_PASSWORD:-aramat}@postgres:5432/${POSTGRES_DB:-aramat_plus}?schema=public
-      DIRECT_URL: postgresql://${POSTGRES_USER:-aramat}:${POSTGRES_PASSWORD:-aramat}@postgres:5432/${POSTGRES_DB:-aramat_plus}?schema=public
-      AUTH_SECRET: ${AUTH_SECRET}
-      AUTH_URL: ${AUTH_URL}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      DIRECT_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env.prod}
+      AUTH_URL: ${AUTH_URL:?Set AUTH_URL in .env.prod}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-${AUTH_URL}}
       STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
       BLOB_READ_WRITE_TOKEN: ${BLOB_READ_WRITE_TOKEN:-}

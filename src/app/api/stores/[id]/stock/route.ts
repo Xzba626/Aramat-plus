@@ -1,5 +1,10 @@
+import { Role } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager, requireStoreAccess } from "@/lib/rbac";
+import {
+  requireOwnerOrManager,
+  requirePermission,
+  requireStoreAccess,
+} from "@/lib/rbac";
 import { jsonOk, handleApiError } from "@/lib/api";
 import {
   getStoreStockPaged,
@@ -14,8 +19,14 @@ export async function GET(req: Request, ctx: Ctx) {
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
     const { id } = await ctx.params;
-    const scopeDenied = requireStoreAccess(user!, id);
+    const scopeDenied = await requireStoreAccess(user!, id);
     if (scopeDenied) return scopeDenied;
+
+    if (user!.role === Role.MANAGER) {
+      const bandsPerm = await requirePermission(user, "stores.stock.bands");
+      if (bandsPerm) return bandsPerm;
+    }
+
     const sp = new URL(req.url).searchParams;
 
     const statusRaw = sp.get("status") ?? "ALL";
@@ -36,15 +47,18 @@ export async function GET(req: Request, ctx: Ctx) {
         ? sortRaw
         : "name";
 
+    const bandsOnly = user!.role === Role.MANAGER;
+
     const data = await getStoreStockPaged(user!.companyId, id, {
       q: sp.get("q") ?? undefined,
       status,
-      sort,
+      sort: bandsOnly && sort === "qty" ? "status" : sort,
       order: sp.get("order") === "desc" ? "desc" : "asc",
       page: Number(sp.get("page") || 1),
       pageSize: Number(sp.get("pageSize") || 20),
       categoryId: sp.get("categoryId") ?? undefined,
       brandId: sp.get("brandId") ?? undefined,
+      bandsOnly,
     });
     return jsonOk(data);
   } catch (err) {

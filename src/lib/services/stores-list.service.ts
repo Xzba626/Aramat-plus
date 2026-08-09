@@ -14,7 +14,12 @@ function startOfMonth(d: Date) {
 
 export async function listStoresForCompany(
   companyId: string,
-  opts?: { includeArchived?: boolean; storeId?: string | null }
+  opts?: {
+    includeArchived?: boolean;
+    storeId?: string | null;
+    /** Multi-store scope (MANAGER SELECTED / list). */
+    storeIds?: string[];
+  }
 ) {
   const now = new Date();
   const todayStart = startOfDay(now);
@@ -24,15 +29,22 @@ export async function listStoresForCompany(
     where: { companyId, isActive: true },
   });
 
-  // Store Manager: only assigned store. No auto-create of OWNER_DIRECT.
+  // Store Manager: only assigned store(s). No auto-create of OWNER_DIRECT.
   if (opts?.storeId === null) {
+    return [];
+  }
+  if (opts?.storeIds && opts.storeIds.length === 0) {
     return [];
   }
 
   const stores = await prisma.store.findMany({
     where: {
       companyId,
-      ...(opts?.storeId ? { id: opts.storeId } : {}),
+      ...(opts?.storeIds
+        ? { id: { in: opts.storeIds } }
+        : opts?.storeId
+          ? { id: opts.storeId }
+          : {}),
       ...(opts?.includeArchived ? {} : { isArchived: false }),
     },
     include: {

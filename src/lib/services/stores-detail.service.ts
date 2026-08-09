@@ -225,6 +225,8 @@ type StockQuery = {
   pageSize?: number;
   categoryId?: string;
   brandId?: string;
+  /** MANAGER: omit exact quantities */
+  bandsOnly?: boolean;
 };
 
 export async function getStoreStockPaged(
@@ -341,7 +343,28 @@ export async function getStoreStockPaged(
   const total = rows.length;
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const start = (page - 1) * pageSize;
-  const items = rows.slice(start, start + pageSize);
+  let items = rows.slice(start, start + pageSize);
+
+  if (query.bandsOnly) {
+    const { quantityToStockBand } = await import("@/lib/permissions/stock-bands");
+    const bandItems = items.map((r) => {
+      const band = quantityToStockBand({
+        quantity: r.quantity,
+        accountingType: r.product.accountingType,
+        locationType: loc.locationType,
+        thresholds,
+      });
+      return {
+        id: r.id,
+        productId: r.productId,
+        status: r.status,
+        band,
+        needsAttention: band !== "NORMAL",
+        product: r.product,
+      };
+    });
+    return { items: bandItems, total, page, pageSize, pages };
+  }
 
   return { items, total, page, pageSize, pages };
 }

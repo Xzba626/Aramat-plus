@@ -11,7 +11,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
     const { id } = await ctx.params;
-    const scopeDenied = requireStoreAccess(user!, id);
+    const scopeDenied = await requireStoreAccess(user!, id);
     if (scopeDenied) return scopeDenied;
     return jsonOk(await getStoreDiscountHistory(user!.companyId, id));
   } catch (err) {

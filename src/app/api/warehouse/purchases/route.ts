@@ -1,12 +1,12 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager, canViewWarehouseFinance } from "@/lib/rbac";
+import { requireOwner, canViewWarehouseFinance } from "@/lib/rbac";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { getPurchaseHistory } from "@/lib/services/purchase.service";
 
 export async function GET(req: Request) {
   try {
     const user = await getSessionUser();
-    const denied = requireOwnerOrManager(user);
+    const denied = requireOwner(user);
     if (denied) return denied;
 
     const url = new URL(req.url);

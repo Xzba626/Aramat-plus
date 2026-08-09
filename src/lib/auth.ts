@@ -177,6 +177,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
 
         if (!user || !user.isActive) {
+          // Constant-time-ish: still run bcrypt so missing users aren't faster
+          // Valid bcrypt of a constant (not a real user password) — equalizes timing
+          await bcrypt.compare(
+            parsed.data.password,
+            "$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
+          );
           recordIpLoginFailure(ip);
           await logActivity({
             companyId: user?.companyId ?? null,

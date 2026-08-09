@@ -1,5 +1,5 @@
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager } from "@/lib/rbac";
+import { requireOwner } from "@/lib/rbac";
 import { canViewWarehouseFinance } from "@/lib/rbac";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { getWarehouseOverview } from "@/lib/services/warehouse.service";
@@ -7,7 +7,7 @@ import { getWarehouseOverview } from "@/lib/services/warehouse.service";
 export async function GET() {
   try {
     const user = await getSessionUser();
-    const denied = requireOwnerOrManager(user);
+    const denied = requireOwner(user);
     if (denied) return denied;
 
     const data = await getWarehouseOverview(

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -267,6 +268,14 @@ export default function UsersPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                {u.role === "MANAGER" ? (
+                  <Link
+                    href={`/users/managers/${u.id}/permissions`}
+                    className="inline-flex items-center rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                  >
+                    {t("usersPage.permissions")}
+                  </Link>
+                ) : null}
                 {u.role !== "OWNER" ? (
                   <>
                     <Button

@@ -281,37 +281,58 @@ export function isLoopbackOrLocalIp(ip: string | null | undefined): boolean {
 
 /**
  * Best-effort client IP behind reverse proxies.
- * Prefer public edge headers; skip obvious loopback hops in X-Forwarded-For.
  *
- * Prefer `resolveClientLocation()` from `@/lib/security/client-location` when
- * you also need country/city — that service reuses this IP logic.
+ * When TRUST_PROXY=1 (Nginx/Caddy/CF in front): prefer edge single-hop headers,
+ * then rightmost public X-Forwarded-For hop (proxy-appended).
+ *
+ * When TRUST_PROXY is unset: ignore all forwarded headers — a bare Node
+ * exposure must not let clients invent IPs to bypass rate limits.
+ * (Per-account lockout still applies.)
  */
 export function clientIpFromHeaders(
   headers: Headers | { get(name: string): string | null }
 ): string | null {
-  const candidates: string[] = [];
+  const trustProxy =
+    process.env.TRUST_PROXY === "1" ||
+    process.env.TRUST_PROXY === "true";
 
-  const pushList = (raw: string | null) => {
-    if (!raw) return;
-    for (const part of raw.split(",")) {
-      const ip = part.trim().replace(/^\[|\]$/g, "");
-      if (ip) candidates.push(ip);
+  if (!trustProxy) {
+    return null;
+  }
+
+  const edgeFirst = [
+    headers.get("cf-connecting-ip"),
+    headers.get("true-client-ip"),
+    headers.get("fly-client-ip"),
+    headers.get("x-vercel-forwarded-for"),
+    headers.get("x-real-ip"),
+  ];
+  for (const raw of edgeFirst) {
+    if (!raw) continue;
+    const ip = raw.split(",")[0]?.trim().replace(/^\[|\]$/g, "");
+    if (ip && !isLoopbackOrLocalIp(ip)) return ip;
+    if (ip) return ip;
+  }
+
+  const xff = headers.get("x-forwarded-for");
+  if (xff) {
+    const parts = xff
+      .split(",")
+      .map((p) => p.trim().replace(/^\[|\]$/g, ""))
+      .filter(Boolean);
+    for (let i = parts.length - 1; i >= 0; i--) {
+      if (!isLoopbackOrLocalIp(parts[i]!)) return parts[i]!;
     }
-  };
+    if (parts[0]) return parts[0];
+  }
 
-  pushList(headers.get("cf-connecting-ip"));
-  pushList(headers.get("true-client-ip"));
-  pushList(headers.get("x-vercel-forwarded-for"));
-  pushList(headers.get("x-real-ip"));
-  pushList(headers.get("x-forwarded-for"));
-  pushList(headers.get("x-client-ip"));
-  pushList(headers.get("fly-client-ip"));
+  const fallback = headers.get("x-client-ip");
+  if (fallback) {
+    const ip = fallback.split(",")[0]?.trim().replace(/^\[|\]$/g, "");
+    if (ip) return ip;
+  }
 
-  const publicIp = candidates.find((ip) => !isLoopbackOrLocalIp(ip));
-  if (publicIp) return publicIp;
-
-  // Dev / direct: keep loopback in DB for audit, UI will mask it
-  return candidates[0] ?? null;
+  return null;
 }
 
 /** Metadata payload for ActivityLog — omits empty/unknown stubs. */

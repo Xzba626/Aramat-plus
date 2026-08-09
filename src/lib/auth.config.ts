@@ -6,7 +6,21 @@ import type { NextAuthConfig } from "next-auth";
  */
 export const authConfig = {
   trustHost: true,
-  session: { strategy: "jwt" },
+  session: {
+    strategy: "jwt",
+    maxAge: 60 * 60 * 12, // 12h
+  },
+  useSecureCookies: process.env.NODE_ENV === "production",
+  cookies: {
+    sessionToken: {
+      options: {
+        httpOnly: true,
+        sameSite: "lax" as const,
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+  },
   pages: {
     signIn: "/login",
   },
@@ -43,5 +57,7 @@ export const authConfig = {
 
 export function homePathForRole(role: string | undefined): string {
   if (role === "SELLER") return "/pos";
+  // M1: manager ops home — not finance dashboard
+  if (role === "MANAGER") return "/stores";
   return "/dashboard";
 }

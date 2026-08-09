@@ -1,8 +1,14 @@
 import { Role } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
-import { requireOwnerOrManager, requireSeller } from "@/lib/rbac";
+import {
+  requireOwnerOrManager,
+  requireSeller,
+  requireStoreAccess,
+} from "@/lib/rbac";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { listStorePackagingStock } from "@/lib/services/packaging.service";
+import { stripFinanceForRole } from "@/lib/finance-visibility";
+import { stripExactStockForManager } from "@/lib/permissions/manager-response";
 
 /** Bottles available at a store for WEIGHT/decant POS checkout. */
 export async function GET(req: Request) {
@@ -26,6 +32,8 @@ export async function GET(req: Request) {
       if (!storeId) {
         return handleApiError(new Error("ID_REQUIRED"));
       }
+      const scopeDenied = await requireStoreAccess(user, storeId);
+      if (scopeDenied) return scopeDenied;
     }
 
     const items = await listStorePackagingStock(user.companyId, storeId);
@@ -35,7 +43,10 @@ export async function GET(req: Request) {
         items.map(({ quantity: _q, defaultCost: _c, ...rest }) => rest)
       );
     }
-    return jsonOk(items);
+    // MANAGER: no exact on-hand qty; OWNER: full after finance strip (noop)
+    return jsonOk(
+      stripExactStockForManager(user, stripFinanceForRole(user, items))
+    );
   } catch (err) {
     return handleApiError(err);
   }

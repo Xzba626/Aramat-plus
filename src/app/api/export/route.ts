@@ -1,7 +1,7 @@
 import { getSessionUser } from "@/lib/session";
 import {
   canViewWarehouseFinance,
-  requireOwnerOrManager,
+  requireOwner,
   scopedStoreId,
 } from "@/lib/rbac";
 import { handleApiError } from "@/lib/api";
@@ -75,7 +75,7 @@ function periodLabelText(
 export async function GET(req: Request) {
   try {
     const user = await getSessionUser();
-    const denied = requireOwnerOrManager(user);
+    const denied = requireOwner(user);
     if (denied) return denied;
 
     const url = new URL(req.url);

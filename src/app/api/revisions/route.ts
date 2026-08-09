@@ -5,8 +5,9 @@ import {
   isOwnerClass,
   requireOwner,
   requireOwnerOrManager,
+  requirePermission,
   requireStoreAccess,
-  scopedStoreId,
+  resolveScopedStoreFilter,
 } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
@@ -19,10 +20,11 @@ import {
   submitInventoryForApproval,
   updateInventoryCounts,
 } from "@/lib/services/revision.service";
+import { optionalPlainText } from "@/lib/validators";
 
 const createSchema = z.object({
   storeId: z.string().min(1),
-  comment: z.string().max(500).optional().nullable(),
+  comment: optionalPlainText(500),
 });
 
 const countSchema = z.object({
@@ -31,7 +33,7 @@ const countSchema = z.object({
       z.object({
         productId: z.string().min(1),
         countedQty: z.coerce.number().min(0),
-        reason: z.string().max(300).optional(),
+        reason: optionalPlainText(300),
       })
     )
     .min(1),
@@ -39,7 +41,7 @@ const countSchema = z.object({
 
 const decideSchema = z.object({
   decision: z.enum(["APPROVE", "CANCEL", "SUBMIT"]),
-  note: z.string().max(500).optional().nullable(),
+  note: optionalPlainText(500),
 });
 
 export async function GET(req: Request) {
@@ -47,6 +49,11 @@ export async function GET(req: Request) {
     const user = await getSessionUser();
     const denied = requireOwnerOrManager(user);
     if (denied) return denied;
+
+    if (user!.role === Role.MANAGER) {
+      const permDenied = await requirePermission(user, "inventory.audit.view");
+      if (permDenied) return permDenied;
+    }
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
@@ -56,18 +63,17 @@ export async function GET(req: Request) {
         id,
         user!.role as Role
       );
-      const scopeDenied = requireStoreAccess(user!, detail.storeId);
+      const scopeDenied = await requireStoreAccess(user!, detail.storeId);
       if (scopeDenied) return scopeDenied;
       return jsonOk(detail);
     }
 
-    const scope = scopedStoreId(user!);
-    const storeWhere =
-      scope === undefined
-        ? { companyId: user!.companyId }
-        : scope === null
-          ? { companyId: user!.companyId, id: "__none__" }
-          : { companyId: user!.companyId, id: scope };
+    const scope = await resolveScopedStoreFilter(user!);
+    const storeWhere = scope.all
+      ? { companyId: user!.companyId }
+      : scope.storeIds.length === 0
+        ? { companyId: user!.companyId, id: "__none__" }
+        : { companyId: user!.companyId, id: { in: scope.storeIds } };
 
     const isOwner = isOwnerClass(user!.role);
     const sessions = await prisma.inventorySession.findMany({
@@ -111,10 +117,10 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
-    const denied = requireOwnerOrManager(user);
+    const denied = requireOwner(user);
     if (denied) return denied;
     const body = createSchema.parse(await req.json());
-    const scopeDenied = requireStoreAccess(user!, body.storeId);
+    const scopeDenied = await requireStoreAccess(user!, body.storeId);
     if (scopeDenied) return scopeDenied;
     const row = await createInventorySession({
       companyId: user!.companyId,
@@ -143,7 +149,7 @@ export async function PATCH(req: Request) {
       select: { storeId: true },
     });
     if (!session) return handleApiError(new Error("NOT_FOUND"));
-    const scopeDenied = requireStoreAccess(user!, session.storeId);
+    const scopeDenied = await requireStoreAccess(user!, session.storeId);
     if (scopeDenied) return scopeDenied;
 
     const raw = await req.json();
@@ -187,7 +193,11 @@ export async function PATCH(req: Request) {
         companyId: user!.companyId,
         sessionId: id,
         userId: user!.id,
-        items: body.items,
+        items: body.items.map((it) => ({
+          productId: it.productId,
+          countedQty: it.countedQty,
+          reason: it.reason ?? undefined,
+        })),
       })
     );
   } catch (err) {

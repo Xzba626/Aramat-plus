@@ -16,13 +16,14 @@ import {
   serializeDiscountRequest,
 } from "@/lib/services/discount-request.service";
 import { prisma } from "@/lib/prisma";
+import { plainName, optionalPlainText } from "@/lib/validators";
 
 const createSchema = z.object({
   storeId: z.string().min(1).optional(),
   amount: z.coerce.number().positive(),
   originalAmount: z.coerce.number().positive(),
   percent: z.coerce.number().min(0).max(100).optional(),
-  reason: z.string().min(1).max(500),
+  reason: plainName(500),
   items: z
     .array(
       z.object({
@@ -57,7 +58,7 @@ export async function GET(req: Request) {
         where: { id, companyId: user.companyId },
       });
       if (!row) return handleApiError(new Error("NOT_FOUND"));
-      const scopeDenied = requireStoreAccess(user, row.storeId);
+      const scopeDenied = await requireStoreAccess(user, row.storeId);
       if (scopeDenied) return scopeDenied;
       return jsonOk(serializeDiscountRequest(row));
     }

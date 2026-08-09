@@ -1,10 +1,5 @@
-import { Role } from "@prisma/client";
 import { getSessionUser } from "@/lib/session";
-import {
-  isOwnerClass,
-  requireOwner,
-  requireOwnerOrManager,
-} from "@/lib/rbac";
+import { requireOwner, requireOwnerOrManager } from "@/lib/rbac";
 import {
   packagingSkuSchema,
   packagingSkuUpdateSchema,
@@ -18,6 +13,8 @@ import {
   listPackagingSkus,
   updatePackagingSku,
 } from "@/lib/services/packaging.service";
+import { stripFinanceForRole } from "@/lib/finance-visibility";
+import { stripExactStockForManager } from "@/lib/permissions/manager-response";
 
 export async function GET(req: Request) {
   try {
@@ -36,7 +33,9 @@ export async function GET(req: Request) {
         : archived === "all"
           ? items
           : items.filter((s) => s.isActive);
-    return jsonOk(rows);
+    return jsonOk(
+      stripExactStockForManager(user!, stripFinanceForRole(user!, rows))
+    );
   } catch (err) {
     return handleApiError(err);
   }
@@ -79,22 +78,11 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const user = await getSessionUser();
-    const denied = requireOwnerOrManager(user);
+    const denied = requireOwner(user);
     if (denied) return denied;
     const body = packagingSkuUpdateSchema.parse(await req.json());
     const { id, ...data } = body;
     if (!Object.keys(data).length) return jsonError("VALIDATION", 400);
-
-    // Financial field — OWNER only
-    if (data.defaultCost !== undefined && !isOwnerClass(user!.role)) {
-      return jsonError("FORBIDDEN", 403);
-    }
-
-    // Store managers may archive/restore only; create/edit name+cost = owner
-    if (user!.role === Role.MANAGER) {
-      const allowed = Object.keys(data).every((k) => k === "isActive");
-      if (!allowed) return jsonError("FORBIDDEN", 403);
-    }
 
     const sku = await updatePackagingSku({
       companyId: user!.companyId,

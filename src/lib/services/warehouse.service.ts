@@ -334,7 +334,7 @@ export async function listPurchaseHistory(
         receivedAt: b.receivedAt.toISOString(),
         quantity: qty,
         remainingQty: decimalToNumber(b.quantity),
-        costPerUnit: cost,
+        costPerUnit: showFinance ? cost : null,
         totalCost: showFinance ? Math.round(qty * cost * 100) / 100 : null,
         notes: b.notes,
         supplier: b.supplier,

@@ -11,12 +11,14 @@ import { cancelReservation } from "@/lib/services/reservation.service";
 import { createSale } from "@/lib/services/sale.service";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { optionalPlainText } from "@/lib/validators";
+import { stripFinanceForRole } from "@/lib/finance-visibility";
 
 const decideSchema = z.object({
   action: z.enum(["CANCEL", "COMPLETE"]),
   paymentMethod: z.string().max(40).optional(),
   discountAmount: z.coerce.number().min(0).optional(),
-  notes: z.string().max(500).optional().nullable(),
+  notes: optionalPlainText(500),
 });
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -43,7 +45,7 @@ export async function POST(req: Request, ctx: Ctx) {
     });
     if (!reservation) return handleApiError(new Error("RESERVATION_NOT_FOUND"));
 
-    const storeDenied = requireStoreAccess(user, reservation.storeId);
+    const storeDenied = await requireStoreAccess(user, reservation.storeId);
     if (storeDenied) return storeDenied;
 
     if (body.action === "CANCEL") {
@@ -83,7 +85,7 @@ export async function POST(req: Request, ctx: Ctx) {
       })),
     });
 
-    return jsonOk(sale, 201);
+    return jsonOk(stripFinanceForRole(user, sale), 201);
   } catch (err) {
     return handleApiError(err);
   }

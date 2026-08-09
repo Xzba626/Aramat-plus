@@ -14,6 +14,9 @@ import {
 import { sanitizeIncomingImageUrl } from "@/lib/product-image-url";
 import { listProductCatalog } from "@/lib/services/products-catalog.service";
 import { BATCH_NOTE_MARKERS } from "@/lib/i18n/labels";
+import { allowActionRate } from "@/lib/security/action-rate-limit";
+import { stripFinanceForRole } from "@/lib/finance-visibility";
+import { stripExactStockForManager } from "@/lib/permissions/manager-response";
 
 export async function GET(req: Request) {
   try {
@@ -29,8 +32,9 @@ export async function GET(req: Request) {
       status: searchParams.get("status"),
       kind: searchParams.get("kind"),
     });
-    return jsonOk(rows);
-  } catch (err) {
+    return jsonOk(
+      stripExactStockForManager(user!, stripFinanceForRole(user!, rows))
+    );  } catch (err) {
     return handleApiError(err);
   }
 }
@@ -40,6 +44,10 @@ export async function POST(req: Request) {
     const user = await getSessionUser();
     const denied = requireOwner(user);
     if (denied) return denied;
+
+    if (!allowActionRate(`product:${user!.id}`, 30, 60_000)) {
+      return handleApiError(new Error("RATE_LIMITED"));
+    }
 
     const data = await req.json();
     const { imageUrl: safeImage, stripped } = sanitizeIncomingImageUrl(

@@ -33,18 +33,21 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     labelKey: "nav.home",
     href: "/dashboard",
     icon: "home",
+    roles: OWNER_ROLES,
   },
   {
     id: "owner-sales",
     labelKey: "nav.ownerSales",
     href: "/owner-sales",
     icon: "ownerSales",
+    roles: OWNER_ROLES,
   },
   {
     id: "finance",
     labelKey: "nav.finance",
     href: "/analytics?view=expenses",
     icon: "finance",
+    roles: OWNER_ROLES,
     children: [
       { href: "/analytics?view=network", labelKey: "nav.financeRevenue" },
       { href: "/analytics?view=expenses", labelKey: "nav.financeExpenses" },
@@ -56,6 +59,7 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     labelKey: "nav.reports",
     href: "/reports",
     icon: "reports",
+    roles: OWNER_ROLES,
   },
   {
     id: "stores",
@@ -64,9 +68,17 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     icon: "stores",
     children: [
       { href: "/stores", labelKey: "nav.storesAll" },
-      { href: "/analytics?view=stores", labelKey: "nav.storesSales" },
+      {
+        href: "/analytics?view=stores",
+        labelKey: "nav.storesSales",
+        roles: OWNER_ROLES,
+      },
       { href: "/warehouse/stock", labelKey: "nav.storesStock" },
-      { href: "/stores#owner-direct", labelKey: "nav.storesOwnerDirect" },
+      {
+        href: "/stores#owner-direct",
+        labelKey: "nav.storesOwnerDirect",
+        roles: OWNER_ROLES,
+      },
     ],
   },
   {
@@ -75,10 +87,26 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     href: "/warehouse",
     icon: "warehouse",
     children: [
-      { href: "/warehouse", labelKey: "nav.inventoryOverview" },
-      { href: "/warehouse/receive", labelKey: "nav.purchasesReceive" },
-      { href: "/warehouse/packaging", labelKey: "nav.packaging" },
-      { href: "/warehouse/purchases", labelKey: "nav.purchasesHistory" },
+      {
+        href: "/warehouse",
+        labelKey: "nav.inventoryOverview",
+        roles: OWNER_ROLES,
+      },
+      {
+        href: "/warehouse/receive",
+        labelKey: "nav.purchasesReceive",
+        roles: OWNER_ROLES,
+      },
+      {
+        href: "/warehouse/packaging",
+        labelKey: "nav.packaging",
+        roles: OWNER_ROLES,
+      },
+      {
+        href: "/warehouse/purchases",
+        labelKey: "nav.purchasesHistory",
+        roles: OWNER_ROLES,
+      },
       { href: "/warehouse/transfers", labelKey: "nav.inventoryTransfers" },
       { href: "/warehouse/return-in", labelKey: "nav.inventoryReturnIn" },
       {
@@ -86,11 +114,31 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
         labelKey: "nav.inventoryWriteOffs",
         roles: OWNER_ROLES,
       },
-      { href: "/revision", labelKey: "nav.inventoryRevision" },
-      { href: "/warehouse/history", labelKey: "nav.inventoryHistory" },
-      { href: "/warehouse/products", labelKey: "nav.productsCatalog" },
-      { href: "/warehouse/categories", labelKey: "nav.productsCategories" },
-      { href: "/warehouse/brands", labelKey: "nav.productsBrands" },
+      {
+        href: "/revision",
+        labelKey: "nav.inventoryRevision",
+        roles: OWNER_ROLES,
+      },
+      {
+        href: "/warehouse/history",
+        labelKey: "nav.inventoryHistory",
+        roles: OWNER_ROLES,
+      },
+      {
+        href: "/warehouse/products",
+        labelKey: "nav.productsCatalog",
+        roles: OWNER_ROLES,
+      },
+      {
+        href: "/warehouse/categories",
+        labelKey: "nav.productsCategories",
+        roles: OWNER_ROLES,
+      },
+      {
+        href: "/warehouse/brands",
+        labelKey: "nav.productsBrands",
+        roles: OWNER_ROLES,
+      },
     ],
   },
   {
@@ -98,6 +146,7 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     labelKey: "nav.salesRequests",
     href: "/returns",
     icon: "sales",
+    roles: OWNER_ROLES,
     children: [
       { href: "/returns", labelKey: "nav.salesReturns" },
       { href: "/discounts", labelKey: "nav.salesDiscounts" },
@@ -132,7 +181,6 @@ export const OWNER_NAV_SECTIONS: OwnerNavSection[] = [
     labelKey: "nav.settingsWorkspace",
     href: "/settings",
     icon: "settings",
-    // Single hub entry — nested settings live inside /settings (Settings Center)
   },
 ];
 

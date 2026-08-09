@@ -4,10 +4,11 @@ import { handleApiError, jsonOk } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { isLocale } from "@/lib/i18n/types";
 import { logActivity } from "@/lib/services/activity-log.service";
+import { plainName } from "@/lib/validators";
 
 const patchSchema = z.object({
   preferredLocale: z.enum(["ru", "tj"]).optional(),
-  name: z.string().trim().min(1).max(120).optional(),
+  name: plainName(120).optional(),
 });
 
 export async function GET() {

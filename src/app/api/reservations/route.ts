@@ -86,7 +86,7 @@ export async function POST(req: Request) {
       const denied = requireOwnerOrManager(user);
       if (denied) return denied;
       if (!storeId) return handleApiError(new Error("ID_REQUIRED"));
-      const scopeDenied = requireStoreAccess(user, storeId);
+      const scopeDenied = await requireStoreAccess(user, storeId);
       if (scopeDenied) return scopeDenied;
     }
 

@@ -7,10 +7,11 @@ import {
   listSaleReturns,
 } from "@/lib/services/sale-return.service";
 import { z } from "zod";
+import { optionalPlainText } from "@/lib/validators";
 
 const createSchema = z.object({
   saleId: z.string().min(1),
-  reason: z.string().max(500).optional().nullable(),
+  reason: optionalPlainText(500),
   reasonCode: z.nativeEnum(ReturnReasonCode).optional().nullable(),
   items: z
     .array(
