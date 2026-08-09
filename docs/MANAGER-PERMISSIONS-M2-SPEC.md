@@ -1,8 +1,11 @@
 # M2 SPEC — Sellers Management (`sellers.create` / `sellers.assign`)
 
-**Статус:** M2 implementation spec — additive поверх R1  
+**Статус реализации:** **M2 = COMPLETE (impl)** — additive поверх R1  
+**`stores.create`:** **DEFERRED** (отдельный slice; не часть этого M2)  
+**Runtime HTTP:** отдельный gate — [`MANAGER-PERMISSIONS-M2-VERIFY.md`](./MANAGER-PERMISSIONS-M2-VERIFY.md)  
 **Source of truth (архитектура):** [`MANAGER-MASTER-SPEC.md`](./MANAGER-MASTER-SPEC.md)  
-**R1 не трогать:** permissions engine, stock bands, finance/WH 403, sales.* defaults, transfer lifecycle.
+**R1 не трогать:** permissions engine, stock bands, finance/WH 403, sales.* defaults, transfer lifecycle.  
+**Не начинать:** M3 / M4 / R5.
 
 ---
 

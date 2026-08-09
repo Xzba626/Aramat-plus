@@ -1260,7 +1260,8 @@ sellers.create
 sellers.assign
 ```
 
-будет M2.
+**Статус:** M2 sellers wire = **COMPLETE** (см. `MANAGER-PERMISSIONS-M2-SPEC.md`).  
+`stores.create` **не** входит в этот M2 — см. §43 / DEFERRED.
 
 MANAGER сможет:
 
@@ -1298,7 +1299,7 @@ Store 8
 OFF
 ```
 
-Полная реализация MANAGER → create store относится к M2.
+Полная реализация MANAGER → create store = **DEFERRED** (отдельный slice после M2 sellers; не смешивать с M2 COMPLETE).
 
 Даже когда permission будет реализован:
 
@@ -2239,7 +2240,7 @@ DATABASE
 
 ```text
 R1 → permissions + scope + OWNER UI + gates + stock bands + finance isolation + VERIFY
-M2 → SELLER create/assign + stores.create wire
+M2 → SELLER create/assign (**COMPLETE**; `stores.create` = DEFERRED)
 M3 → SENT → RECEIVED → DISCREPANCY
 M4 → Manager Dashboard
 ```

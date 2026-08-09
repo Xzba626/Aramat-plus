@@ -3,14 +3,13 @@
 **Source of truth:** [`MANAGER-MASTER-SPEC.md`](./MANAGER-MASTER-SPEC.md)
 
 > Менеджер управляет **движением** товара, не **стоимостью**.  
-> Exact stock для MANAGER = **bands only** (без numeric qty).  
-> `sales.create` = **DEFAULT OFF**.
+> Exact stock для MANAGER = **bands only**. `sales.create` = **DEFAULT OFF**.
 
 ```text
-OWNER   → бизнес + деньги + каталог + складские поступления + права MANAGER
-MANAGER → операции в scope + transfers + notifications (+ sales/audit только по grant)
-SELLER  → POS своего магазина + подтверждение приёмки
+OWNER   → бизнес + деньги + каталог + склад + права MANAGER
+MANAGER → ops в scope + transfers + notifications (+ sales/audit / sellers по grant)
+SELLER  → POS своего магазина
 ```
 
-**Этапы:** R1 permissions/scope/bands ✅ → M2 sellers → M3 transfer lifecycle → M4 dashboard.  
-Verify: [`MANAGER-PERMISSIONS-R1-VERIFY.md`](./MANAGER-PERMISSIONS-R1-VERIFY.md)
+**Этапы:** R1 ✅ · M2 sellers ✅ · `stores.create` DEFERRED · runtime gate → затем M3 design · M4.  
+[R1 VERIFY](./MANAGER-PERMISSIONS-R1-VERIFY.md) · [M2 VERIFY](./MANAGER-PERMISSIONS-M2-VERIFY.md)
