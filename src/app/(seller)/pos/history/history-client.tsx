@@ -194,6 +194,7 @@ export default function PosHistoryClient() {
     );
     setReturnFor(null);
     setReason("");
+    await loadSales();
   }
 
   async function actReservation(id: string, action: "CANCEL" | "COMPLETE") {

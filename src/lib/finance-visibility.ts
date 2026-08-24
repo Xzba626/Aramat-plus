@@ -7,6 +7,7 @@
  */
 import type { SessionUser } from "@/lib/rbac";
 import { canViewWarehouseFinance } from "@/lib/rbac";
+import { Prisma } from "@prisma/client";
 
 /** True when the session may see COGS / margin / net profit. */
 export function canViewOwnerFinance(user: SessionUser): boolean {
@@ -78,6 +79,31 @@ export function stripFinanceData<T>(data: T): T {
   return stripFinanceDeep(data) as T;
 }
 
+/**
+ * Robustly detect Prisma.Decimal (survives minification / bundling / cjs-esm).
+ * Strategy (in order, first match wins):
+ *   1. instanceof Prisma.Decimal  (type-safe, works if Prisma imported directly)
+ *   2. constructor.name === "Decimal"  (dev / unminified builds)
+ *   3. Duck-typing: plain object with toNumber + toFixed + toString methods
+ *      (Prisma.Decimal always exposes these; no other domain object does)
+ */
+function isPrismaDecimal(value: unknown): boolean {
+  if (value == null) return false;
+  if (value instanceof Prisma.Decimal) return true;
+  const ctor = (value as { constructor?: { name?: string } }).constructor;
+  if (ctor?.name === "Decimal") return true;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.toNumber === "function" &&
+    typeof v.toFixed === "function" &&
+    typeof v.toString === "function" &&
+    // Prisma.Decimal is not an array and has no own iterable entries of its own payload
+    !Array.isArray(v) &&
+    // Reject plain Date objects
+    !(value instanceof Date)
+  );
+}
+
 function stripFinanceDeep(value: unknown): unknown {
   if (value == null) return value;
   if (Array.isArray(value)) {
@@ -85,11 +111,10 @@ function stripFinanceDeep(value: unknown): unknown {
   }
   if (typeof value !== "object") return value;
 
-  // Prisma Decimal / Date — leave as-is (no finance keys inside)
-  const ctor = (value as { constructor?: { name?: string } }).constructor?.name;
-  if (ctor === "Decimal" || ctor === "Date" || value instanceof Date) {
-    return value;
-  }
+  // Prisma Decimal / Date — leave as-is (no finance keys inside, and Decimal
+  // must survive to serialize correctly via JSON.stringify → string).
+  if (value instanceof Date) return value;
+  if (isPrismaDecimal(value)) return value;
 
   const src = value as AnyRecord;
   const out: AnyRecord = {};
