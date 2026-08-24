@@ -4,7 +4,7 @@
  * when parent object is clearly a transfer item — we only strip
  * known stock aggregate / balance field names.
  */
-import { Role } from "@prisma/client";
+import { Prisma, Role } from "@prisma/client";
 import type { SessionUser } from "@/lib/rbac";
 
 const EXACT_STOCK_KEYS = new Set(
@@ -35,6 +35,28 @@ function isExactStockKey(key: string): boolean {
 }
 
 /**
+ * Robust Prisma.Decimal detection (survives production minification where
+ * constructor.name !== "Decimal" after bundling). Three-tier strategy, first-match wins):
+ *   1. instanceof Prisma.Decimal
+ *   2. constructor.name === "Decimal" (dev / unminified)
+ *   3. Duck-typing: has toNumber + toFixed + toString
+ */
+function isPrismaDecimal(value: unknown): boolean {
+  if (value == null) return false;
+  if (value instanceof Prisma.Decimal) return true;
+  const ctor = (value as { constructor?: { name?: string } }).constructor;
+  if (ctor?.name === "Decimal") return true;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.toNumber === "function" &&
+    typeof v.toFixed === "function" &&
+    typeof v.toString === "function" &&
+    !Array.isArray(v) &&
+    !(value instanceof Date)
+  );
+}
+
+/**
  * Objects that are stock balances / catalog stock rows (not TransferItem).
  * Heuristic: has productId+quantity without transferId, or unitsTotal, or stockBalances.
  */
@@ -45,10 +67,9 @@ function stripDeep(value: unknown, ctx: { inTransferItem: boolean }): unknown {
   }
   if (typeof value !== "object") return value;
 
-  const ctor = (value as { constructor?: { name?: string } }).constructor?.name;
-  if (ctor === "Decimal" || ctor === "Date" || value instanceof Date) {
-    return value;
-  }
+  // Prisma.Decimal + Date — keep intact (no qty-key stripping inside them)
+  if (value instanceof Date) return value;
+  if (isPrismaDecimal(value)) return value;
 
   const src = value as Record<string, unknown>;
   const isTransferRoot =
