@@ -1207,6 +1207,30 @@ function RevisionsTab({
   );
 }
 
+type PeriodicityKey = "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY";
+
+type ExpenseRowFull = {
+  id: string;
+  incurredAt: string;
+  startsAt: string;
+  endsAt: string | null;
+  periodicity: PeriodicityKey;
+  type: string;
+  typeId: string;
+  amount: number;
+  description: string | null;
+  actor: string;
+};
+
+type EditFormState = {
+  expenseTypeId: string;
+  amount: string;
+  periodicity: PeriodicityKey;
+  startsAt: string;
+  endsAt: string;
+  description: string;
+};
+
 function StoreExpensesPanel({
   storeId,
   t,
@@ -1218,17 +1242,8 @@ function StoreExpensesPanel({
   formatMoney: (value: number | string, opts?: { short?: boolean }) => string;
   formatDateTime: (date: Date | string | number) => string;
 }) {
-  const [rows, setRows] = useState<
-    Array<{
-      id: string;
-      incurredAt: string;
-      type: string;
-      typeId: string;
-      amount: number;
-      description: string | null;
-      actor: string;
-    }>
-  >([]);
+  const router = useRouter();
+  const [rows, setRows] = useState<ExpenseRowFull[]>([]);
   const [expenseTypes, setExpenseTypes] = useState<
     Array<{ id: string; name: string }>
   >([]);
@@ -1239,6 +1254,17 @@ function StoreExpensesPanel({
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<EditFormState>({
+    expenseTypeId: "",
+    amount: "",
+    periodicity: "ONCE",
+    startsAt: "",
+    endsAt: "",
+    description: "",
+  });
+  const [editLoading, setEditLoading] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -1254,6 +1280,9 @@ function StoreExpensesPanel({
           (e: {
             id: string;
             incurredAt: string;
+            startsAt: string;
+            endsAt: string | null;
+            periodicity: PeriodicityKey;
             amount: number;
             description: string | null;
             expenseType: { id: string; name: string };
@@ -1261,6 +1290,9 @@ function StoreExpensesPanel({
           }) => ({
             id: e.id,
             incurredAt: e.incurredAt,
+            startsAt: e.startsAt,
+            endsAt: e.endsAt,
+            periodicity: e.periodicity,
             type: e.expenseType.name,
             typeId: e.expenseType.id,
             amount: e.amount,
@@ -1341,7 +1373,79 @@ function StoreExpensesPanel({
     setMsg(t("storeDetail.expenseAdded"));
     e.currentTarget.reset();
     await reload();
+    router.refresh();
   }
+
+  function startEdit(row: ExpenseRowFull) {
+    setEditingId(row.id);
+    setEditForm({
+      expenseTypeId: row.typeId,
+      amount: String(row.amount),
+      periodicity: row.periodicity,
+      startsAt: row.startsAt.slice(0, 10),
+      endsAt: row.endsAt ? row.endsAt.slice(0, 10) : "",
+      description: row.description ?? "",
+    });
+    setMsg("");
+    setError("");
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+  }
+
+  async function onEditSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!editingId) return;
+    setEditLoading(true);
+    setError("");
+    setMsg("");
+    try {
+      const res = await fetch(`/api/expenses/${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expenseTypeId: editForm.expenseTypeId,
+          amount: Number(editForm.amount),
+          description: editForm.description || undefined,
+          periodicity: editForm.periodicity,
+          startsAt: editForm.startsAt
+            ? new Date(editForm.startsAt).toISOString()
+            : undefined,
+          endsAt: editForm.endsAt
+            ? new Date(editForm.endsAt).toISOString()
+            : null,
+          storeId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(apiErrorMessage(data.error, t, "common.error"));
+        return;
+      }
+      setEditingId(null);
+      setMsg(t("storeDetail.expenseUpdated") ?? "Расход обновлён");
+      await reload();
+      router.refresh();
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
+  const periodicityLabel = (p: PeriodicityKey) => {
+    switch (p) {
+      case "ONCE":
+        return t("storeDetail.periodOnce");
+      case "DAILY":
+        return t("storeDetail.periodDaily");
+      case "WEEKLY":
+        return t("storeDetail.periodWeekly");
+      case "MONTHLY":
+        return t("storeDetail.periodMonthly");
+    }
+  };
+
+  const editingRow = editingId ? rows.find((r) => r.id === editingId) : null;
 
   return (
     <div className="space-y-4">
@@ -1359,7 +1463,10 @@ function StoreExpensesPanel({
         <Button
           type="button"
           fullWidth={false}
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => {
+            setShowForm((v) => !v);
+            if (!showForm) cancelEdit();
+          }}
         >
           {showForm ? t("common.cancel") : t("storeDetail.addExpense")}
         </Button>
@@ -1398,7 +1505,8 @@ function StoreExpensesPanel({
 
       {showForm ? (
         <Card className="max-w-lg p-4">
-          <form onSubmit={onAdd} className="space-y-3">
+          <SectionTitle>{t("storeDetail.addExpense")}</SectionTitle>
+          <form onSubmit={onAdd} className="space-y-3 mt-3">
             <div>
               <FieldLabel>{t("storeDetail.type")}</FieldLabel>
               <select
@@ -1462,6 +1570,114 @@ function StoreExpensesPanel({
         </Card>
       ) : null}
 
+      {editingRow ? (
+        <Card className="max-w-lg p-4 border-brand/30 bg-brand-soft/10">
+          <SectionTitle>{t("storeDetail.editExpense") ?? "Редактировать расход"}</SectionTitle>
+          <form onSubmit={onEditSubmit} className="space-y-3 mt-3">
+            <div>
+              <FieldLabel>{t("storeDetail.type")}</FieldLabel>
+              <select
+                required
+                className="w-full"
+                value={editForm.expenseTypeId}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, expenseTypeId: e.target.value })
+                }
+              >
+                {expenseTypes.map((typeItem) => (
+                  <option key={typeItem.id} value={typeItem.id}>
+                    {typeItem.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <FieldLabel>{t("storeDetail.amount")}</FieldLabel>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                required
+                className="w-full"
+                value={editForm.amount}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, amount: e.target.value })
+                }
+              />
+            </div>
+            <div>
+              <FieldLabel>{t("storeDetail.periodicity")}</FieldLabel>
+              <select
+                className="w-full"
+                value={editForm.periodicity}
+                onChange={(e) =>
+                  setEditForm({
+                    ...editForm,
+                    periodicity: e.target.value as PeriodicityKey,
+                  })
+                }
+              >
+                <option value="ONCE">{t("storeDetail.periodOnce")}</option>
+                <option value="DAILY">{t("storeDetail.periodDaily")}</option>
+                <option value="WEEKLY">{t("storeDetail.periodWeekly")}</option>
+                <option value="MONTHLY">{t("storeDetail.periodMonthly")}</option>
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <FieldLabel>{t("storeDetail.startsAt")}</FieldLabel>
+                <input
+                  type="date"
+                  className="w-full"
+                  value={editForm.startsAt}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, startsAt: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <FieldLabel>{t("storeDetail.endsAt")}</FieldLabel>
+                <input
+                  type="date"
+                  className="w-full"
+                  value={editForm.endsAt}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, endsAt: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div>
+              <FieldLabel>{t("storeDetail.description")}</FieldLabel>
+              <input
+                className="w-full"
+                placeholder={t("storeDetail.forWhat")}
+                value={editForm.description}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, description: e.target.value })
+                }
+              />
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button
+                type="button"
+                variant="secondary"
+                fullWidth={false}
+                onClick={cancelEdit}
+                disabled={editLoading}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button type="submit" fullWidth={false} disabled={editLoading}>
+                {editLoading
+                  ? t("common.saving") ?? "Сохранение..."
+                  : t("storeDetail.saveChanges") ?? "Сохранить изменения"}
+              </Button>
+            </div>
+          </form>
+        </Card>
+      ) : null}
+
       <div className="flex flex-wrap gap-2">
         <input
           value={q}
@@ -1498,16 +1714,28 @@ function StoreExpensesPanel({
                   {t("storeDetail.amount")}
                 </th>
                 <th className="px-4 py-3 font-semibold">
+                  {t("storeDetail.periodicity")}
+                </th>
+                <th className="px-4 py-3 font-semibold">
                   {t("storeDetail.description")}
                 </th>
                 <th className="px-4 py-3 font-semibold">
                   {t("storeDetail.who")}
                 </th>
+                <th className="px-4 py-3 font-semibold text-right">
+                  {t("common.actions") ?? "Действия"}
+                </th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((r) => (
-                <tr key={r.id} className="border-b border-border last:border-0">
+                <tr
+                  key={r.id}
+                  className={cn(
+                    "border-b border-border last:border-0",
+                    editingId === r.id && "bg-brand-soft/20"
+                  )}
+                >
                   <td className="px-4 py-3 text-muted">
                     {formatDateTime(r.incurredAt)}
                   </td>
@@ -1516,9 +1744,25 @@ function StoreExpensesPanel({
                     {formatMoney(r.amount)}
                   </td>
                   <td className="px-4 py-3 text-muted">
+                    {periodicityLabel(r.periodicity)}
+                  </td>
+                  <td className="px-4 py-3 text-muted">
                     {formatExpenseDescription(r.description, t) || "—"}
                   </td>
                   <td className="px-4 py-3 text-muted">{r.actor}</td>
+                  <td className="px-4 py-3 text-right">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      fullWidth={false}
+                      onClick={() => startEdit(r)}
+                      disabled={!!editingId && editingId !== r.id}
+                      title={t("storeDetail.editExpense") ?? "Редактировать"}
+                    >
+                      <span aria-hidden>✏️</span>
+                    </Button>
+                  </td>
                 </tr>
               ))}
             </tbody>

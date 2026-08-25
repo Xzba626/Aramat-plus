@@ -468,3 +468,172 @@ export async function listExpenses(
     createdBy: r.createdBy.name,
   }));
 }
+
+export async function getExpenseById(
+  expenseId: string,
+  companyId: string
+): Promise<{
+  id: string;
+  amount: number;
+  description: string | null;
+  incurredAt: string;
+  periodicity: ExpensePeriodicity;
+  startsAt: string;
+  endsAt: string | null;
+  expenseTypeId: string;
+  expenseTypeName: string;
+  storeId: string | null;
+  storeName: string | null;
+  createdById: string;
+} | null> {
+  const row = await prisma.expense.findFirst({
+    where: {
+      id: expenseId,
+      OR: [
+        { store: { companyId } },
+        { createdBy: { companyId }, storeId: null },
+      ],
+    },
+    include: {
+      expenseType: { select: { id: true, name: true } },
+      store: { select: { id: true, name: true } },
+    },
+  });
+  if (!row) return null;
+  return {
+    id: row.id,
+    amount: decimalToNumber(row.amount),
+    description: row.description,
+    incurredAt: row.incurredAt.toISOString(),
+    periodicity: row.periodicity,
+    startsAt: row.startsAt.toISOString(),
+    endsAt: row.endsAt?.toISOString() ?? null,
+    expenseTypeId: row.expenseType.id,
+    expenseTypeName: row.expenseType.name,
+    storeId: row.store?.id ?? null,
+    storeName: row.store?.name ?? null,
+    createdById: row.createdById,
+  };
+}
+
+export async function updateExpense(
+  expenseId: string,
+  params: {
+    companyId: string;
+    updatedById: string;
+    expenseTypeId?: string;
+    amount?: number;
+    storeId?: string | null;
+    description?: string | null;
+    incurredAt?: Date;
+    periodicity?: ExpensePeriodicity;
+    startsAt?: Date;
+    endsAt?: Date | null;
+  }
+) {
+  const existing = await prisma.expense.findFirst({
+    where: {
+      id: expenseId,
+      OR: [
+        { store: { companyId: params.companyId } },
+        { createdBy: { companyId: params.companyId }, storeId: null },
+      ],
+    },
+    include: { expenseType: { select: { name: true } } },
+  });
+  if (!existing) throw new Error("NOT_FOUND");
+
+  if (params.amount !== undefined && params.amount <= 0) {
+    throw new Error("VALIDATION_ERROR");
+  }
+
+  if (params.expenseTypeId) {
+    const type = await prisma.expenseType.findFirst({
+      where: { id: params.expenseTypeId, companyId: params.companyId },
+    });
+    if (!type) throw new Error("NOT_FOUND");
+  }
+
+  const nextStoreId =
+    params.storeId !== undefined ? params.storeId : existing.storeId;
+  const nextPeriodicity = params.periodicity ?? existing.periodicity;
+  if (nextPeriodicity !== ExpensePeriodicity.ONCE && !nextStoreId) {
+    throw new Error("STORE_REQUIRED_FOR_RECURRING");
+  }
+  if (nextStoreId) {
+    const store = await prisma.store.findFirst({
+      where: { id: nextStoreId, companyId: params.companyId },
+    });
+    if (!store) throw new Error("STORE_NOT_FOUND");
+  }
+
+  const nextStartsAt = params.startsAt
+    ? startOfDay(params.startsAt)
+    : undefined;
+  const nextIncurredAt = params.incurredAt ?? nextStartsAt ?? undefined;
+
+  const row = await prisma.expense.update({
+    where: { id: existing.id },
+    data: {
+      ...(params.expenseTypeId ? { expenseTypeId: params.expenseTypeId } : {}),
+      ...(params.amount !== undefined
+        ? { amount: new Prisma.Decimal(params.amount) }
+        : {}),
+      ...(params.storeId !== undefined ? { storeId: params.storeId } : {}),
+      ...(params.description !== undefined
+        ? { description: params.description?.trim() || null }
+        : {}),
+      ...(nextIncurredAt ? { incurredAt: nextIncurredAt } : {}),
+      ...(params.periodicity ? { periodicity: params.periodicity } : {}),
+      ...(nextStartsAt ? { startsAt: nextStartsAt } : {}),
+      ...(params.endsAt !== undefined
+        ? { endsAt: params.endsAt ? endOfDay(params.endsAt) : null }
+        : {}),
+    },
+    include: {
+      expenseType: { select: { id: true, name: true } },
+      store: { select: { id: true, name: true } },
+    },
+  });
+
+  await logActivity({
+    userId: params.updatedById,
+    companyId: params.companyId,
+    action: "EXPENSE_UPDATE",
+    entityType: "Expense",
+    entityId: row.id,
+    comment: `${row.expenseType.name} · ${decimalToNumber(row.amount)} · ${row.periodicity}`,
+    metadata: {
+      prev: {
+        expenseTypeId: existing.expenseTypeId,
+        amount: decimalToNumber(existing.amount),
+        periodicity: existing.periodicity,
+        storeId: existing.storeId,
+        startsAt: existing.startsAt.toISOString(),
+        endsAt: existing.endsAt?.toISOString() ?? null,
+        description: existing.description,
+      },
+      next: {
+        expenseTypeId: row.expenseTypeId,
+        amount: decimalToNumber(row.amount),
+        periodicity: row.periodicity,
+        storeId: row.storeId,
+        startsAt: row.startsAt.toISOString(),
+        endsAt: row.endsAt?.toISOString() ?? null,
+        description: row.description,
+      },
+    },
+  });
+
+  return {
+    id: row.id,
+    amount: decimalToNumber(row.amount),
+    description: row.description,
+    incurredAt: row.incurredAt.toISOString(),
+    periodicity: row.periodicity,
+    startsAt: row.startsAt.toISOString(),
+    endsAt: row.endsAt?.toISOString() ?? null,
+    expenseType: row.expenseType,
+    store: row.store,
+  };
+}
