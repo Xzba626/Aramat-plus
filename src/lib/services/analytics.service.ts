@@ -3,6 +3,7 @@ import { decimalToNumber } from "@/lib/utils";
 import { sumAllocatedExpenses, listAllocatedExpenseItems } from "@/lib/services/expense.service";
 import {
   saleGrossMetricsNetOfReturnsSync,
+  saleNetPriceRatio,
   withNetProfit,
   type ReturnLineAdj,
 } from "@/lib/services/profit.service";
@@ -250,7 +251,9 @@ export async function getAnalyticsBreakdown(
       const qty =
         decimalToNumber(item.quantity) - (retQtyBySaleItem.get(item.id) ?? 0);
       if (qty <= 0) continue;
-      const lineRev = decimalToNumber(item.salePrice) * qty;
+      const netRatio = saleNetPriceRatio(sale);
+      const lineRev =
+        decimalToNumber(item.salePrice) * qty * netRatio;
       const lineCost = decimalToNumber(item.costPerUnit) * qty;
       const lineProfit = lineRev - lineCost;
 

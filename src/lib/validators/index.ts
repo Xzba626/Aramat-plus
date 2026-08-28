@@ -243,6 +243,7 @@ export const saleSchema = z.object({
   discountRequestId: z.string().min(1).optional(),
   reservationId: z.string().min(1).optional(),
   notes: optionalPlainText(500),
+  confirmBelowCost: z.boolean().optional(),
   items: z
     .array(
       z.object({

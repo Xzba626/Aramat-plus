@@ -245,11 +245,11 @@ async function main() {
 
   const analytics = await getAnalyticsBreakdown(company.id, "month");
   assert(analytics?.network, "analytics.network");
-  assert(Array.isArray(analytics.products), "analytics.products");
-  const productRow = analytics.products.find(
+  assert(Array.isArray(analytics.topSales), "analytics.topSales");
+  const productRow = analytics.topSales.find(
     (p: { name?: string }) => p.name === tag
   );
-  assert(productRow, "E2E product in analytics.products");
+  assert(productRow, "E2E product in analytics.topSales");
   assert(
     Math.abs(Number(productRow.sold) - 7) < 0.01,
     `analytics sold 7 got ${productRow.sold}`

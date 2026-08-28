@@ -1,6 +1,9 @@
 import { AccountingType, LocationType, Prisma, Role, StoreKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { deductBatchesFifo } from "@/lib/services/stock.service";
+import {
+  assertBatchStockCoversSale,
+  deductBatchesFifo,
+} from "@/lib/services/stock.service";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { decimalToNumber } from "@/lib/utils";
 import {
@@ -13,6 +16,8 @@ import {
   consumeApprovedDiscount,
   linkDiscountToSale,
 } from "@/lib/services/discount-request.service";
+import { assertSaleFinancialInvariants } from "@/lib/services/profit.service";
+import { assertDiscountWithinSubtotal, assertSaleRiskConfirmation, sumActualCogsFromLines } from "@/lib/services/discount-economics.service";
 import {
   createBottleSaleExpenseInTx,
   deductBottleFromStore,
@@ -55,6 +60,8 @@ export async function createSale(params: {
   reservationId?: string;
   /** Seller must use approved request — cannot pass raw discountAmount. */
   enforceApprovedDiscount?: boolean;
+  /** OWNER/ADMIN: explicit ack for below-COGS or zero-revenue direct sale. */
+  confirmBelowCost?: boolean;
 }) {
   if (!params.items.length) throw new Error("EMPTY_CART");
 
@@ -191,14 +198,22 @@ export async function createSale(params: {
         });
       }
 
+      const saleLines = params.items.map((i) => ({
+        productId: i.productId,
+        quantity: i.quantity,
+      }));
+
       await assertAvailableForSaleLines(tx, {
         locationType,
         locationId,
-        items: params.items.map((i) => ({
-          productId: i.productId,
-          quantity: i.quantity,
-        })),
+        items: saleLines,
         reservationId: params.reservationId,
+      });
+
+      await assertBatchStockCoversSale(tx, {
+        locationType,
+        locationId,
+        items: saleLines,
       });
 
       let subtotal = new Prisma.Decimal(0);
@@ -361,9 +376,33 @@ export async function createSale(params: {
         discountApprovedAt = new Date();
       }
 
-      if (discount.gt(subtotal)) {
-        throw new Error("DISCOUNT_EXCEEDS_TOTAL");
-      }
+      assertDiscountWithinSubtotal(
+        decimalToNumber(subtotal),
+        decimalToNumber(discount)
+      );
+
+      const actualCogs = sumActualCogsFromLines(
+        lineRows.map((r) => ({
+          costPerUnit: decimalToNumber(r.costPerUnit),
+          quantity: decimalToNumber(r.quantity),
+          packagingCostPerUnit: r.packagingCostPerUnit
+            ? decimalToNumber(r.packagingCostPerUnit)
+            : null,
+          packagingQuantity: r.packagingQuantity
+            ? decimalToNumber(r.packagingQuantity)
+            : null,
+        }))
+      );
+
+      assertSaleRiskConfirmation({
+        subtotal: decimalToNumber(subtotal),
+        discount: decimalToNumber(discount),
+        actualCogs,
+        requiresOwnerConfirmation:
+          !params.enforceApprovedDiscount && !params.discountRequestId,
+        confirmBelowCost: params.confirmBelowCost,
+        approvedDiscountRequest: Boolean(params.discountRequestId),
+      });
 
       if (!lineRows.length) {
         throw new Error("EMPTY_CART");
@@ -423,6 +462,14 @@ export async function createSale(params: {
       if (!sale.items.length) {
         throw new Error("EMPTY_CART");
       }
+
+      assertSaleFinancialInvariants({
+        id: sale.id,
+        subtotal: sale.subtotal,
+        discountAmount: sale.discountAmount,
+        total: sale.total,
+        items: sale.items,
+      });
 
       if (discountRequestId) {
         await linkDiscountToSale(tx, {

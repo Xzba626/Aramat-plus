@@ -142,6 +142,7 @@ export async function POST(req: Request) {
       notes: body.notes ?? undefined,
       reservationId: body.reservationId,
       enforceApprovedDiscount: !canApplyDirectDiscount(user.role),
+      confirmBelowCost: body.confirmBelowCost,
     });
 
     return jsonOk(stripFinanceForRole(user, sale), 201);

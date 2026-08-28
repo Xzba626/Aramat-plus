@@ -9,7 +9,21 @@ import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { sumAllocatedExpenses } from "@/lib/services/expense.service";
-import { withNetProfit } from "@/lib/services/profit.service";
+import {
+  COMPLETED_SALE_STATUSES,
+  classifyStoreProfitHealth,
+  detectSaleFinancialIssues,
+  loadApprovedReturnLines,
+  saleGrossMetricsNetOfReturnsSync,
+  saleNetPriceRatio,
+  withNetProfit,
+} from "@/lib/services/profit.service";
+import {
+  createdAtFilter,
+  parseStorePeriod,
+  storePeriodRange,
+  type StorePeriod,
+} from "@/lib/services/store-period.service";
 import {
   aggregatePaymentMethods,
   ensureKnownPaymentMethods,
@@ -64,37 +78,43 @@ export async function getStoreDetail(companyId: string, storeId: string) {
   const todayStart = startOfDay(now);
   const monthStart = startOfMonth(now);
 
+  const saleMetricsSelect = {
+    id: true,
+    total: true,
+    subtotal: true,
+    discountAmount: true,
+    items: {
+      select: {
+        costPerUnit: true,
+        quantity: true,
+        salePrice: true,
+        isGift: true,
+        containerSource: true,
+        packagingProductId: true,
+      },
+    },
+  } as const;
+
   const [salesToday, salesMonth, lastSale, lastRevision, staffLastLogin] =
     await Promise.all([
       prisma.sale.findMany({
         where: {
           storeId,
-          status: "COMPLETED",
+          status: { in: [...COMPLETED_SALE_STATUSES] },
           createdAt: { gte: todayStart },
         },
         select: {
-          total: true,
+          ...saleMetricsSelect,
           paymentMethod: true,
-          items: {
-            select: {
-              costPerUnit: true,
-              quantity: true,
-              containerSource: true,
-              packagingProductId: true,
-            },
-          },
         },
       }),
       prisma.sale.findMany({
         where: {
           storeId,
-          status: "COMPLETED",
+          status: { in: [...COMPLETED_SALE_STATUSES] },
           createdAt: { gte: monthStart },
         },
-        select: {
-          total: true,
-          items: { select: { costPerUnit: true, quantity: true } },
-        },
+        select: saleMetricsSelect,
       }),
       prisma.sale.findFirst({
         where: { storeId, status: "COMPLETED" },
@@ -113,32 +133,14 @@ export async function getStoreDetail(companyId: string, storeId: string) {
       }),
     ]);
 
-  const profitOf = (
-    rows: Array<{
-      total: { toNumber?: () => number } | number | string;
-      items: Array<{
-        costPerUnit: { toNumber?: () => number } | number | string;
-        quantity: { toNumber?: () => number } | number | string;
-      }>;
-    }>
-  ) => {
-    const revenue = rows.reduce((s, x) => s + decimalToNumber(x.total), 0);
-    const cost = rows.reduce(
-      (s, x) =>
-        s +
-        x.items.reduce(
-          (a, it) =>
-            a + decimalToNumber(it.costPerUnit) * decimalToNumber(it.quantity),
-          0
-        ),
-      0
-    );
-    return { revenue, profit: revenue - cost, count: rows.length };
-  };
+  const returnLines = await loadApprovedReturnLines([
+    ...salesToday.map((s) => s.id),
+    ...salesMonth.map((s) => s.id),
+  ]);
 
-  const today = profitOf(salesToday);
-  const month = profitOf(salesMonth);
-  const avgCheck = today.count > 0 ? today.revenue / today.count : 0;
+  const todayGross = saleGrossMetricsNetOfReturnsSync(salesToday, returnLines);
+  const monthGross = saleGrossMetricsNetOfReturnsSync(salesMonth, returnLines);
+  const avgCheck = todayGross.count > 0 ? todayGross.revenue / todayGross.count : 0;
 
   const paymentMethods = ensureKnownPaymentMethods(
     aggregatePaymentMethods(salesToday)
@@ -151,10 +153,7 @@ export async function getStoreDetail(companyId: string, storeId: string) {
     to: todayStart,
     storeId,
   });
-  const todayNet = withNetProfit(
-    { revenue: today.revenue, cogs: today.revenue - today.profit, grossProfit: today.profit },
-    expensesToday.total
-  );
+  const todayNet = withNetProfit(todayGross, expensesToday.total);
 
   let skuCount = 0;
   if (locationId) {
@@ -195,15 +194,16 @@ export async function getStoreDetail(companyId: string, storeId: string) {
       sellersCount,
       managersCount,
       skuCount,
-      todaySalesCount: today.count,
-      todayRevenue: today.revenue,
-      todayCogs: Math.round((today.revenue - today.profit) * 100) / 100,
-      todayGrossProfit: Math.round(today.profit * 100) / 100,
+      todaySalesCount: todayGross.count,
+      todayRevenue: todayGross.revenue,
+      todayCogs: todayGross.cogs,
+      todayGrossProfit: todayGross.grossProfit,
       todayExpenses: todayNet.expenses,
       todayNetProfit: todayNet.netProfit,
-      todayProfit: today.profit,
-      monthProfit: month.profit,
-      monthRevenue: month.revenue,
+      todayProfit: todayGross.grossProfit,
+      monthProfit: monthGross.grossProfit,
+      monthRevenue: monthGross.revenue,
+      monthCogs: monthGross.cogs,
       avgCheck: Math.round(avgCheck * 100) / 100,
       lastStaffLoginAt: staffLastLogin?.lastLoginAt ?? null,
       lastStaffLoginName: staffLastLogin?.name ?? null,
@@ -567,20 +567,32 @@ export async function getStoreSalesHistory(
   companyId: string,
   storeId: string,
   page = 1,
-  pageSize = 20
+  pageSize = 20,
+  period: StorePeriod = "all"
 ) {
   const store = await prisma.store.findFirst({ where: { id: storeId, companyId } });
   if (!store) throw new Error("STORE_NOT_FOUND");
 
-  const where = { storeId };
+  const range = storePeriodRange(period);
+  const where = { storeId, ...createdAtFilter(range) };
   const [total, rows] = await Promise.all([
     prisma.sale.count({ where }),
     prisma.sale.findMany({
       where,
       include: {
-        seller: { select: { id: true, name: true } },
+        seller: { select: { id: true, name: true, role: true } },
         items: {
-          include: { product: { select: { id: true, name: true } } },
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                sku: true,
+                accountingType: true,
+                unit: { select: { symbol: true } },
+              },
+            },
+          },
         },
       },
       orderBy: { createdAt: "desc" },
@@ -589,42 +601,101 @@ export async function getStoreSalesHistory(
     }),
   ]);
 
+  const saleIds = rows.map((s) => s.id);
+  const returnedByItem = new Map<string, number>();
+  if (saleIds.length) {
+    const retItems = await prisma.saleReturnItem.findMany({
+      where: {
+        return: { status: "APPROVED", saleId: { in: saleIds } },
+      },
+      select: { saleItemId: true, quantity: true },
+    });
+    for (const ri of retItems) {
+      const q = decimalToNumber(ri.quantity);
+      returnedByItem.set(
+        ri.saleItemId,
+        (returnedByItem.get(ri.saleItemId) ?? 0) + q
+      );
+    }
+  }
+
   return {
     total,
     page,
     pageSize,
     pages: Math.max(1, Math.ceil(total / pageSize)),
-    items: rows.map((s) => ({
-      id: s.id,
-      number: s.id.slice(-8).toUpperCase(),
-      createdAt: s.createdAt,
-      seller: s.seller,
-      discountAmount: decimalToNumber(s.discountAmount),
-      total: decimalToNumber(s.total),
-      paymentMethod: s.paymentMethod,
-      status: s.status,
-      items: s.items.map((it) => ({
-        productName: it.product.name,
-        quantity: decimalToNumber(it.quantity),
-        salePrice: decimalToNumber(it.salePrice),
-        isGift: it.isGift,
-        containerSource: it.containerSource,
-        packagingProductId: it.packagingProductId,
-      })),
-    })),
+    items: rows.map((s) => {
+      const netRatio = saleNetPriceRatio(s);
+      const subtotal = decimalToNumber(s.subtotal);
+      return {
+        id: s.id,
+        number: s.id.slice(-8).toUpperCase(),
+        createdAt: s.createdAt,
+        seller: s.seller,
+        subtotal,
+        discountAmount: decimalToNumber(s.discountAmount),
+        total: decimalToNumber(s.total),
+        paymentMethod: s.paymentMethod,
+        status: s.status,
+        items: s.items.map((it) => {
+          const qty = decimalToNumber(it.quantity);
+          const unitPrice = decimalToNumber(it.salePrice);
+          const unitCost = decimalToNumber(it.costPerUnit);
+          const grossAmount = Math.round(unitPrice * qty * 100) / 100;
+          const netAmount = Math.round(grossAmount * netRatio * 100) / 100;
+          const totalCost = Math.round(unitCost * qty * 100) / 100;
+          const returnedQty = returnedByItem.get(it.id) ?? 0;
+          const returnableQty = Math.max(0, qty - returnedQty);
+          const lineIssues = detectSaleFinancialIssues({
+            subtotal: s.subtotal,
+            discountAmount: s.discountAmount,
+            total: s.total,
+            items: [it],
+          });
+          return {
+            id: it.id,
+            productId: it.productId,
+            productName: it.product.name,
+            sku: it.product.sku,
+            quantity: qty,
+            returnedQty,
+            returnableQty,
+            unit: it.product.unit?.symbol ?? "",
+            accountingType: it.product.accountingType,
+            unitPrice,
+            grossAmount,
+            netAmount,
+            unitCost,
+            totalCost,
+            grossProfit: Math.round((netAmount - totalCost) * 100) / 100,
+            salePrice: unitPrice,
+            isGift: it.isGift,
+            containerSource: it.containerSource,
+            packagingProductId: it.packagingProductId,
+            financialIssues: lineIssues,
+          };
+        }),
+        financialIssues: detectSaleFinancialIssues(s),
+      };
+    }),
   };
 }
 
-export async function getStoreDiscountHistory(companyId: string, storeId: string) {
+export async function getStoreDiscountHistory(
+  companyId: string,
+  storeId: string,
+  period: StorePeriod = "all"
+) {
   const store = await prisma.store.findFirst({ where: { id: storeId, companyId } });
   if (!store) throw new Error("STORE_NOT_FOUND");
+
+  const range = storePeriodRange(period);
+  const dateFilter = createdAtFilter(range);
 
   const rows = await prisma.discountRequest.findMany({
     where: {
-      OR: [
-        { sale: { storeId } },
-        { requester: { storeId } },
-      ],
+      OR: [{ sale: { storeId } }, { requester: { storeId } }],
+      ...dateFilter,
     },
     include: {
       requester: { select: { id: true, name: true } },
@@ -634,55 +705,230 @@ export async function getStoreDiscountHistory(companyId: string, storeId: string
     take: 200,
   });
 
-  return rows.map((r) => ({
-    id: r.id,
-    createdAt: r.createdAt,
-    reviewedAt: r.reviewedAt,
-    requester: r.requester,
-    reviewer: r.reviewer,
-    reason: r.reason,
-    amount: decimalToNumber(r.amount),
-    percent: r.percent != null ? decimalToNumber(r.percent) : null,
-    status: r.status,
-    reviewNote: r.reviewNote,
-  }));
+  const requestRows = rows.map((r) => {
+    const original = decimalToNumber(r.originalAmount);
+    const discount = decimalToNumber(r.amount);
+    return {
+      id: r.id,
+      kind: "REQUEST" as const,
+      createdAt: r.createdAt,
+      reviewedAt: r.reviewedAt,
+      requester: r.requester,
+      reviewer: r.reviewer,
+      reason: r.reason,
+      originalAmount: original,
+      discountAmount: discount,
+      finalAmount: Math.round((original - discount) * 100) / 100,
+      percent: r.percent != null ? decimalToNumber(r.percent) : null,
+      status: r.status,
+      saleId: r.saleId,
+      reviewNote: r.reviewNote,
+    };
+  });
+
+  const directSales = await prisma.sale.findMany({
+    where: {
+      storeId,
+      status: { in: [...COMPLETED_SALE_STATUSES] },
+      discountAmount: { gt: 0 },
+      discountRequestId: null,
+      ...dateFilter,
+    },
+    include: {
+      seller: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+  });
+
+  const directRows = directSales.map((s) => {
+    const original = decimalToNumber(s.subtotal);
+    const discount = decimalToNumber(s.discountAmount);
+    return {
+      id: `direct-${s.id}`,
+      kind: "DIRECT" as const,
+      createdAt: s.createdAt,
+      reviewedAt: s.createdAt,
+      requester: s.seller,
+      reviewer: s.seller,
+      reason: null as string | null,
+      originalAmount: original,
+      discountAmount: discount,
+      finalAmount: decimalToNumber(s.total),
+      percent:
+        original > 0
+          ? Math.round((discount / original) * 10000) / 100
+          : null,
+      status: "APPLIED" as const,
+      saleId: s.id,
+      reviewNote: null as string | null,
+    };
+  });
+
+  return [...directRows, ...requestRows].sort(
+    (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+  );
 }
 
-export async function getStoreReturnHistory(companyId: string, storeId: string) {
+export async function getStoreReturnHistory(
+  companyId: string,
+  storeId: string,
+  period: StorePeriod = "all"
+) {
   const store = await prisma.store.findFirst({ where: { id: storeId, companyId } });
   if (!store) throw new Error("STORE_NOT_FOUND");
 
+  const range = storePeriodRange(period);
+
   const rows = await prisma.saleReturn.findMany({
-    where: { sale: { storeId } },
+    where: {
+      sale: { storeId },
+      ...createdAtFilter(range),
+    },
     include: {
       requester: { select: { id: true, name: true } },
       reviewer: { select: { id: true, name: true } },
-      sale: {
-        include: {
-          items: {
-            include: { product: { select: { name: true } } },
-            take: 5,
-          },
-        },
-      },
+      items: true,
+      sale: { select: { id: true, total: true } },
     },
     orderBy: { createdAt: "desc" },
     take: 200,
   });
 
-  return rows.map((r) => ({
-    id: r.id,
-    createdAt: r.createdAt,
-    reviewedAt: r.reviewedAt,
-    reason: r.reason,
-    status: r.status,
-    requester: r.requester,
-    reviewer: r.reviewer,
-    products: r.sale.items.map((it) => ({
-      name: it.product.name,
-      quantity: decimalToNumber(it.quantity),
-    })),
-  }));
+  const productIds = [
+    ...new Set(rows.flatMap((r) => r.items.map((it) => it.productId))),
+  ];
+  const products = await prisma.product.findMany({
+    where: { id: { in: productIds } },
+    select: { id: true, name: true, sku: true },
+  });
+  const productById = new Map(products.map((p) => [p.id, p]));
+
+  return rows.map((r) => {
+    const returnedRevenue = r.items.reduce(
+      (s, it) =>
+        s + decimalToNumber(it.salePrice) * decimalToNumber(it.quantity),
+      0
+    );
+    const returnedCogs = r.items.reduce(
+      (s, it) =>
+        s + decimalToNumber(it.costPerUnit) * decimalToNumber(it.quantity),
+      0
+    );
+    return {
+      id: r.id,
+      saleId: r.sale.id,
+      createdAt: r.createdAt,
+      reviewedAt: r.reviewedAt,
+      reason: r.reason,
+      status: r.status,
+      requester: r.requester,
+      reviewer: r.reviewer,
+      returnedRevenue: Math.round(returnedRevenue * 100) / 100,
+      returnedCogs: Math.round(returnedCogs * 100) / 100,
+      items: r.items.map((it) => {
+        const p = productById.get(it.productId);
+        return {
+          productName: p?.name ?? it.productId,
+          sku: p?.sku ?? null,
+          quantity: decimalToNumber(it.quantity),
+          salePrice: decimalToNumber(it.salePrice),
+          costPerUnit: decimalToNumber(it.costPerUnit),
+        };
+      }),
+    };
+  });
+}
+
+export async function getStoreFinanceBreakdown(
+  companyId: string,
+  storeId: string,
+  periodRaw?: string | null
+) {
+  const period = parseStorePeriod(periodRaw);
+  const store = await prisma.store.findFirst({ where: { id: storeId, companyId } });
+  if (!store) throw new Error("STORE_NOT_FOUND");
+
+  const range = storePeriodRange(period);
+  const saleMetricsSelect = {
+    id: true,
+    total: true,
+    subtotal: true,
+    discountAmount: true,
+    items: {
+      select: {
+        costPerUnit: true,
+        quantity: true,
+        salePrice: true,
+        isGift: true,
+        containerSource: true,
+        packagingProductId: true,
+      },
+    },
+  } as const;
+
+  const sales = await prisma.sale.findMany({
+    where: {
+      storeId,
+      status: { in: [...COMPLETED_SALE_STATUSES] },
+      ...createdAtFilter(range),
+    },
+    select: {
+      ...saleMetricsSelect,
+      paymentMethod: true,
+    },
+  });
+
+  const retLines = await loadApprovedReturnLines(sales.map((s) => s.id));
+  const gross = saleGrossMetricsNetOfReturnsSync(sales, retLines);
+
+  const expenseFrom = range?.from ?? new Date(0);
+  const expenseTo = range?.to ?? new Date();
+  const expensesBlock = await sumAllocatedExpenses({
+    companyId,
+    from: expenseFrom,
+    to: expenseTo,
+    storeId,
+  });
+  const net = withNetProfit(gross, expensesBlock.total);
+
+  const discountTotal = sales.reduce(
+    (s, sale) => s + decimalToNumber(sale.discountAmount),
+    0
+  );
+
+  const returnsCount = await prisma.saleReturn.count({
+    where: {
+      sale: { storeId },
+      status: "APPROVED",
+      ...createdAtFilter(range),
+    },
+  });
+
+  const { health, anomalies } = classifyStoreProfitHealth({
+    revenue: gross.revenue,
+    cogs: gross.cogs,
+    grossProfit: gross.grossProfit,
+    sales,
+  });
+
+  return {
+    period,
+    revenue: gross.revenue,
+    cogs: gross.cogs,
+    grossProfit: gross.grossProfit,
+    expenses: net.expenses,
+    netProfit: net.netProfit,
+    salesCount: gross.count,
+    returnsCount,
+    discountTotal: Math.round(discountTotal * 100) / 100,
+    profitHealth: health,
+    anomalies,
+    paymentMethods: ensureKnownPaymentMethods(
+      aggregatePaymentMethods(sales)
+    ),
+    containerSource: aggregateContainerSourceStats(sales),
+  };
 }
 
 export async function getStoreRevisions(

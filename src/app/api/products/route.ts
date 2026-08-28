@@ -17,6 +17,11 @@ import { BATCH_NOTE_MARKERS } from "@/lib/i18n/labels";
 import { allowActionRate } from "@/lib/security/action-rate-limit";
 import { stripFinanceForRole } from "@/lib/finance-visibility";
 import { stripExactStockForManager } from "@/lib/permissions/manager-response";
+import {
+  findRecentProductCreateByFingerprint,
+  findLogicalDuplicateProduct,
+  productCreateFingerprint,
+} from "@/lib/services/product-create.service";
 
 export async function GET(req: Request) {
   try {
@@ -99,6 +104,52 @@ export async function POST(req: Request) {
       return handleApiError(new Error("COST_REQUIRED_FOR_STOCK"));
     }
 
+    const idempotencyKey =
+      typeof data.idempotencyKey === "string" ? data.idempotencyKey : null;
+    const createFingerprint = productCreateFingerprint({
+      userId: user!.id,
+      name: body.name,
+      brandId: body.brandId,
+      categoryId: body.categoryId,
+      accountingType,
+      salePrice: body.salePrice,
+      sku,
+      idempotencyKey,
+    });
+
+    const deduped = await findRecentProductCreateByFingerprint({
+      companyId: user!.companyId,
+      userId: user!.id,
+      fingerprint: createFingerprint,
+    });
+    if (deduped) {
+      const full = await prisma.product.findUniqueOrThrow({
+        where: { id: deduped.id },
+        include: {
+          brand: true,
+          category: true,
+          unit: true,
+          productType: true,
+          batches: true,
+          stockBalances: true,
+        },
+      });
+      return jsonOk({ ...full, deduplicated: true }, 200);
+    }
+
+    const logicalDup = await findLogicalDuplicateProduct({
+      companyId: user!.companyId,
+      name: body.name,
+      brandId: body.brandId,
+      categoryId: body.categoryId,
+      accountingType,
+      unitId: unitId ?? "",
+      sku,
+    });
+    if (logicalDup) {
+      return Response.json({ error: "PRODUCT_DUPLICATE" }, { status: 409 });
+    }
+
     const product = await prisma.$transaction(async (tx) => {
       const created = await tx.product.create({
         data: {
@@ -143,6 +194,14 @@ export async function POST(req: Request) {
         entityType: "Product",
         entityId: created.id,
         comment: created.name,
+        metadata: {
+          createFingerprint,
+          sku: created.sku,
+          brandId: created.brandId,
+          categoryId: created.categoryId,
+          accountingType: created.accountingType,
+          initialQuantity: initialQty ?? 0,
+        },
       });
 
       return created;

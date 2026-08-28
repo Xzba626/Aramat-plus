@@ -10,7 +10,9 @@
 ## Prerequisites
 
 1. Node.js 20+
-2. Docker Desktop for Windows — install, start, wait until it is running
+2. **PostgreSQL 16+** — Docker **не обязателен**
+   - Если PostgreSQL уже установлен как служба `postgresql-x64-16` — используйте его
+   - Или Docker Desktop (опционально)
 3. Copy env:
 
 ```bash
@@ -32,6 +34,30 @@ Generate `AUTH_SECRET` (PowerShell):
 
 ## Daily workflow
 
+### Забыли пароль postgres?
+
+1. **PowerShell от имени администратора** (правый клик → «Запуск от имени администратора»)
+2. В папке проекта:
+
+```powershell
+cd D:\Aramat-plus
+.\scripts\reset-postgres-password.ps1 -NewPassword "aromat"
+```
+
+3. Обычный PowerShell — дальше как в «Daily workflow» выше (`db:setup-local`, migrate, seed, dev).
+
+Скрипт временно включает `trust` в `pg_hba.conf`, ставит новый пароль и возвращает настройки обратно.
+
+```powershell
+$env:PGPASSWORD = "пароль_который_задавали_при_установке_PostgreSQL"
+npm run db:setup-local
+npx prisma migrate deploy
+npm run db:seed
+npm run dev
+```
+
+### С Docker (опционально)
+
 ```bash
 npm run db:up
 npx prisma db push
@@ -40,7 +66,7 @@ npm run smoke:cycle
 npm run dev
 ```
 
-Stop DB:
+Stop DB (только Docker):
 
 ```bash
 npm run db:down

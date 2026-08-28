@@ -234,8 +234,12 @@ export default function PosCartPage() {
   async function submitDiscount(e: FormEvent) {
     e.preventDefault();
     const amount = Number(discountAmountInput) || 0;
-    if (!(amount > 0) || amount > subtotal) {
+    if (!(amount > 0)) {
       toast(t("pos.discountInvalid"));
+      return;
+    }
+    if (amount > subtotal + 1e-9) {
+      toast(t("pos.discountExceedsTotal"));
       return;
     }
     if (!discountNote.trim()) {

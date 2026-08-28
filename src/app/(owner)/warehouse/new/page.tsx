@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,11 @@ export default function NewProductPage() {
   const [brandName, setBrandName] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const idempotencyKeyRef = useRef(
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `pc-${Date.now()}`
+  );
 
   async function loadBrands() {
     const res = await fetch("/api/brands");
@@ -207,6 +212,7 @@ export default function NewProductPage() {
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     setError("");
     const fd = new FormData(e.currentTarget);
@@ -258,6 +264,7 @@ export default function NewProductPage() {
       imageUrl,
       salePrice: Number(salePrice),
       defaultCostPerUnit: cost ? Number(cost) : null,
+      idempotencyKey: idempotencyKeyRef.current,
       ...(qty > 0 ? { initialQuantity: qty } : {}),
     };
 

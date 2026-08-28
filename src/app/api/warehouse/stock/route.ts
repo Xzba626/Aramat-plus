@@ -80,6 +80,27 @@ export async function GET(req: Request) {
                 ? decimalToNumber(open.salePrice as never)
                 : decimalToNumber(item.product.salePrice as never);
             })(),
+            /** FIFO-front batch cost — owner POS below-cost warning only. */
+            costEstimate: (() => {
+              const batches = (
+                item as {
+                  batches?: Array<{
+                    costPerUnit?: unknown;
+                    quantity?: unknown;
+                  }>;
+                }
+              ).batches;
+              const open = (batches ?? []).find(
+                (b) => decimalToNumber(b.quantity as never) > 0
+              );
+              if (open?.costPerUnit != null) {
+                return decimalToNumber(open.costPerUnit as never);
+              }
+              const def = (
+                item.product as { defaultCostPerUnit?: unknown }
+              ).defaultCostPerUnit;
+              return def != null ? decimalToNumber(def as never) : 0;
+            })(),
           };
         }),
       })

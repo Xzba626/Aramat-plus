@@ -27,6 +27,13 @@ import {
 } from "@/components/dashboard/payment-container-breakdown";
 import { ProductThumb } from "@/components/products/product-thumb";
 import { InitialStoreStockModal } from "@/components/stores/initial-store-stock-modal";
+import {
+  StorePeriodFilter,
+  type StorePeriod,
+} from "@/components/stores/store-period-filter";
+import { storePeriodRange } from "@/lib/services/store-period.service";
+import { dateInputToIso, isoInLocalRange, isoToDateInput, todayDateInput } from "@/lib/dates/local-date";
+import { StoreSaleReturnModal } from "@/components/stores/store-sale-return-modal";
 
 type StoreDetail = {
   id: string;
@@ -115,6 +122,7 @@ const OWNER_TAB_KEYS = [
   { id: "sales", labelKey: "storeDetail.salesHistory" },
   { id: "discounts", labelKey: "storeDetail.discountsHistory" },
   { id: "returns", labelKey: "storeDetail.returnsHistory" },
+  { id: "expenses", labelKey: "storeDetail.expenses" },
   { id: "requests", labelKey: "storeDetail.requests" },
   { id: "settings", labelKey: "storeDetail.channelSettings" },
 ] as const;
@@ -149,6 +157,18 @@ export default function StoreDetailClient() {
   const search = useSearchParams();
   const router = useRouter();
   const tab = search.get("tab") || "overview";
+  const period = (search.get("period") || "today") as StorePeriod;
+  const setPeriod = (p: StorePeriod) => {
+    const sp = new URLSearchParams(search.toString());
+    sp.set("period", p);
+    router.replace(`?${sp.toString()}`, { scroll: false });
+  };
+  const tabHref = (tabId: string) => {
+    const sp = new URLSearchParams();
+    sp.set("tab", tabId);
+    sp.set("period", period);
+    return `/stores/${id}?${sp.toString()}`;
+  };
   const { t, formatMoney, formatDate, formatDateTime } = useI18n();
   const { data: session } = useSession();
   const isOwner = isOwnerClass(session?.user?.role);
@@ -215,7 +235,7 @@ export default function StoreDetailClient() {
           <button
             key={tabItem.id}
             type="button"
-            onClick={() => router.replace(`/stores/${id}?tab=${tabItem.id}`)}
+            onClick={() => router.replace(tabHref(tabItem.id))}
             className={cn(
               "shrink-0 rounded-full px-3.5 py-2 text-sm font-medium transition",
               tab === tabItem.id
@@ -228,8 +248,19 @@ export default function StoreDetailClient() {
         ))}
       </div>
 
+      <StorePeriodFilter period={period} onChange={setPeriod} className="mb-4" />
+
       {tab === "overview" ? (
-        <OverviewTab store={store} isOwnerDirect={!!isOwnerDirect} t={t} formatMoney={formatMoney} formatDate={formatDate} formatDateTime={formatDateTime} />
+        <OverviewTab
+          storeId={id}
+          store={store}
+          period={period}
+          isOwnerDirect={!!isOwnerDirect}
+          t={t}
+          formatMoney={formatMoney}
+          formatDate={formatDate}
+          formatDateTime={formatDateTime}
+        />
       ) : null}
       {tab === "stock" ? (
         <StockTab
@@ -252,16 +283,42 @@ export default function StoreDetailClient() {
           formatDateTime={formatDateTime}
         />
       ) : null}
-      {tab === "sales" ? <SalesTab storeId={id} t={t} formatMoney={formatMoney} formatDateTime={formatDateTime} /> : null}
-      {tab === "discounts" ? <DiscountsTab storeId={id} t={t} formatMoney={formatMoney} formatDateTime={formatDateTime} /> : null}
-      {tab === "returns" ? <ReturnsTab storeId={id} t={t} formatDateTime={formatDateTime} /> : null}
-      {tab === "revisions" && !isOwnerDirect ? <RevisionsTab storeId={id} t={t} formatDateTime={formatDateTime} /> : null}
-      {tab === "expenses" && !isOwnerDirect && store && isOwner ? (
-        <StoreExpensesPanel
-          storeId={store.id}
+      {tab === "sales" ? (
+        <SalesTab
+          storeId={id}
+          period={period}
+          isOwner={!!isOwner}
           t={t}
           formatMoney={formatMoney}
           formatDateTime={formatDateTime}
+        />
+      ) : null}
+      {tab === "discounts" ? (
+        <DiscountsTab
+          storeId={id}
+          period={period}
+          t={t}
+          formatMoney={formatMoney}
+          formatDateTime={formatDateTime}
+        />
+      ) : null}
+      {tab === "returns" ? (
+        <ReturnsTab
+          storeId={id}
+          period={period}
+          t={t}
+          formatMoney={formatMoney}
+          formatDateTime={formatDateTime}
+        />
+      ) : null}
+      {tab === "revisions" && !isOwnerDirect ? <RevisionsTab storeId={id} t={t} formatDateTime={formatDateTime} /> : null}
+      {tab === "expenses" && store && isOwner ? (
+        <StoreExpensesPanel
+          storeId={store.id}
+          period={period}
+          t={t}
+          formatMoney={formatMoney}
+          formatDate={formatDate}
         />
       ) : null}
       {tab === "requests" ? <RequestsTab storeId={id} t={t} formatDateTime={formatDateTime} /> : null}
@@ -283,14 +340,18 @@ export default function StoreDetailClient() {
 }
 
 function OverviewTab({
+  storeId,
   store,
+  period,
   isOwnerDirect,
   t,
   formatMoney,
   formatDate,
   formatDateTime,
 }: {
+  storeId: string;
   store: StoreDetail;
+  period: StorePeriod;
   isOwnerDirect: boolean;
   t: (key: string, params?: Record<string, string | number>) => string;
   formatMoney: (value: number | string, opts?: { short?: boolean }) => string;
@@ -298,11 +359,34 @@ function OverviewTab({
   formatDateTime: (date: Date | string | number) => string;
 }) {
   const o = store.overview;
-  const revenue = o.todayRevenue;
-  const gross = o.todayGrossProfit ?? o.todayProfit;
-  const cogs = o.todayCogs ?? Math.max(0, Math.round((revenue - gross) * 100) / 100);
-  const expenses = o.todayExpenses ?? 0;
-  const net = o.todayNetProfit ?? Math.round((gross - expenses) * 100) / 100;
+  const [fin, setFin] = useState<{
+    revenue: number;
+    cogs: number;
+    grossProfit: number;
+    expenses: number;
+    netProfit: number;
+    salesCount: number;
+    returnsCount: number;
+    discountTotal: number;
+    profitHealth: string;
+    anomalies: Array<{ saleId?: string; issues: string[] }>;
+    paymentMethods: StoreDetail["overview"]["paymentMethods"];
+    containerSource: StoreDetail["overview"]["containerSource"];
+  } | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch(`/api/stores/${storeId}/finance?period=${period}`);
+      const data = await res.json();
+      if (res.ok) setFin(data);
+    })();
+  }, [storeId, period]);
+
+  const revenue = fin?.revenue ?? o.todayRevenue;
+  const gross = fin?.grossProfit ?? o.todayGrossProfit ?? o.todayProfit;
+  const cogs = fin?.cogs ?? o.todayCogs ?? Math.max(0, Math.round((revenue - gross) * 100) / 100);
+  const expenses = fin?.expenses ?? o.todayExpenses ?? 0;
+  const net = fin?.netProfit ?? o.todayNetProfit ?? Math.round((gross - expenses) * 100) / 100;
 
   return (
     <div className="space-y-4">
@@ -313,11 +397,30 @@ function OverviewTab({
         </Card>
       ) : null}
 
+      {fin?.profitHealth === "DATA_INTEGRITY_ANOMALY" ? (
+        <Card className="border-danger/40 bg-danger/5 p-4">
+          <div className="text-sm font-semibold text-danger">
+            {t("storeDetail.profitAnomalyTitle")}
+          </div>
+          <p className="mt-1 text-sm text-muted">{t("storeDetail.profitAnomalyHint")}</p>
+          <ul className="mt-2 list-inside list-disc text-xs text-muted">
+            {(fin.anomalies ?? []).slice(0, 5).map((a, i) => (
+              <li key={i}>
+                {a.saleId ? `#${a.saleId.slice(-8)}` : "—"}: {a.issues.join(", ")}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : fin?.profitHealth === "VALID_NEGATIVE" ? (
+        <Card className="border-warning/40 bg-warning/5 p-4">
+          <p className="text-sm text-muted">{t("storeDetail.validNegativeProfitHint")}</p>
+        </Card>
+      ) : null}
+
       <div>
         <div className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
-          {t("dashboard.zoneToday")}
+          {t("storeDetail.financeForPeriod")}
         </div>
-        <p className="mb-3 text-sm text-muted">{t("dashboard.funnelSectionHint")}</p>
         <FinanceFunnel
           scope="store"
           revenue={revenue}
@@ -327,16 +430,23 @@ function OverviewTab({
           netProfit={net}
         />
         <PaymentMethodBreakdown
-          rows={o.paymentMethods ?? []}
+          rows={fin?.paymentMethods ?? o.paymentMethods ?? []}
           formatMoney={formatMoney}
           t={t}
         />
         <ContainerSourceBreakdown
-          salesCount={o.todaySalesCount}
-          storeBottles={o.containerSource?.storeBottles ?? 0}
-          customerBottles={o.containerSource?.customerBottles ?? 0}
+          salesCount={fin?.salesCount ?? o.todaySalesCount}
+          storeBottles={fin?.containerSource?.storeBottles ?? o.containerSource?.storeBottles ?? 0}
+          customerBottles={fin?.containerSource?.customerBottles ?? o.containerSource?.customerBottles ?? 0}
           t={t}
         />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label={t("storeDetail.statSalesPeriod")} value={String(fin?.salesCount ?? o.todaySalesCount)} />
+        <Stat label={t("storeDetail.statReturnsPeriod")} value={String(fin?.returnsCount ?? 0)} />
+        <Stat label={t("storeDetail.statDiscountsPeriod")} value={formatMoney(fin?.discountTotal ?? 0)} />
+        <Stat label={t("storeDetail.statNetProfit")} value={formatMoney(net)} accent={net >= 0} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -912,11 +1022,15 @@ function StaffTab({
 
 function SalesTab({
   storeId,
+  period,
+  isOwner,
   t,
   formatMoney,
   formatDateTime,
 }: {
   storeId: string;
+  period: StorePeriod;
+  isOwner: boolean;
   t: (key: string, params?: Record<string, string | number>) => string;
   formatMoney: (value: number | string, opts?: { short?: boolean }) => string;
   formatDateTime: (date: Date | string | number) => string;
@@ -937,9 +1051,17 @@ function SalesTab({
       total: number;
       paymentMethod: string;
       status: string;
+      financialIssues?: string[];
       items: Array<{
+        id: string;
         productName: string;
+        sku: string | null;
         quantity: number;
+        returnedQty: number;
+        returnableQty: number;
+        unit: string;
+        grossProfit?: number;
+        totalCost?: number;
         isGift: boolean;
         containerSource?: string | null;
       }>;
@@ -947,17 +1069,21 @@ function SalesTab({
   >([]);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
+  const [returnFor, setReturnFor] = useState<(typeof items)[0] | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     (async () => {
-      const res = await fetch(`/api/stores/${storeId}/sales?page=${page}`);
+      const res = await fetch(
+        `/api/stores/${storeId}/sales?page=${page}&period=${period}`
+      );
       const data = await res.json();
       if (res.ok) {
         setItems(Array.isArray(data.items) ? data.items : []);
         setPages(typeof data.pages === "number" ? data.pages : 1);
       }
     })();
-  }, [storeId, page]);
+  }, [storeId, page, period, reloadKey]);
 
   return (
     <div>
@@ -966,30 +1092,54 @@ function SalesTab({
         {items.length === 0 ? (
           <div className="py-8 text-center text-muted">{t("storeDetail.noSales")}</div>
         ) : (
-          items.map((s) => (
+          items.map((s) => {
+            const totalSold = s.items.reduce((n, it) => n + it.quantity, 0);
+            const totalReturned = s.items.reduce(
+              (n, it) => n + (it.returnedQty ?? 0),
+              0
+            );
+            const canReturn =
+              isOwner &&
+              s.items.some((it) => it.returnableQty > 0) &&
+              (s.status === "COMPLETED" || s.status === "PARTIAL_RETURN");
+            return (
             <div key={s.id} className="border-b border-border px-4 py-3 last:border-0">
               <div className="flex flex-wrap justify-between gap-2">
-                <div>
+                <div className="min-w-0 flex-1">
                   <div className="font-semibold text-ink">№ {s.number}</div>
                   <div className="text-xs text-muted">
                     {formatDateTime(s.createdAt)} · {s.seller.name} · {paymentLabel(s.paymentMethod)} ·{" "}
                     {labelSaleStatus(s.status, t)}
                   </div>
-                  <div className="mt-1 text-xs text-muted">
-                    {(Array.isArray(s.items) ? s.items : [])
-                      .map((it) => {
-                        const bottle =
-                          it.containerSource === "CUSTOMER_BOTTLE"
-                            ? ` (${t("pos.containerCustomerShort")})`
-                            : it.containerSource === "STORE_BOTTLE"
-                              ? ` (${t("pos.containerStoreShort")})`
-                              : "";
-                        return `${it.productName} ×${it.quantity}${
-                          it.isGift ? ` (${t("storeDetail.gift")})` : ""
-                        }${bottle}`;
-                      })
-                      .join(", ")}
+                  <div className="mt-1 space-y-0.5 text-xs text-muted">
+                    {(Array.isArray(s.items) ? s.items : []).map((it) => {
+                      const bottle =
+                        it.containerSource === "CUSTOMER_BOTTLE"
+                          ? ` (${t("pos.containerCustomerShort")})`
+                          : it.containerSource === "STORE_BOTTLE"
+                            ? ` (${t("pos.containerStoreShort")})`
+                            : "";
+                      return (
+                        <div key={it.id}>
+                          {it.productName}
+                          {it.sku ? ` · ${it.sku}` : ""} ×{it.quantity}
+                          {it.unit}
+                          {it.isGift ? ` (${t("storeDetail.gift")})` : ""}
+                          {bottle}
+                          {it.grossProfit != null ? (
+                            <span className="ml-1 text-ink">
+                              · {t("storeDetail.lineProfit")} {formatMoney(it.grossProfit)}
+                            </span>
+                          ) : null}
+                        </div>
+                      );
+                    })}
                   </div>
+                  {s.financialIssues?.length ? (
+                    <p className="mt-1 text-xs text-danger">
+                      {t("storeDetail.dataAnomaly")}: {s.financialIssues.join(", ")}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="text-right">
                   <div className="font-bold">{formatMoney(s.total)}</div>
@@ -998,12 +1148,39 @@ function SalesTab({
                       {t("storeDetail.discountAmount")} {formatMoney(s.discountAmount)}
                     </div>
                   ) : null}
+                  {canReturn ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      fullWidth={false}
+                      className="mt-2 text-xs"
+                      onClick={() => setReturnFor(s)}
+                    >
+                      {t("storeDetail.return")}
+                    </Button>
+                  ) : s.status === "RETURNED" ? (
+                    <p className="mt-2 text-xs font-medium text-muted">
+                      {t("storeDetail.saleFullyReturned")}
+                    </p>
+                  ) : s.status === "PARTIAL_RETURN" && totalReturned > 0 ? (
+                    <p className="mt-2 text-xs text-muted">
+                      {t("storeDetail.salePartiallyReturned")}: {totalReturned} / {totalSold}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </Card>
+      {returnFor ? (
+        <StoreSaleReturnModal
+          sale={returnFor}
+          onClose={() => setReturnFor(null)}
+          onDone={() => setReloadKey((k) => k + 1)}
+        />
+      ) : null}
       {pages > 1 ? (
         <div className="mt-3 flex gap-2">
           <Button
@@ -1032,11 +1209,13 @@ function SalesTab({
 
 function DiscountsTab({
   storeId,
+  period,
   t,
   formatMoney,
   formatDateTime,
 }: {
   storeId: string;
+  period: StorePeriod;
   t: (key: string, params?: Record<string, string | number>) => string;
   formatMoney: (value: number | string, opts?: { short?: boolean }) => string;
   formatDateTime: (date: Date | string | number) => string;
@@ -1044,23 +1223,30 @@ function DiscountsTab({
   const [items, setItems] = useState<
     Array<{
       id: string;
+      kind?: string;
       createdAt: string;
       reviewedAt: string | null;
       requester: { name: string };
       reason: string | null;
-      amount: number;
+      originalAmount: number;
+      discountAmount: number;
+      finalAmount: number;
+      percent: number | null;
       status: string;
+      saleId: string | null;
       reviewNote: string | null;
     }>
   >([]);
 
   useEffect(() => {
     (async () => {
-      const res = await fetch(`/api/stores/${storeId}/discounts`);
+      const res = await fetch(
+        `/api/stores/${storeId}/discounts?period=${period}`
+      );
       const data = await res.json();
       if (res.ok) setItems(Array.isArray(data) ? data : []);
     })();
-  }, [storeId]);
+  }, [storeId, period]);
 
   return (
     <Card className="overflow-hidden p-0">
@@ -1070,12 +1256,19 @@ function DiscountsTab({
         items.map((r) => (
           <div key={r.id} className="border-b border-border px-4 py-3 last:border-0">
             <div className="font-semibold text-ink">
-              {formatMoney(r.amount)} · {labelDecisionStatus(r.status, t)}
+              −{formatMoney(r.discountAmount)} · {labelDecisionStatus(r.status, t)}
+              {r.kind === "DIRECT" ? ` · ${t("storeDetail.directDiscount")}` : ""}
             </div>
             <div className="text-xs text-muted">
-              {formatDateTime(r.createdAt)} · {r.requester.name} · {r.reason ?? "—"}
+              {formatDateTime(r.createdAt)} · {r.requester.name}
+              {r.saleId ? ` · ${t("storeDetail.saleRef")} #${r.saleId.slice(-8).toUpperCase()}` : ""}
             </div>
-            {r.reviewedAt ? (
+            <div className="mt-1 text-xs text-muted">
+              {formatMoney(r.originalAmount)} → {formatMoney(r.finalAmount)}
+              {r.percent != null ? ` (${r.percent}%)` : ""}
+              {r.reason ? ` · ${r.reason}` : ""}
+            </div>
+            {r.reviewedAt && r.kind !== "DIRECT" ? (
               <div className="mt-1 text-xs text-muted">
                 {t("storeDetail.decision")}: {formatDateTime(r.reviewedAt)} · {r.reviewNote ?? "—"}
               </div>
@@ -1089,32 +1282,47 @@ function DiscountsTab({
 
 function ReturnsTab({
   storeId,
+  period,
   t,
+  formatMoney,
   formatDateTime,
 }: {
   storeId: string;
+  period: StorePeriod;
   t: (key: string, params?: Record<string, string | number>) => string;
+  formatMoney: (value: number | string, opts?: { short?: boolean }) => string;
   formatDateTime: (date: Date | string | number) => string;
 }) {
   const [items, setItems] = useState<
     Array<{
       id: string;
+      saleId: string;
       createdAt: string;
       reason: string | null;
       status: string;
       requester: { name: string };
       reviewer: { name: string } | null;
-      products: Array<{ name: string; quantity: number }>;
+      returnedRevenue?: number;
+      returnedCogs?: number;
+      items: Array<{
+        productName: string;
+        sku: string | null;
+        quantity: number;
+        salePrice: number;
+        costPerUnit: number;
+      }>;
     }>
   >([]);
 
   useEffect(() => {
     (async () => {
-      const res = await fetch(`/api/stores/${storeId}/returns`);
+      const res = await fetch(
+        `/api/stores/${storeId}/returns?period=${period}`
+      );
       const data = await res.json();
       if (res.ok) setItems(Array.isArray(data) ? data : []);
     })();
-  }, [storeId]);
+  }, [storeId, period]);
 
   return (
     <Card className="overflow-hidden p-0">
@@ -1123,16 +1331,26 @@ function ReturnsTab({
       ) : (
         items.map((r) => (
           <div key={r.id} className="border-b border-border px-4 py-3 last:border-0">
-            <div className="font-semibold text-ink">{labelDecisionStatus(r.status, t)}</div>
+            <div className="font-semibold text-ink">
+              {labelDecisionStatus(r.status, t)}
+              {r.returnedRevenue != null ? ` · ${formatMoney(r.returnedRevenue)}` : ""}
+            </div>
             <div className="text-xs text-muted">
               {formatDateTime(r.createdAt)} · {r.requester.name}
               {r.reviewer ? ` · ${t("storeDetail.confirmedBy")}: ${r.reviewer.name}` : ""}
+              {r.saleId ? ` · ${t("storeDetail.saleRef")} #${r.saleId.slice(-8).toUpperCase()}` : ""}
             </div>
-            <div className="mt-1 text-xs text-muted">
-              {r.reason ?? "—"} ·{" "}
-              {(Array.isArray(r.products) ? r.products : [])
-                .map((p) => `${p.name} ×${p.quantity}`)
-                .join(", ")}
+            <div className="mt-1 space-y-0.5 text-xs text-muted">
+              {r.reason ? <div>{r.reason}</div> : null}
+              {(Array.isArray(r.items) ? r.items : []).map((p, i) => (
+                <div key={i}>
+                  {p.productName}
+                  {p.sku ? ` · ${p.sku}` : ""} ×{p.quantity} · {formatMoney(p.salePrice)}
+                  {r.returnedCogs != null ? (
+                    <span> · COGS {formatMoney(p.costPerUnit * p.quantity)}</span>
+                  ) : null}
+                </div>
+              ))}
             </div>
           </div>
         ))
@@ -1233,14 +1451,16 @@ type EditFormState = {
 
 function StoreExpensesPanel({
   storeId,
+  period,
   t,
   formatMoney,
-  formatDateTime,
+  formatDate,
 }: {
   storeId: string;
+  period: StorePeriod;
   t: (key: string, params?: Record<string, string | number>) => string;
   formatMoney: (value: number | string, opts?: { short?: boolean }) => string;
-  formatDateTime: (date: Date | string | number) => string;
+  formatDate: (date: Date | string | number, opts?: Intl.DateTimeFormatOptions) => string;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<ExpenseRowFull[]>([]);
@@ -1313,13 +1533,15 @@ function StoreExpensesPanel({
   }, [reload]);
 
   const filtered = rows.filter((r) => {
+    const range = storePeriodRange(period);
+    const inPeriod = isoInLocalRange(r.startsAt, range);
     const matchQ =
       !q.trim() ||
       `${r.type} ${formatExpenseDescription(r.description, t)} ${r.actor}`
         .toLowerCase()
         .includes(q.toLowerCase());
     const matchT = typeFilter === "ALL" || r.typeId === typeFilter;
-    return matchQ && matchT;
+    return inPeriod && matchQ && matchT;
   });
   const total = filtered.reduce((s, r) => s + r.amount, 0);
 
@@ -1357,10 +1579,10 @@ function StoreExpensesPanel({
         description: String(fd.get("description") || "") || undefined,
         periodicity: String(fd.get("periodicity") || "ONCE"),
         startsAt: String(fd.get("startsAt") || "")
-          ? new Date(String(fd.get("startsAt"))).toISOString()
+          ? dateInputToIso(String(fd.get("startsAt")))
           : undefined,
         endsAt: String(fd.get("endsAt") || "")
-          ? new Date(String(fd.get("endsAt"))).toISOString()
+          ? dateInputToIso(String(fd.get("endsAt")))
           : null,
       }),
     });
@@ -1382,8 +1604,8 @@ function StoreExpensesPanel({
       expenseTypeId: row.typeId,
       amount: String(row.amount),
       periodicity: row.periodicity,
-      startsAt: row.startsAt.slice(0, 10),
-      endsAt: row.endsAt ? row.endsAt.slice(0, 10) : "",
+      startsAt: isoToDateInput(row.startsAt),
+      endsAt: row.endsAt ? isoToDateInput(row.endsAt) : "",
       description: row.description ?? "",
     });
     setMsg("");
@@ -1410,10 +1632,10 @@ function StoreExpensesPanel({
           description: editForm.description || undefined,
           periodicity: editForm.periodicity,
           startsAt: editForm.startsAt
-            ? new Date(editForm.startsAt).toISOString()
+            ? dateInputToIso(editForm.startsAt)
             : undefined,
           endsAt: editForm.endsAt
-            ? new Date(editForm.endsAt).toISOString()
+            ? dateInputToIso(editForm.endsAt)
             : null,
           storeId,
         }),
@@ -1424,8 +1646,20 @@ function StoreExpensesPanel({
         return;
       }
       setEditingId(null);
-      setMsg(t("storeDetail.expenseUpdated") ?? "Расход обновлён");
+      const editedStartsAt = editForm.startsAt
+        ? dateInputToIso(editForm.startsAt)
+        : null;
+      const range = storePeriodRange(period);
       await reload();
+      if (
+        editedStartsAt &&
+        range &&
+        !isoInLocalRange(editedStartsAt, range)
+      ) {
+        setMsg(t("storeDetail.expenseSavedOutsidePeriod"));
+      } else {
+        setMsg(t("storeDetail.expenseUpdated"));
+      }
       router.refresh();
     } finally {
       setEditLoading(false);
@@ -1549,7 +1783,7 @@ function StoreExpensesPanel({
                   name="startsAt"
                   type="date"
                   className="w-full"
-                  defaultValue={new Date().toISOString().slice(0, 10)}
+                  defaultValue={todayDateInput()}
                 />
               </div>
               <div>
@@ -1572,8 +1806,8 @@ function StoreExpensesPanel({
 
       {editingRow ? (
         <Card className="max-w-lg p-4 border-brand/30 bg-brand-soft/10">
-          <SectionTitle>{t("storeDetail.editExpense") ?? "Редактировать расход"}</SectionTitle>
-          <form onSubmit={onEditSubmit} className="space-y-3 mt-3">
+          <SectionTitle>{t("storeDetail.editExpense")}</SectionTitle>
+          <form key={editingId ?? "edit"} onSubmit={onEditSubmit} className="space-y-3 mt-3">
             <div>
               <FieldLabel>{t("storeDetail.type")}</FieldLabel>
               <select
@@ -1669,9 +1903,7 @@ function StoreExpensesPanel({
                 {t("common.cancel")}
               </Button>
               <Button type="submit" fullWidth={false} disabled={editLoading}>
-                {editLoading
-                  ? t("common.saving") ?? "Сохранение..."
-                  : t("storeDetail.saveChanges") ?? "Сохранить изменения"}
+                {editLoading ? t("common.saving") : t("storeDetail.saveChanges")}
               </Button>
             </div>
           </form>
@@ -1723,7 +1955,7 @@ function StoreExpensesPanel({
                   {t("storeDetail.who")}
                 </th>
                 <th className="px-4 py-3 font-semibold text-right">
-                  {t("common.actions") ?? "Действия"}
+                  {t("common.actions")}
                 </th>
               </tr>
             </thead>
@@ -1737,7 +1969,11 @@ function StoreExpensesPanel({
                   )}
                 >
                   <td className="px-4 py-3 text-muted">
-                    {formatDateTime(r.incurredAt)}
+                    {formatDate(r.startsAt, {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                    })}
                   </td>
                   <td className="px-4 py-3 font-semibold text-ink">{r.type}</td>
                   <td className="px-4 py-3 tabular-nums text-ink">
@@ -1758,7 +1994,7 @@ function StoreExpensesPanel({
                       fullWidth={false}
                       onClick={() => startEdit(r)}
                       disabled={!!editingId && editingId !== r.id}
-                      title={t("storeDetail.editExpense") ?? "Редактировать"}
+                      title={t("storeDetail.editExpense")}
                     >
                       <span aria-hidden>✏️</span>
                     </Button>

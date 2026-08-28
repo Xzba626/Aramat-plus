@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, FieldLabel } from "@/components/ui/card";
 import { cn, decimalToNumber } from "@/lib/utils";
+import { computeDiscountEconomics } from "@/lib/services/discount-economics.service";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { apiErrorMessage } from "@/lib/i18n/labels";
 import { useToast } from "@/components/ui/toast";
@@ -16,10 +17,12 @@ import { resolveProductImageUrl } from "@/lib/product-image";
 type CatalogItem = {
   productId: string;
   name: string;
+  sku: string;
   brand: string;
   category: string;
   unit: string;
   salePrice: number;
+  costEstimate?: number;
   quantity: number;
   accountingType: "PIECE" | "WEIGHT";
   imageUrl?: string | null;
@@ -38,6 +41,7 @@ type Line = {
   name: string;
   unit: string;
   salePrice: number;
+  costPerUnit: number;
   quantity: number;
   max: number;
   accountingType: "PIECE" | "WEIGHT";
@@ -84,6 +88,7 @@ export function OwnerDirectPosClient({
   const [discountAmount, setDiscountAmount] = useState(0);
   const [discountInput, setDiscountInput] = useState("");
   const [showDiscount, setShowDiscount] = useState(false);
+  const [showBelowCostConfirm, setShowBelowCostConfirm] = useState(false);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
   const [history, setHistory] = useState<
@@ -112,12 +117,14 @@ export function OwnerDirectPosClient({
     const items: CatalogItem[] = (data.items ?? []).map((b) => ({
       productId: b.productId,
       name: b.product.name,
+      sku: (b.product as { sku?: string | null }).sku?.trim() || b.productId.slice(-6).toUpperCase(),
       brand: b.product.brand?.name ?? "—",
       category: b.product.category?.name ?? "—",
       unit: b.product.unit?.symbol ?? "",
       salePrice:
         (b as { salePriceEstimate?: number }).salePriceEstimate ??
         decimalToNumber(b.product.salePrice as never),
+      costEstimate: (b as { costEstimate?: number }).costEstimate ?? 0,
       quantity: decimalToNumber(b.quantity as never),
       accountingType: b.product.accountingType === "WEIGHT" ? "WEIGHT" : "PIECE",
       imageUrl: resolveProductImageUrl(b.product),
@@ -168,6 +175,25 @@ export function OwnerDirectPosClient({
     return ["", ...Array.from(set)];
   }, [catalog]);
 
+  /** Disambiguate duplicate product names (e.g. two «харизма» cards). */
+  const posDisplayName = useMemo(() => {
+    const byName = new Map<string, CatalogItem[]>();
+    for (const p of catalog) {
+      const key = p.name.trim().toLowerCase();
+      const list = byName.get(key) ?? [];
+      list.push(p);
+      byName.set(key, list);
+    }
+    const out = new Map<string, string>();
+    for (const list of byName.values()) {
+      const dup = list.length > 1;
+      for (const p of list) {
+        out.set(p.productId, dup ? `${p.name} · ${p.sku}` : p.name);
+      }
+    }
+    return out;
+  }, [catalog]);
+
   const items = useMemo(() => {
     return catalog.filter((p) => {
       const matchCat = !category || p.category === category;
@@ -184,6 +210,28 @@ export function OwnerDirectPosClient({
     (s, l) => s + (l.quantity > 0 ? l.salePrice * l.quantity : 0),
     0
   );
+  const cartCogs = useMemo(
+    () =>
+      cart.reduce(
+        (s, l) => s + (l.quantity > 0 ? l.costPerUnit * l.quantity : 0),
+        0
+      ),
+    [cart]
+  );
+
+  const discountEconomics = useMemo(() => {
+    if (discountAmount <= 0 || total <= 0) return null;
+    try {
+      return computeDiscountEconomics({
+        subtotal: total,
+        discount: discountAmount,
+        cogs: cartCogs,
+      });
+    } catch {
+      return null;
+    }
+  }, [total, discountAmount, cartCogs]);
+
   const payable = Math.max(0, total - discountAmount);
 
   useEffect(() => {
@@ -202,7 +250,10 @@ export function OwnerDirectPosClient({
   );
 
   async function openWeightModal(p: CatalogItem) {
-    setWeightPick(p);
+    setWeightPick({
+      ...p,
+      name: posDisplayName.get(p.productId) ?? p.name,
+    });
     setWeightQty("10");
     setContainerSource("STORE_BOTTLE");
     setBottleId("");
@@ -239,9 +290,10 @@ export function OwnerDirectPosClient({
         ...prev,
         {
           productId: p.productId,
-          name: p.name,
+          name: posDisplayName.get(p.productId) ?? p.name,
           unit: p.unit,
           salePrice: p.salePrice,
+          costPerUnit: p.costEstimate ?? 0,
           quantity: 1,
           max: p.quantity,
           accountingType: "PIECE" as const,
@@ -274,6 +326,7 @@ export function OwnerDirectPosClient({
           name: weightPick.name,
           unit: weightPick.unit || t("units.ml"),
           salePrice: weightPick.salePrice,
+          costPerUnit: weightPick.costEstimate ?? 0,
           quantity: qty,
           max: weightPick.quantity,
           accountingType: "WEIGHT",
@@ -291,6 +344,7 @@ export function OwnerDirectPosClient({
           name: weightPick.name,
           unit: weightPick.unit || t("units.ml"),
           salePrice: weightPick.salePrice,
+          costPerUnit: weightPick.costEstimate ?? 0,
           quantity: qty,
           max: weightPick.quantity,
           accountingType: "WEIGHT",
@@ -391,9 +445,20 @@ export function OwnerDirectPosClient({
     };
   }, [cart, bottlesFetched, bottlesLoading, storeId]);
 
-  async function checkout() {
+  async function checkout(ackBelowCost = false) {
     const items = cart.filter((l) => l.quantity > 0);
     if (items.length === 0 || checkoutBusy) return;
+    if (discountAmount > total + 1e-9) {
+      setError(t("pos.discountExceedsTotal"));
+      return;
+    }
+    if (
+      discountEconomics?.belowCost &&
+      !ackBelowCost
+    ) {
+      setShowBelowCostConfirm(true);
+      return;
+    }
     if (
       items.some(
         (l) =>
@@ -416,6 +481,7 @@ export function OwnerDirectPosClient({
           storeId,
           paymentMethod: payment,
           ...(discountAmount > 0 ? { discountAmount } : {}),
+          ...(ackBelowCost ? { confirmBelowCost: true } : {}),
           items: items.map((l) => ({
             productId: l.productId,
             quantity: l.quantity,
@@ -464,6 +530,7 @@ export function OwnerDirectPosClient({
       setDiscountAmount(0);
       setDiscountInput("");
       setShowDiscount(false);
+      setShowBelowCostConfirm(false);
       setMsg(t("pos.saleDone"));
       toast(t("pos.saleDone"));
       await loadCatalog();
@@ -579,7 +646,7 @@ export function OwnerDirectPosClient({
                   onClick={() => onCardClick(p)}
                   product={{
                     id: p.productId,
-                    name: p.name,
+                    name: posDisplayName.get(p.productId) ?? p.name,
                     imageUrl: p.imageUrl,
                     brand: { name: p.brand },
                     category: { name: p.category },
@@ -790,6 +857,36 @@ export function OwnerDirectPosClient({
                           {formatMoney(payable)}
                         </span>
                       </div>
+                      {discountEconomics?.belowCost ? (
+                        <div className="rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
+                          <p className="font-semibold">
+                            {t("pos.discountBelowCostTitle")}
+                          </p>
+                          <p className="mt-1">{t("pos.discountBelowCostWarning")}</p>
+                          <dl className="mt-2 space-y-1 text-xs text-ink">
+                            <div className="flex justify-between gap-2">
+                              <dt>{t("pos.discountEconomicsSalePrice")}</dt>
+                              <dd>{formatMoney(discountEconomics.subtotal)}</dd>
+                            </div>
+                            <div className="flex justify-between gap-2">
+                              <dt>{t("pos.discountEconomicsDiscount")}</dt>
+                              <dd>−{formatMoney(discountEconomics.discount)}</dd>
+                            </div>
+                            <div className="flex justify-between gap-2">
+                              <dt>{t("pos.discountEconomicsFinal")}</dt>
+                              <dd>{formatMoney(discountEconomics.finalRevenue)}</dd>
+                            </div>
+                            <div className="flex justify-between gap-2">
+                              <dt>{t("pos.discountEconomicsCogs")}</dt>
+                              <dd>{formatMoney(discountEconomics.cogs)}</dd>
+                            </div>
+                            <div className="flex justify-between gap-2 font-semibold">
+                              <dt>{t("pos.discountEconomicsResult")}</dt>
+                              <dd>{formatMoney(discountEconomics.grossProfit)}</dd>
+                            </div>
+                          </dl>
+                        </div>
+                      ) : null}
                     </>
                   ) : (
                     <div className="flex items-center justify-between">
@@ -820,8 +917,12 @@ export function OwnerDirectPosClient({
                         className="flex-1"
                         onClick={() => {
                           const amount = Number(discountInput) || 0;
-                          if (!(amount > 0) || amount > total) {
+                          if (!(amount > 0)) {
                             toast(t("pos.discountInvalid"));
+                            return;
+                          }
+                          if (amount > total + 1e-9) {
+                            toast(t("pos.discountExceedsTotal"));
                             return;
                           }
                           setDiscountAmount(amount);
@@ -884,7 +985,7 @@ export function OwnerDirectPosClient({
                 )}
                 <Button
                   type="button"
-                  onClick={checkout}
+                  onClick={() => void checkout()}
                   disabled={
                     checkoutBusy ||
                     missingBottle ||
@@ -1037,6 +1138,45 @@ export function OwnerDirectPosClient({
             >
               {t("pos.addToCart")}
             </Button>
+          </Card>
+        </div>
+      ) : null}
+
+      {showBelowCostConfirm && discountEconomics?.belowCost ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+          <Card className="w-full max-w-md p-4">
+            <h3 className="text-lg font-bold text-danger">
+              {t("pos.discountBelowCostTitle")}
+            </h3>
+            <p className="mt-2 text-sm text-muted">
+              {t("pos.discountBelowCostWarning")}
+            </p>
+            <dl className="mt-3 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <dt>{t("pos.discountEconomicsFinal")}</dt>
+                <dd>{formatMoney(discountEconomics.finalRevenue)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt>{t("pos.discountEconomicsCogs")}</dt>
+                <dd>{formatMoney(discountEconomics.cogs)}</dd>
+              </div>
+              <div className="flex justify-between font-semibold text-danger">
+                <dt>{t("pos.discountEconomicsResult")}</dt>
+                <dd>{formatMoney(discountEconomics.grossProfit)}</dd>
+              </div>
+            </dl>
+            <div className="mt-4 flex gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setShowBelowCostConfirm(false)}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button type="button" onClick={() => checkout(true)}>
+                {t("pos.discountBelowCostConfirm")}
+              </Button>
+            </div>
           </Card>
         </div>
       ) : null}

@@ -80,7 +80,13 @@ async function main() {
     companyId: company.id,
     storeId: store.id,
     sellerId: seller.id,
-    items: [{ productId: product.id, quantity: 500 }],
+    items: [
+      {
+        productId: product.id,
+        quantity: 500,
+        containerSource: "CUSTOMER_BOTTLE",
+      },
+    ],
     paymentMethod: "CASH",
   });
 
@@ -132,15 +138,15 @@ async function main() {
   console.log("✓ Sale status PARTIAL_RETURN");
 
   const metrics = await saleGrossMetricsNetOfReturns([updated]);
-  // Original: rev 5000, cogs 2000, gross 3000
-  // Return 120: rev -1200, cogs -480 → rev 3800, cogs 1520, gross 2280
-  assert(Math.abs(metrics.revenue - 3800) < 0.5, `rev 3800 got ${metrics.revenue}`);
+  // 500 ml × batch salePrice 100 = 50000; COGS 500×4=2000
+  // Return 120 ml: rev -12000, cogs -480 → rev 38000, cogs 1520, gross 36480
+  assert(Math.abs(metrics.revenue - 38000) < 0.5, `rev 38000 got ${metrics.revenue}`);
   assert(Math.abs(metrics.cogs - 1520) < 0.5, `cogs 1520 got ${metrics.cogs}`);
   assert(
-    Math.abs(metrics.grossProfit - 2280) < 0.5,
-    `gross 2280 got ${metrics.grossProfit}`
+    Math.abs(metrics.grossProfit - 36480) < 0.5,
+    `gross 36480 got ${metrics.grossProfit}`
   );
-  console.log("✓ Profit net of partial return (gross 2280)");
+  console.log("✓ Profit net of partial return (gross 36480)");
 
   await prisma.saleReturnItem.deleteMany({ where: { returnId: ret.id } });
   await prisma.saleReturn.delete({ where: { id: ret.id } });

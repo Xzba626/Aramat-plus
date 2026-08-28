@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/services/activity-log.service";
 import { decimalToNumber } from "@/lib/utils";
 import { isPackagingExpenseRow } from "@/lib/packaging-expense";
+import {
+  calendarEndOfDay,
+  toCalendarStoredDate,
+} from "@/lib/dates/local-date";
 
 export type ExpensePeriodicityValue = ExpensePeriodicity;
 
@@ -324,8 +328,12 @@ export async function createExpense(params: {
   if (params.amount <= 0) throw new Error("VALIDATION_ERROR");
 
   const periodicity = params.periodicity ?? ExpensePeriodicity.ONCE;
-  const startsAt = startOfDay(params.startsAt ?? params.incurredAt ?? new Date());
-  const incurredAt = params.incurredAt ?? startsAt;
+  const startsAt = toCalendarStoredDate(
+    params.startsAt ?? params.incurredAt ?? new Date()
+  );
+  const incurredAt = params.incurredAt
+    ? toCalendarStoredDate(params.incurredAt)
+    : startsAt;
 
   const type = await prisma.expenseType.findFirst({
     where: { id: params.expenseTypeId, companyId: params.companyId },
@@ -391,7 +399,7 @@ export async function createExpense(params: {
           incurredAt,
           periodicity,
           startsAt,
-          endsAt: params.endsAt ? endOfDay(params.endsAt) : null,
+          endsAt: params.endsAt ? calendarEndOfDay(params.endsAt) : null,
         },
         include: {
           expenseType: { select: { id: true, name: true } },
@@ -568,9 +576,11 @@ export async function updateExpense(
   }
 
   const nextStartsAt = params.startsAt
-    ? startOfDay(params.startsAt)
+    ? toCalendarStoredDate(params.startsAt)
     : undefined;
-  const nextIncurredAt = params.incurredAt ?? nextStartsAt ?? undefined;
+  const nextIncurredAt = params.incurredAt
+    ? toCalendarStoredDate(params.incurredAt)
+    : nextStartsAt;
 
   const row = await prisma.expense.update({
     where: { id: existing.id },
@@ -587,7 +597,7 @@ export async function updateExpense(
       ...(params.periodicity ? { periodicity: params.periodicity } : {}),
       ...(nextStartsAt ? { startsAt: nextStartsAt } : {}),
       ...(params.endsAt !== undefined
-        ? { endsAt: params.endsAt ? endOfDay(params.endsAt) : null }
+        ? { endsAt: params.endsAt ? calendarEndOfDay(params.endsAt) : null }
         : {}),
     },
     include: {

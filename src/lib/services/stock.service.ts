@@ -48,6 +48,63 @@ export async function upsertStockBalance(
   });
 }
 
+/** Sum open batch qty at location (FIFO source of truth for deduct). */
+export async function sumOpenBatchQty(
+  tx: Tx,
+  params: {
+    productId: string;
+    locationType: LocationType;
+    locationId: string;
+  }
+): Promise<Prisma.Decimal> {
+  const rows = await tx.batch.findMany({
+    where: {
+      productId: params.productId,
+      locationType: params.locationType,
+      locationId: params.locationId,
+      quantity: { gt: 0 },
+    },
+    select: { quantity: true },
+  });
+  return rows.reduce(
+    (s, b) => s.add(b.quantity),
+    new Prisma.Decimal(0)
+  );
+}
+
+/**
+ * Ensure FIFO layers cover sale qty — blocks sale when StockBalance is stale
+ * but no Batch exists (e.g. product card without receipt).
+ */
+export async function assertBatchStockCoversSale(
+  tx: Tx,
+  params: {
+    locationType: LocationType;
+    locationId: string;
+    items: Array<{ productId: string; quantity: number }>;
+  }
+) {
+  const need = new Map<string, Prisma.Decimal>();
+  for (const line of params.items) {
+    if (!(line.quantity > 0)) continue;
+    const q = new Prisma.Decimal(line.quantity);
+    need.set(
+      line.productId,
+      (need.get(line.productId) ?? new Prisma.Decimal(0)).add(q)
+    );
+  }
+  for (const [productId, qty] of need) {
+    const open = await sumOpenBatchQty(tx, {
+      productId,
+      locationType: params.locationType,
+      locationId: params.locationId,
+    });
+    if (open.lt(qty)) {
+      throw new Error("INSUFFICIENT_BATCH_STOCK");
+    }
+  }
+}
+
 /** FIFO: deduct quantity from oldest batches at location. Returns consumed slices. */
 export async function deductBatchesFifo(
   tx: Tx,

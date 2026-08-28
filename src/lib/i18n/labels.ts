@@ -109,6 +109,7 @@ export const EXPENSE_PERIODICITY_KEYS: Record<string, string> = {
 export const SALE_STATUS_KEYS: Record<string, string> = {
   COMPLETED: "saleStatus.COMPLETED",
   RETURNED: "saleStatus.RETURNED",
+  PARTIAL_RETURN: "saleStatus.PARTIAL_RETURN",
   CANCELLED: "saleStatus.CANCELLED",
   PENDING: "saleStatus.PENDING",
 };

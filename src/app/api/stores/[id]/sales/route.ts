@@ -2,6 +2,7 @@ import { getSessionUser } from "@/lib/session";
 import { requireOwner, requireStoreAccess } from "@/lib/rbac";
 import { jsonOk, handleApiError } from "@/lib/api";
 import { getStoreSalesHistory } from "@/lib/services/stores-detail.service";
+import { parseStorePeriod } from "@/lib/services/store-period.service";
 import { stripFinanceForRole } from "@/lib/finance-visibility";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -19,7 +20,8 @@ export async function GET(req: Request, ctx: Ctx) {
       user!.companyId,
       id,
       Number(sp.get("page") || 1),
-      Number(sp.get("pageSize") || 20)
+      Number(sp.get("pageSize") || 20),
+      parseStorePeriod(sp.get("period"))
     );
     return jsonOk(stripFinanceForRole(user!, data));
   } catch (err) {

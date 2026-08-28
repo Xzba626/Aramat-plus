@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { LocationType, StoreKind } from "@prisma/client";
 import { decimalToNumber } from "@/lib/utils";
+import {
+  COMPLETED_SALE_STATUSES,
+  loadApprovedReturnLines,
+  saleGrossMetricsNetOfReturnsSync,
+} from "@/lib/services/profit.service";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -59,31 +64,39 @@ export async function listStoresForCompany(
 
   const storeIds = stores.map((s) => s.id);
 
+  const saleMetricsSelect = {
+    id: true,
+    storeId: true,
+    total: true,
+    subtotal: true,
+    discountAmount: true,
+    items: {
+      select: {
+        costPerUnit: true,
+        quantity: true,
+        salePrice: true,
+        isGift: true,
+      },
+    },
+  } as const;
+
   const [salesToday, salesMonth, lastSales, lastRevisions, pendingDisc, pendingRet] =
     await Promise.all([
       prisma.sale.findMany({
         where: {
           storeId: { in: storeIds },
-          status: "COMPLETED",
+          status: { in: [...COMPLETED_SALE_STATUSES] },
           createdAt: { gte: todayStart },
         },
-        select: {
-          storeId: true,
-          total: true,
-          items: { select: { costPerUnit: true, quantity: true } },
-        },
+        select: saleMetricsSelect,
       }),
       prisma.sale.findMany({
         where: {
           storeId: { in: storeIds },
-          status: "COMPLETED",
+          status: { in: [...COMPLETED_SALE_STATUSES] },
           createdAt: { gte: monthStart },
         },
-        select: {
-          storeId: true,
-          total: true,
-          items: { select: { costPerUnit: true, quantity: true } },
-        },
+        select: saleMetricsSelect,
       }),
       prisma.sale.groupBy({
         by: ["storeId"],
@@ -115,22 +128,20 @@ export async function listStoresForCompany(
     if (sid) pendingByStore.set(sid, (pendingByStore.get(sid) ?? 0) + 1);
   }
 
-  function aggSales(
-    rows: typeof salesToday,
-    storeId: string
-  ) {
+  const returnLines = await loadApprovedReturnLines([
+    ...salesToday.map((s) => s.id),
+    ...salesMonth.map((s) => s.id),
+  ]);
+
+  function aggSales(rows: typeof salesToday, storeId: string) {
     const list = rows.filter((s) => s.storeId === storeId);
-    const revenue = list.reduce((s, x) => s + decimalToNumber(x.total), 0);
-    const cost = list.reduce(
-      (s, x) =>
-        s +
-        x.items.reduce(
-          (a, it) => a + decimalToNumber(it.costPerUnit) * decimalToNumber(it.quantity),
-          0
-        ),
-      0
-    );
-    return { count: list.length, revenue, profit: revenue - cost };
+    const gross = saleGrossMetricsNetOfReturnsSync(list, returnLines);
+    return {
+      count: gross.count,
+      revenue: gross.revenue,
+      profit: gross.grossProfit,
+      cogs: gross.cogs,
+    };
   }
 
   const lastSaleMap = new Map(

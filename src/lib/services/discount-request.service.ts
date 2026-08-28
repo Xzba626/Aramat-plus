@@ -6,6 +6,7 @@ import {
   notifyUser,
 } from "@/lib/services/notification.service";
 import { decimalToNumber } from "@/lib/utils";
+import { assertDiscountWithinSubtotal } from "@/lib/services/discount-economics.service";
 import {
   cartCompositionMatchesSnapshot,
   cartMatchesSnapshot,
@@ -73,9 +74,7 @@ export async function createDiscountRequest(params: {
 
   if (!(params.originalAmount > 0)) throw new Error("VALIDATION_ERROR");
   if (!(params.amount > 0)) throw new Error("VALIDATION_ERROR");
-  if (params.amount > params.originalAmount + 1e-9) {
-    throw new Error("DISCOUNT_EXCEEDS_TOTAL");
-  }
+  assertDiscountWithinSubtotal(params.originalAmount, params.amount);
   if (!params.items.length) throw new Error("EMPTY_CART");
 
   const store = await prisma.store.findFirst({
@@ -323,9 +322,7 @@ export async function consumeApprovedDiscount(
 
   // Approved discount amount is fixed; apply against FIFO-based subtotal (may differ from estimate).
   const discountAmount = decimalToNumber(req.amount);
-  if (discountAmount > params.cartSubtotal + 1e-9) {
-    throw new Error("DISCOUNT_EXCEEDS_TOTAL");
-  }
+  assertDiscountWithinSubtotal(params.cartSubtotal, discountAmount);
 
   return {
     discountAmount,

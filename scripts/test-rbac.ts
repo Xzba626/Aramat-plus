@@ -123,7 +123,7 @@ async function main() {
   console.log("✓ requireOwner / requireOwnerOrManager / requireSeller status codes");
 
   assert(homePathForRole(Role.OWNER) === "/dashboard", "owner home");
-  assert(homePathForRole(Role.MANAGER) === "/dashboard", "manager home");
+  assert(homePathForRole(Role.MANAGER) === "/stores", "manager home (ops, not finance dashboard)");
   assert(homePathForRole(Role.SELLER) === "/pos", "seller home");
   console.log("✓ homePathForRole");
 
