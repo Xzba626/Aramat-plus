@@ -22,8 +22,46 @@ function endOfDay(d: Date) {
   return x;
 }
 
-function daysInMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+function daysInMonthOf(year: number, month0: number) {
+  return new Date(year, month0 + 1, 0).getDate();
+}
+
+/**
+ * The nominal cycle-start date for cycle offset `n` (months after `anchor`'s month), anchored to
+ * `anchor`'s day-of-month and clamped to the last day of a shorter target month — e.g. an anchor of
+ * the 31st lands on Feb 28/29, but March re-anchors to the 31st again (no permanent drift).
+ */
+function monthlyCycleAnchor(anchor: Date, n: number): Date {
+  const anchorDay = anchor.getDate();
+  const total = anchor.getMonth() + n;
+  const year = anchor.getFullYear() + Math.floor(total / 12);
+  const month0 = ((total % 12) + 12) % 12;
+  const day = Math.min(anchorDay, daysInMonthOf(year, month0));
+  return new Date(year, month0, day, 0, 0, 0, 0);
+}
+
+/** The MONTHLY billing cycle (anchored to `expense.startsAt`'s day-of-month) that `day` falls into. */
+export function monthlyCycleFor(
+  anchorStartsAt: Date,
+  day: Date
+): { cycleStart: Date; cycleLengthDays: number } {
+  const approxN =
+    (day.getFullYear() - anchorStartsAt.getFullYear()) * 12 +
+    (day.getMonth() - anchorStartsAt.getMonth());
+  let n = approxN;
+  let cur = monthlyCycleAnchor(anchorStartsAt, n);
+  while (cur.getTime() > day.getTime()) {
+    n -= 1;
+    cur = monthlyCycleAnchor(anchorStartsAt, n);
+  }
+  let next = monthlyCycleAnchor(anchorStartsAt, n + 1);
+  while (next.getTime() <= day.getTime()) {
+    n += 1;
+    cur = next;
+    next = monthlyCycleAnchor(anchorStartsAt, n + 1);
+  }
+  const cycleLengthDays = Math.round((next.getTime() - cur.getTime()) / 86400000);
+  return { cycleStart: cur, cycleLengthDays };
 }
 
 function sameCalendarDay(a: Date, b: Date) {
@@ -64,7 +102,7 @@ export function dailyShareForExpense(
     case ExpensePeriodicity.WEEKLY:
       return amount / 7;
     case ExpensePeriodicity.MONTHLY:
-      return amount / daysInMonth(dayStart);
+      return amount / monthlyCycleFor(expense.startsAt, dayStart).cycleLengthDays;
     default:
       return 0;
   }
@@ -555,6 +593,19 @@ export async function updateExpense(
     throw new Error("VALIDATION_ERROR");
   }
 
+  const supersededBy = await prisma.expense.findFirst({
+    where: { previousExpenseId: existing.id },
+    select: { id: true },
+  });
+  const touchesRateOrDates =
+    params.amount !== undefined ||
+    params.periodicity !== undefined ||
+    params.startsAt !== undefined ||
+    params.endsAt !== undefined;
+  if (supersededBy && touchesRateOrDates) {
+    throw new Error("EXPENSE_SUPERSEDED");
+  }
+
   if (params.expenseTypeId) {
     const type = await prisma.expenseType.findFirst({
       where: { id: params.expenseTypeId, companyId: params.companyId },
@@ -573,6 +624,114 @@ export async function updateExpense(
       where: { id: nextStoreId, companyId: params.companyId },
     });
     if (!store) throw new Error("STORE_NOT_FOUND");
+  }
+
+  const today = startOfDay(new Date());
+  const isMonthly = existing.periodicity === ExpensePeriodicity.MONTHLY;
+  // MONTHLY represents a sum for one billing cycle anchored to the expense's own startsAt
+  // day-of-month (not the calendar month), so its immutable-history boundary is the start of the
+  // cycle "today" falls into: a mid-cycle rate change re-prices the whole current cycle (already-
+  // viewed days included), while fully completed prior cycles stay frozen.
+  const currentCycleStart = isMonthly
+    ? monthlyCycleFor(existing.startsAt, today).cycleStart
+    : null;
+  const amountChanging =
+    params.amount !== undefined &&
+    !new Prisma.Decimal(params.amount).equals(existing.amount);
+  const periodicityChanging =
+    params.periodicity !== undefined &&
+    params.periodicity !== existing.periodicity;
+  const hasAccrued =
+    existing.periodicity !== ExpensePeriodicity.ONCE &&
+    (isMonthly
+      ? currentCycleStart!.getTime() > startOfDay(existing.startsAt).getTime()
+      : startOfDay(existing.startsAt) < today);
+  const needsSplit = hasAccrued && (amountChanging || periodicityChanging);
+
+  if (needsSplit) {
+    const effectiveFrom = isMonthly ? currentCycleStart! : today;
+    const closeDay = new Date(effectiveFrom.getTime() - 86400000);
+    if (existing.endsAt && startOfDay(existing.endsAt) < closeDay) {
+      throw new Error("VALIDATION_ERROR");
+    }
+
+    const newAmount =
+      params.amount !== undefined
+        ? new Prisma.Decimal(params.amount)
+        : existing.amount;
+    const newEndsAt =
+      params.endsAt !== undefined
+        ? params.endsAt
+          ? calendarEndOfDay(params.endsAt)
+          : null
+        : existing.endsAt;
+
+    const row = await prisma.$transaction(
+      async (tx) => {
+        await tx.expense.update({
+          where: { id: existing.id },
+          data: { endsAt: endOfDay(closeDay) },
+        });
+
+        return tx.expense.create({
+          data: {
+            expenseTypeId: params.expenseTypeId ?? existing.expenseTypeId,
+            amount: newAmount,
+            storeId: nextStoreId,
+            description:
+              params.description !== undefined
+                ? params.description?.trim() || null
+                : existing.description,
+            createdById: params.updatedById,
+            incurredAt: effectiveFrom,
+            periodicity: nextPeriodicity,
+            startsAt: effectiveFrom,
+            endsAt: newEndsAt,
+            previousExpenseId: existing.id,
+          },
+          include: {
+            expenseType: { select: { id: true, name: true } },
+            store: { select: { id: true, name: true } },
+          },
+        });
+      },
+      { timeout: 20000 }
+    );
+
+    await logActivity({
+      userId: params.updatedById,
+      companyId: params.companyId,
+      action: "EXPENSE_RATE_CHANGE",
+      entityType: "Expense",
+      entityId: row.id,
+      comment: `${row.expenseType.name} · ${decimalToNumber(row.amount)} · ${row.periodicity}`,
+      metadata: {
+        closedExpenseId: existing.id,
+        newExpenseId: row.id,
+        effectiveFrom: effectiveFrom.toISOString(),
+        prev: {
+          amount: decimalToNumber(existing.amount),
+          periodicity: existing.periodicity,
+        },
+        next: {
+          amount: decimalToNumber(row.amount),
+          periodicity: row.periodicity,
+        },
+      },
+    });
+
+    return {
+      id: row.id,
+      amount: decimalToNumber(row.amount),
+      description: row.description,
+      incurredAt: row.incurredAt.toISOString(),
+      periodicity: row.periodicity,
+      startsAt: row.startsAt.toISOString(),
+      endsAt: row.endsAt?.toISOString() ?? null,
+      expenseType: row.expenseType,
+      store: row.store,
+      previousExpenseId: existing.id,
+    };
   }
 
   const nextStartsAt = params.startsAt

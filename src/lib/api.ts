@@ -80,6 +80,7 @@ export function handleApiError(err: unknown) {
       "DISCOUNT_REQUIRES_APPROVAL",
       "DISCOUNT_WRONG_STORE",
       "EMPTY_CART",
+      "EXPENSE_SUPERSEDED",
       "FILE_REQUIRED",
       "FILE_TOO_LARGE",
       "FORBIDDEN",

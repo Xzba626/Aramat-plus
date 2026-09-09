@@ -1468,6 +1468,8 @@ function StoreExpensesPanel({
     Array<{ id: string; name: string }>
   >([]);
   const [showForm, setShowForm] = useState(false);
+  const [newIndefinite, setNewIndefinite] = useState(false);
+  const [editIndefinite, setEditIndefinite] = useState(false);
   const [newTypeName, setNewTypeName] = useState("");
   const [q, setQ] = useState("");
   const [typeFilter, setTypeFilter] = useState("ALL");
@@ -1567,7 +1569,8 @@ function StoreExpensesPanel({
 
   async function onAdd(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     setError("");
     const res = await fetch("/api/expenses", {
       method: "POST",
@@ -1581,9 +1584,10 @@ function StoreExpensesPanel({
         startsAt: String(fd.get("startsAt") || "")
           ? dateInputToIso(String(fd.get("startsAt")))
           : undefined,
-        endsAt: String(fd.get("endsAt") || "")
-          ? dateInputToIso(String(fd.get("endsAt")))
-          : null,
+        endsAt:
+          !newIndefinite && String(fd.get("endsAt") || "")
+            ? dateInputToIso(String(fd.get("endsAt")))
+            : null,
       }),
     });
     const data = await res.json();
@@ -1592,8 +1596,9 @@ function StoreExpensesPanel({
       return;
     }
     setShowForm(false);
+    setNewIndefinite(false);
     setMsg(t("storeDetail.expenseAdded"));
-    e.currentTarget.reset();
+    form.reset();
     await reload();
     router.refresh();
   }
@@ -1608,6 +1613,7 @@ function StoreExpensesPanel({
       endsAt: row.endsAt ? isoToDateInput(row.endsAt) : "",
       description: row.description ?? "",
     });
+    setEditIndefinite(!row.endsAt);
     setMsg("");
     setError("");
   }
@@ -1634,9 +1640,10 @@ function StoreExpensesPanel({
           startsAt: editForm.startsAt
             ? dateInputToIso(editForm.startsAt)
             : undefined,
-          endsAt: editForm.endsAt
-            ? dateInputToIso(editForm.endsAt)
-            : null,
+          endsAt:
+            !editIndefinite && editForm.endsAt
+              ? dateInputToIso(editForm.endsAt)
+              : null,
           storeId,
         }),
       });
@@ -1660,6 +1667,31 @@ function StoreExpensesPanel({
       } else {
         setMsg(t("storeDetail.expenseUpdated"));
       }
+      router.refresh();
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
+  async function stopToday() {
+    if (!editingId) return;
+    setEditLoading(true);
+    setError("");
+    setMsg("");
+    try {
+      const res = await fetch(`/api/expenses/${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endsAt: dateInputToIso(todayDateInput()) }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(apiErrorMessage(data.error, t, "common.error"));
+        return;
+      }
+      setEditingId(null);
+      await reload();
+      setMsg(t("storeDetail.expenseUpdated"));
       router.refresh();
     } finally {
       setEditLoading(false);
@@ -1788,8 +1820,33 @@ function StoreExpensesPanel({
               </div>
               <div>
                 <FieldLabel>{t("storeDetail.endsAt")}</FieldLabel>
-                <input name="endsAt" type="date" className="w-full" />
+                <input
+                  name="endsAt"
+                  type="date"
+                  className="w-full"
+                  disabled={newIndefinite}
+                />
               </div>
+            </div>
+            <div className="flex gap-4 text-sm text-ink">
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="endsAtMode"
+                  checked={!newIndefinite}
+                  onChange={() => setNewIndefinite(false)}
+                />
+                {t("storeDetail.endDateOption")}
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="endsAtMode"
+                  checked={newIndefinite}
+                  onChange={() => setNewIndefinite(true)}
+                />
+                {t("storeDetail.indefiniteOption")}
+              </label>
             </div>
             <div>
               <FieldLabel>{t("storeDetail.description")}</FieldLabel>
@@ -1875,11 +1932,32 @@ function StoreExpensesPanel({
                   type="date"
                   className="w-full"
                   value={editForm.endsAt}
+                  disabled={editIndefinite}
                   onChange={(e) =>
                     setEditForm({ ...editForm, endsAt: e.target.value })
                   }
                 />
               </div>
+            </div>
+            <div className="flex gap-4 text-sm text-ink">
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="editEndsAtMode"
+                  checked={!editIndefinite}
+                  onChange={() => setEditIndefinite(false)}
+                />
+                {t("storeDetail.endDateOption")}
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="editEndsAtMode"
+                  checked={editIndefinite}
+                  onChange={() => setEditIndefinite(true)}
+                />
+                {t("storeDetail.indefiniteOption")}
+              </label>
             </div>
             <div>
               <FieldLabel>{t("storeDetail.description")}</FieldLabel>
@@ -1902,6 +1980,17 @@ function StoreExpensesPanel({
               >
                 {t("common.cancel")}
               </Button>
+              {editForm.periodicity !== "ONCE" && editIndefinite ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  fullWidth={false}
+                  onClick={stopToday}
+                  disabled={editLoading}
+                >
+                  {t("storeDetail.stopToday")}
+                </Button>
+              ) : null}
               <Button type="submit" fullWidth={false} disabled={editLoading}>
                 {editLoading ? t("common.saving") : t("storeDetail.saveChanges")}
               </Button>
@@ -1981,6 +2070,14 @@ function StoreExpensesPanel({
                   </td>
                   <td className="px-4 py-3 text-muted">
                     {periodicityLabel(r.periodicity)}
+                    {r.periodicity !== "ONCE" && !r.endsAt ? (
+                      <span
+                        className="ml-1 text-brand"
+                        title={t("storeDetail.indefiniteBadge")}
+                      >
+                        ∞
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3 text-muted">
                     {formatExpenseDescription(r.description, t) || "—"}

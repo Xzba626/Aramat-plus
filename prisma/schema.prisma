@@ -913,10 +913,14 @@ model Expense {
   /** Inclusive end; null = open-ended recurring. */
   endsAt        DateTime?
   createdAt     DateTime           @default(now())
+  /** Set when this row was created as a rate-change split of an earlier version (history stays immutable). */
+  previousExpenseId String? @unique
 
-  store       Store?      @relation(fields: [storeId], references: [id])
-  expenseType ExpenseType @relation(fields: [expenseTypeId], references: [id])
-  createdBy   User        @relation(fields: [createdById], references: [id])
+  store           Store?      @relation(fields: [storeId], references: [id])
+  expenseType     ExpenseType @relation(fields: [expenseTypeId], references: [id])
+  createdBy       User        @relation(fields: [createdById], references: [id])
+  previousExpense Expense?    @relation("ExpenseRateHistory", fields: [previousExpenseId], references: [id])
+  nextVersion     Expense?    @relation("ExpenseRateHistory")
 
   @@index([storeId, incurredAt])
   @@index([storeId, startsAt, endsAt])
